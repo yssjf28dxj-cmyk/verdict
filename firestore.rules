@@ -2,20 +2,9 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    // ─── HELPERS ────────────────────────────────────────────
     function isSignedIn() {
       return request.auth != null;
-    }
-
-    function isDebateFighter(debate) {
-      return isSignedIn()
-        && (request.auth.uid == debate.data.fighter1
-          || request.auth.uid == debate.data.fighter2);
-    }
-
-    function isDebateViewer(debate) {
-      return isSignedIn()
-        && request.auth.uid != debate.data.fighter1
-        && request.auth.uid != debate.data.fighter2;
     }
 
     function isDebateParticipantByData(data) {
@@ -39,6 +28,15 @@ service cloud.firestore {
         || isDebateParticipantByData(data);
     }
 
+    function onlyChangedKeys(allowedKeys) {
+      return request.resource.data.diff(resource.data).changedKeys().hasOnly(allowedKeys);
+    }
+
+    function onlyFields(allowedKeys) {
+      return request.resource.data.keys().hasOnly(allowedKeys);
+    }
+
+    // ─── VALIDATION HELPERS ─────────────────────────────────
     function validCreationMode(mode) {
       return mode == 'public_feed' || mode == 'direct_invite';
     }
@@ -63,13 +61,71 @@ service cloud.firestore {
       return v == 30 || v == 60 || v == 90 || v == 120 || v == 180 || v == 300 || v == 420 || v == 600;
     }
 
-    function canCreateDebateClient() {
-      return isSignedIn()
+    // ─── USERS ──────────────────────────────────────────────
+    match /users/{uid} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['name', 'email', 'createdAt', 'avatarUrl', 'displayName'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() <= 50;
+
+      allow update: if isSignedIn()
+        && request.auth.uid == uid
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['rank', 'isBanned', 'createdAt'])
+        && request.resource.data.keys().hasOnly(['name', 'email', 'createdAt', 'avatarUrl', 'displayName', 'rank', 'isBanned', 'settings', 'lastSeen', 'stats']);
+
+      allow delete: if false;
+    }
+
+    // ─── LOBBIES (strict field control) ─────────────────────
+    match /lobbies/{lobbyId} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && request.resource.data.creatorId == request.auth.uid;
+
+      // Only allowed fields can change, per role
+      allow update: if isSignedIn()
+        && (
+          // Creator can update lobby settings
+          (request.auth.uid == resource.data.creatorId
+            && onlyChangedKeys(['status', 'opponentId', 'opponentName', 'debateId',
+              'creatorReady', 'opponentReady', 'creatorDuration', 'opponentDuration',
+              'creatorRounds', 'opponentRounds', 'settings']))
+          ||
+          // Opponent can set their fields
+          (request.auth.uid == resource.data.opponentId
+            && onlyChangedKeys(['opponentReady', 'opponentDuration', 'opponentRounds',
+              'opponentName', 'status']))
+        );
+
+      allow delete: if false;
+    }
+
+    // ─── WORLD MESSAGES (read only, write via Cloud Function) ───
+    match /world_messages/{messageId} {
+      allow read: if isSignedIn();
+      // All writes go through sendWorldMessage Cloud Function
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ─── DEBATES ────────────────────────────────────────────
+    match /debates/{debateId} {
+      allow get: if canReadDebateByData(resource.data);
+      allow list: if isSignedIn();
+
+      // Strict client-side creation with full schema validation
+      allow create: if isSignedIn()
         && request.resource.data.creatorId == request.auth.uid
         && request.resource.data.fighter1 == request.auth.uid
         && request.resource.data.status == 'waiting'
         && request.resource.data.topic is string
         && request.resource.data.topic.size() >= 3
+        && request.resource.data.topic.size() <= 200
         && request.resource.data.durationSeconds is int
         && request.resource.data.roundDurationSeconds is int
         && validDuration(request.resource.data.durationSeconds)
@@ -89,142 +145,101 @@ service cloud.firestore {
         && request.resource.data.accessApprovedUserIds.hasAny([request.auth.uid])
         && (request.resource.data.creationMode != 'direct_invite'
           || (request.resource.data.invitedUserId is string && request.resource.data.invitedUserId.size() > 0));
-    }
 
-    function canAcceptInviteClient() {
-      return isSignedIn()
-        && resource.data.status == 'waiting'
-        && request.auth.uid == resource.data.invitedUserId
-        && onlyChangedKeys([
-          'fighter2',
-          'fighter2Name',
-          'status',
-          'isRoundActive',
-          'activeSpeakerId',
-          'roundEndsAt',
-          'acceptedAt',
-          'accessApprovedUserIds',
-          'accessRequests',
-          'roundIndex',
-          'currentRound'
-        ])
-        && request.resource.data.fighter2 == request.auth.uid
-        && request.resource.data.status == 'active'
-        && request.resource.data.isRoundActive == true
-        && request.resource.data.accessApprovedUserIds is list
-        && (!('accessApprovedUserIds' in resource.data)
-          || request.resource.data.accessApprovedUserIds.hasAll(resource.data.accessApprovedUserIds))
-        && request.resource.data.accessApprovedUserIds.hasAny([request.auth.uid])
-        && request.resource.data.accessRequests is list
-        && request.resource.data.fighter1 == resource.data.fighter1
-        && request.resource.data.creatorId == resource.data.creatorId
-        && request.resource.data.creationMode == resource.data.creationMode
-        && request.resource.data.visibilityMode == resource.data.visibilityMode;
-    }
+      // Only specific update patterns allowed
+      allow update: if
+        // Accept invite
+        (isSignedIn()
+          && resource.data.status == 'waiting'
+          && request.auth.uid == resource.data.invitedUserId
+          && onlyChangedKeys(['fighter2', 'fighter2Name', 'status', 'isRoundActive',
+            'activeSpeakerId', 'roundEndsAt', 'acceptedAt',
+            'accessApprovedUserIds', 'accessRequests', 'roundIndex', 'currentRound'])
+          && request.resource.data.fighter2 == request.auth.uid
+          && request.resource.data.status == 'active'
+          && request.resource.data.isRoundActive == true
+          && request.resource.data.accessApprovedUserIds is list
+          && request.resource.data.accessApprovedUserIds.hasAny([request.auth.uid])
+          && request.resource.data.fighter1 == resource.data.fighter1
+          && request.resource.data.creatorId == resource.data.creatorId)
+        ||
+        // Request access (request_only debates)
+        (isSignedIn()
+          && resource.data.visibilityMode == 'request_only'
+          && onlyChangedKeys(['accessRequests'])
+          && request.resource.data.accessRequests is list
+          && request.resource.data.accessRequests.hasAny([request.auth.uid]))
+        ||
+        // Moderate access requests (creator only)
+        (isSignedIn()
+          && resource.data.visibilityMode == 'request_only'
+          && request.auth.uid == resource.data.creatorId
+          && onlyChangedKeys(['accessRequests', 'accessApprovedUserIds'])
+          && request.resource.data.accessRequests is list
+          && request.resource.data.accessApprovedUserIds is list);
 
-    function canRequestAccessClient() {
-      return isSignedIn()
-        && resource.data.visibilityMode == 'request_only'
-        && onlyChangedKeys(['accessRequests'])
-        && request.resource.data.accessRequests is list
-        && (!('accessRequests' in resource.data)
-          || request.resource.data.accessRequests.hasAll(resource.data.accessRequests))
-        && request.resource.data.accessRequests.hasAny([request.auth.uid]);
-    }
-
-    function canModerateAccessRequestsClient() {
-      return isSignedIn()
-        && resource.data.visibilityMode == 'request_only'
-        && request.auth.uid == resource.data.creatorId
-        && onlyChangedKeys(['accessRequests', 'accessApprovedUserIds'])
-        && request.resource.data.accessRequests is list
-        && request.resource.data.accessApprovedUserIds is list
-        && (!('accessApprovedUserIds' in resource.data)
-          || request.resource.data.accessApprovedUserIds.hasAll(resource.data.accessApprovedUserIds));
-    }
-
-    function canCancelWaitingDebate() {
-      return isSignedIn()
+      // Only creator can cancel, only before start
+      allow delete: if isSignedIn()
         && request.auth.uid == resource.data.creatorId
         && resource.data.status == 'waiting';
-    }
 
-    function onlyChangedKeys(allowedKeys) {
-      return request.resource.data.diff(resource.data).changedKeys().hasOnly(allowedKeys);
-    }
-
-    function voteIncrementIsValid(field) {
-      return request.resource.data[field] == resource.data[field] + 1;
-    }
-
-    match /users/{uid} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.auth.uid == uid;
-      allow update: if isSignedIn() && request.auth.uid == uid
-        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['rank', 'isBanned']);
-      allow delete: if false;
-    }
-
-    match /lobbies/{lobbyId} {
-      allow read: if isSignedIn();
-
-      // Создавать лобби может авторизованный пользователь.
-      allow create: if isSignedIn()
-        && request.resource.data.creatorId == request.auth.uid;
-
-      // Обновлять лобби могут только участники лобби.
-      allow update: if isSignedIn()
-        && (request.auth.uid == resource.data.creatorId
-          || request.auth.uid == resource.data.opponentId);
-
-      allow delete: if false;
-    }
-
-    match /world_messages/{messageId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn()
-        && request.resource.data.senderId == request.auth.uid
-        && request.resource.data.text is string
-        && request.resource.data.text.size() > 0
-        && request.resource.data.text.size() <= 1000;
-      allow update: if false;
-      allow delete: if false;
-    }
-
-    match /debates/{debateId} {
-      allow get: if canReadDebateByData(resource.data);
-      allow list: if isSignedIn();
-
-      // Разрешаем строго валидированное клиентское создание как fallback.
-      allow create: if canCreateDebateClient();
-
-      // Обновления дебата делает Cloud Functions (Admin SDK).
-      // Клиенту разрешаем только принятие инвайта, отправку access-request и
-      // модерацию заявок создателем request-only дебата.
-      allow update: if canAcceptInviteClient()
-        || canRequestAccessClient()
-        || canModerateAccessRequestsClient();
-
-      // Создатель может отменить вызов только до старта.
-      allow delete: if canCancelWaitingDebate();
-
+      // Messages: only via Cloud Functions
       match /messages/{messageId} {
-        allow read: if canReadDebateByData(get(/databases/$(database)/documents/debates/$(debateId)).data);
-
-        // Сообщения создаются через Cloud Functions (Admin SDK).
+        allow read: if canReadDebateByData(
+          get(/databases/$(database)/documents/debates/$(debateId)).data);
         allow create: if false;
-
         allow update: if false;
         allow delete: if false;
       }
 
-      match /votes/{uid} {
+      // Votes: completely server-side
+      match /votes/{voteId} {
         allow read: if false;
         allow create: if false;
         allow update: if false;
         allow delete: if false;
       }
     }
+
+    // ─── ADMIN COLLECTIONS (server-only) ────────────────────
+    match /admin_migration_access/{doc} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+    match /admin_migration_access_audit/{doc} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+    match /core_runtime_flags/{doc} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+    match /core_metrics/{doc} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+    match /core_events/{doc} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+    match /migration_runs/{doc} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+    match /migration_lock/{doc} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+    // ─── DEFAULT DENY: catch unknown collections ────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
   }
 }
-

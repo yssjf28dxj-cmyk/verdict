@@ -174,6 +174,35 @@ function asInt(v: unknown, fallback: number): number {
   return typeof v === 'number' && Number.isFinite(v) ? v : fallback;
 }
 
+// ─── RATE LIMITER ───────────────────────────────────────────
+const rateLimitCache = new Map<string, number>();
+const RATE_LIMIT_CLEANUP_INTERVAL = 60_000;
+let lastCleanup = Date.now();
+
+function enforceRateLimit(uid: string, action: string, cooldownMs: number): void {
+  const now = Date.now();
+  // Periodic cleanup to prevent memory leak
+  if (now - lastCleanup > RATE_LIMIT_CLEANUP_INTERVAL) {
+    const cutoff = now - 120_000;
+    for (const [key, ts] of rateLimitCache) {
+      if (ts < cutoff) rateLimitCache.delete(key);
+    }
+    lastCleanup = now;
+  }
+
+  const key = `${uid}:${action}`;
+  const lastAt = rateLimitCache.get(key) ?? 0;
+  if (now - lastAt < cooldownMs) {
+    throw new HttpsError('resource-exhausted', 'Слишком частые запросы. Подождите.', {
+      reason: 'RATE_LIMIT_EXCEEDED',
+      action,
+      retryAfterMs: cooldownMs - (now - lastAt),
+    });
+  }
+  rateLimitCache.set(key, now);
+}
+// ────────────────────────────────────────────────────────────
+
 function sanitizeAllowedInt(
   value: unknown,
   allowed: readonly number[],
@@ -411,6 +440,8 @@ export const createDebate = onCall({ invoker: 'public' }, async (request) => {
       reason: 'CREATE_AUTH_REQUIRED',
     });
   }
+
+  enforceRateLimit(uid, 'createDebate', 5000); // 1 debate per 5 sec
 
   const topic = clampText(asString(request.data?.topic));
   const durationSeconds = asInt(request.data?.durationSeconds, 180);
@@ -1003,6 +1034,8 @@ export const sendDebateMessage = onCall({ invoker: 'public' }, async (request) =
     });
   }
 
+  enforceRateLimit(uid, 'sendDebateMessage', 2000); // 1 msg per 2 sec
+
   const debateId = asString(request.data?.debateId);
   const rawText = asString(request.data?.text);
   const text = validateMessageText(rawText);
@@ -1059,6 +1092,55 @@ export const sendDebateMessage = onCall({ invoker: 'public' }, async (request) =
   });
 
   return { ok: true, messageId: messageRef.id };
+});
+
+export const sendWorldMessage = onCall({ invoker: 'public' }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) {
+    throw new HttpsError('unauthenticated', 'Требуется авторизация.', {
+      reason: 'WORLD_AUTH_REQUIRED',
+    });
+  }
+
+  enforceRateLimit(uid, 'sendWorldMessage', 3000); // 1 msg per 3 sec
+
+  const rawText = asString(request.data?.text).trim();
+  if (!rawText || rawText.length === 0) {
+    throw new HttpsError('invalid-argument', 'Сообщение пустое.', {
+      reason: 'WORLD_TEXT_EMPTY',
+    });
+  }
+  if (rawText.length > 1000) {
+    throw new HttpsError('invalid-argument', 'Сообщение превышает 1000 символов.', {
+      reason: 'WORLD_TEXT_TOO_LONG',
+    });
+  }
+
+  // Check ban
+  const userDoc = await db.collection('users').doc(uid).get();
+  const userData = userDoc.data() ?? {};
+  if (userData.isBanned === true) {
+    throw new HttpsError('permission-denied', 'Вы заблокированы.', {
+      reason: 'WORLD_USER_BANNED',
+    });
+  }
+
+  const senderName = deriveNeutralUserName({
+    profileName: userData.name,
+    tokenName: request.auth?.token?.name,
+    tokenEmail: request.auth?.token?.email,
+    uid,
+  });
+
+  await db.collection('world_messages').add({
+    text: rawText,
+    senderId: uid,
+    senderName,
+    senderPhotoUrl: asString(userData.avatarUrl),
+    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  return { ok: true };
 });
 
 export const applyPenalty = onCall({ invoker: 'public' }, async (request) => {
@@ -1206,6 +1288,8 @@ export const castVote = onCall({ invoker: 'public' }, async (request) => {
       reason: 'VOTE_AUTH_REQUIRED',
     });
   }
+
+  enforceRateLimit(uid, 'castVote', 3000); // 1 vote per 3 sec
 
   const debateId = asString(request.data?.debateId);
   const side = asInt(request.data?.side, 0);

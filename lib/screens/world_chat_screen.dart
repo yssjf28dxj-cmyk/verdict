@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../painters/chat_pattern_painter.dart';
 import '../utils/name_utils.dart';
@@ -64,32 +65,17 @@ class _WorldChatScreenState extends State<WorldChatScreen>
   }
 
   Future<void> _sendMessage() async {
-    final l10n = AppLocalizations.of(context)!;
     final user = FirebaseAuth.instance.currentUser;
     final text = _controller.text.trim();
     if (user == null || text.isEmpty) return;
     setState(() => _sending = true);
     _controller.clear();
     try {
-      final userData = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
-      final senderDisplayName = firstNonEmptyName(
-        [
-          userData.data()?['displayName'],
-          userData.data()?['name'],
-          user.displayName,
-        ],
-        fallback: l10n.anonymous,
+      final callable = FirebaseFunctions.instance.httpsCallable(
+        'sendWorldMessage',
+        options: HttpsCallableOptions(timeout: const Duration(seconds: 15)),
       );
-      await FirebaseFirestore.instance.collection('world_messages').add({
-        'text': text,
-        'senderId': user.uid,
-        'senderName': senderDisplayName,
-        'senderPhotoUrl': userData.data()?['avatarUrl'] ?? '',
-        'timestamp': FieldValue.serverTimestamp(),
-      });
+      await callable.call({'text': text});
       await Future.delayed(const Duration(milliseconds: 100));
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
@@ -98,6 +84,11 @@ class _WorldChatScreenState extends State<WorldChatScreen>
           curve: Curves.easeOut,
         );
       }
+    } on FirebaseFunctionsException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message ?? 'Ошибка отправки')),
+      );
     } finally {
       if (mounted) setState(() => _sending = false);
     }
