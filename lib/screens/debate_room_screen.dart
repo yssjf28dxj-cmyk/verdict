@@ -1,12 +1,17 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:record/record.dart';
 import '../models/debate.dart';
 import '../painters/chat_pattern_painter.dart';
 import '../widgets/debate_messages_list.dart';
+import '../services/media_upload_service.dart';
 import '../services/referee_service.dart';
 import '../services/debate_alert_service.dart';
 import '../services/sound_service.dart';
@@ -94,6 +99,13 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
   bool isLoading = true;
   bool movedToResult = false;
   bool _accessDeniedHandled = false;
+
+  // ─── MEDIA STATE ──────────────────────────────────────────
+  bool _isRecording = false;
+  bool _isUploadingMedia = false;
+  final AudioRecorder _audioRecorder = AudioRecorder();
+  String? _recordingPath;
+  DateTime? _recordingStartTime;
 
   Timer? _roundCountdownTicker;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? debateSub;
@@ -1457,6 +1469,474 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
     }
   }
 
+  // ─── INPUT BAR BUILDERS ────────────────────────────────────
+
+  Widget _buildMessageInputBar(AppLocalizations l10n, bool isMyTurn) {
+    final canAct = isMyTurn && !_isSendingMessage;
+    return Row(
+      children: [
+        // Gallery button
+        _buildMediaButton(
+          icon: Icons.photo_outlined,
+          onTap: canAct ? _pickAndSendImage : null,
+          enabled: canAct,
+        ),
+        const SizedBox(width: 6),
+        // Text field
+        Expanded(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 280),
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF141C2F),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: _isTyping
+                    ? const Color(0xFF4E8BFF)
+                    : Colors.white.withValues(alpha: 0.14),
+                width: _isTyping ? 1.4 : 1.0,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: _isTyping
+                      ? const Color(0x664E8BFF)
+                      : const Color(0x18000000),
+                  blurRadius: _isTyping ? 18 : 10,
+                  spreadRadius: _isTyping ? 1 : 0,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: TextField(
+              controller: _messageController,
+              enabled: isMyTurn,
+              minLines: 1,
+              maxLines: 4,
+              textInputAction: TextInputAction.send,
+              onSubmitted: (_) {
+                if (canAct) sendMessage();
+              },
+              decoration: InputDecoration(
+                hintText: isMyTurn
+                    ? _safeWriteHint(l10n)
+                    : l10n.waitForOpponentTurn,
+                hintStyle: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.5),
+                ),
+                border: InputBorder.none,
+              ),
+              style: const TextStyle(color: Colors.white, fontSize: 15),
+            ),
+          ),
+        ),
+        const SizedBox(width: 6),
+        // Mic button (hold to record)
+        GestureDetector(
+          onLongPressStart: canAct ? (_) => _startRecording() : null,
+          onLongPressEnd: canAct ? (_) => _stopRecordingAndSend() : null,
+          child: _buildMediaButton(
+            icon: Icons.mic_rounded,
+            enabled: canAct,
+          ),
+        ),
+        const SizedBox(width: 6),
+        // Send button
+        SizedBox(
+          height: 42,
+          width: 42,
+          child: Material(
+            color: Colors.transparent,
+            shape: const CircleBorder(),
+            child: Opacity(
+              opacity: canAct ? 1 : 0.45,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(21),
+                onTap: canAct ? sendMessage : null,
+                child: Center(
+                  child: Icon(
+                    Icons.send_rounded,
+                    size: 20,
+                    color: canAct ? const Color(0xFFFFA500) : Colors.grey,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMediaButton({
+    required IconData icon,
+    VoidCallback? onTap,
+    bool enabled = true,
+  }) {
+    return SizedBox(
+      height: 42,
+      width: 42,
+      child: Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        child: Opacity(
+          opacity: enabled ? 0.7 : 0.3,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(21),
+            onTap: onTap,
+            child: Center(
+              child: Icon(icon, size: 22, color: Colors.white),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRecordingBar(AppLocalizations l10n) {
+    return Container(
+      height: 52,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A0A0A),
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(
+          color: const Color(0xFFFF4B4B).withValues(alpha: 0.5),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFFF4B4B).withValues(alpha: 0.15),
+            blurRadius: 16,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Pulsing red dot
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0.3, end: 1.0),
+            duration: const Duration(milliseconds: 600),
+            curve: Curves.easeInOut,
+            builder: (context, value, _) {
+              return Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Color.lerp(
+                    const Color(0xFFFF4B4B).withValues(alpha: 0.3),
+                    const Color(0xFFFF4B4B),
+                    value,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFFF4B4B).withValues(alpha: value * 0.4),
+                      blurRadius: 8,
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+          const SizedBox(width: 12),
+          // Recording timer
+          StreamBuilder(
+            stream: Stream.periodic(const Duration(seconds: 1)),
+            builder: (context, _) {
+              final elapsed = _recordingStartTime != null
+                  ? DateTime.now().difference(_recordingStartTime!).inSeconds
+                  : 0;
+              final mm = (elapsed ~/ 60).toString().padLeft(2, '0');
+              final ss = (elapsed % 60).toString().padLeft(2, '0');
+              return Text(
+                '$mm:$ss',
+                style: const TextStyle(
+                  color: Color(0xFFFF6B6B),
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                  fontFeatures: [FontFeature.tabularFigures()],
+                ),
+              );
+            },
+          ),
+          const SizedBox(width: 12),
+          // Waveform placeholder
+          Expanded(
+            child: _buildWaveformPlaceholder(),
+          ),
+          const SizedBox(width: 12),
+          // Cancel button
+          IconButton(
+            icon: const Icon(Icons.close, color: Colors.white54, size: 20),
+            onPressed: _cancelRecording,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+          ),
+          // Stop & Send button
+          IconButton(
+            icon: const Icon(Icons.send_rounded,
+                color: Color(0xFFFF4B4B), size: 22),
+            onPressed: _stopRecordingAndSend,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWaveformPlaceholder() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: List.generate(16, (i) {
+        return TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0.2, end: 0.5 + (i % 3) * 0.2),
+          duration: Duration(milliseconds: 300 + (i * 50 % 400)),
+          curve: Curves.easeInOut,
+          builder: (context, value, _) {
+            return Container(
+              width: 2.5,
+              height: 20 * value,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFF4B4B).withValues(alpha: 0.6),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            );
+          },
+        );
+      }),
+    );
+  }
+
+  Widget _buildUploadingBar() {
+    return Container(
+      height: 52,
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF141C2F),
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(
+          color: const Color(0xFFFFA500).withValues(alpha: 0.3),
+        ),
+      ),
+      child: const Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Color(0xFFFFA500),
+            ),
+          ),
+          SizedBox(width: 12),
+          Text(
+            'Uploading...',
+            style: TextStyle(
+              color: Colors.white70,
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─── VOICE RECORDING ──────────────────────────────────────
+
+  Future<void> _startRecording() async {
+    if (_isRecording || _isUploadingMedia) return;
+    if (!isFighter || !isMyTurn || status == 'finished') return;
+
+    try {
+      if (!await _audioRecorder.hasPermission()) return;
+
+      final dir = await getTemporaryDirectory();
+      final path = '${dir.path}/verdict_voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+
+      await _audioRecorder.start(
+        const RecordConfig(
+          encoder: AudioEncoder.aacLc,
+          bitRate: 128000,
+          sampleRate: 44100,
+        ),
+        path: path,
+      );
+
+      if (!mounted) return;
+      HapticFeedback.mediumImpact();
+      setState(() {
+        _isRecording = true;
+        _recordingPath = path;
+        _recordingStartTime = DateTime.now();
+      });
+    } catch (e) {
+      debugPrint('[Voice] Start recording error: $e');
+    }
+  }
+
+  Future<void> _stopRecordingAndSend() async {
+    if (!_isRecording) return;
+
+    try {
+      final path = await _audioRecorder.stop();
+      if (!mounted) return;
+
+      final duration = _recordingStartTime != null
+          ? DateTime.now().difference(_recordingStartTime!).inSeconds
+          : 0;
+
+      setState(() {
+        _isRecording = false;
+        _recordingPath = null;
+        _recordingStartTime = null;
+      });
+
+      if (path == null || path.isEmpty) return;
+      if (duration < 1) {
+        // Too short — delete and ignore
+        try { File(path).deleteSync(); } catch (_) {}
+        return;
+      }
+
+      HapticFeedback.lightImpact();
+      await _sendMediaMessage(
+        filePath: path,
+        messageType: 'voice',
+        mediaDuration: duration,
+      );
+    } catch (e) {
+      debugPrint('[Voice] Stop recording error: $e');
+      if (mounted) setState(() => _isRecording = false);
+    }
+  }
+
+  Future<void> _cancelRecording() async {
+    if (!_isRecording) return;
+    try {
+      await _audioRecorder.stop();
+      if (_recordingPath != null) {
+        try { File(_recordingPath!).deleteSync(); } catch (_) {}
+      }
+    } catch (_) {}
+    if (mounted) {
+      setState(() {
+        _isRecording = false;
+        _recordingPath = null;
+        _recordingStartTime = null;
+      });
+    }
+  }
+
+  // ─── IMAGE PICKING ────────────────────────────────────────
+
+  Future<void> _pickAndSendImage() async {
+    if (_isUploadingMedia || _isRecording) return;
+    if (!isFighter || !isMyTurn || status == 'finished') return;
+
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1280,
+        maxHeight: 1280,
+        imageQuality: 80,
+      );
+      if (picked == null || !mounted) return;
+
+      HapticFeedback.lightImpact();
+      await _sendMediaMessage(
+        filePath: picked.path,
+        messageType: 'image',
+      );
+    } catch (e) {
+      debugPrint('[Image] Pick error: $e');
+    }
+  }
+
+  // ─── SHARED MEDIA UPLOAD & SEND ───────────────────────────
+
+  Future<void> _sendMediaMessage({
+    required String filePath,
+    required String messageType,
+    int mediaDuration = 0,
+  }) async {
+    if (_isUploadingMedia) return;
+
+    final l10n = AppLocalizations.of(context)!;
+    _bootstrapCurrentUserIdentity();
+    final senderName =
+        _bestEffortName(FirebaseAuth.instance.currentUser).trim();
+    if (senderName.isEmpty) return;
+
+    setState(() => _isUploadingMedia = true);
+
+    try {
+      // 1. Upload to Firebase Storage
+      String? downloadUrl;
+      if (messageType == 'voice') {
+        downloadUrl = await MediaUploadService.instance.uploadVoice(
+          debateId: widget.debateId,
+          uid: currentUserId,
+          filePath: filePath,
+        );
+      } else {
+        downloadUrl = await MediaUploadService.instance.uploadImage(
+          debateId: widget.debateId,
+          uid: currentUserId,
+          filePath: filePath,
+        );
+      }
+
+      if (downloadUrl == null || !mounted) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('${l10n.errorPrefix}: Upload failed')),
+          );
+        }
+        return;
+      }
+
+      // 2. Call Cloud Function with media data
+      final callable = _functions.httpsCallable(
+        'sendDebateMessage',
+        options: HttpsCallableOptions(timeout: const Duration(seconds: 30)),
+      );
+      await callable.call({
+        'debateId': widget.debateId,
+        'text': '',
+        'senderName': senderName,
+        'messageType': messageType,
+        'mediaUrl': downloadUrl,
+        if (mediaDuration > 0) 'mediaDuration': mediaDuration,
+      });
+
+      if (!mounted) return;
+      SoundService.instance.play(SFX.whoosh);
+      HapticFeedback.selectionClick();
+    } on FirebaseFunctionsException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(mapDebateCallableError(l10n, e,
+              fallbackMessage: l10n.errorPrefix)),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${l10n.errorPrefix}: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isUploadingMedia = false);
+      // Clean up temp file
+      try { File(filePath).deleteSync(); } catch (_) {}
+    }
+  }
+
   @override
   void dispose() {
     _roundCountdownTicker?.cancel();
@@ -1467,6 +1947,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
     _timeLeftNotifier.dispose();
     _dangerZoneNotifier.dispose();
     _dangerPulseNotifier.dispose();
+    _audioRecorder.dispose();
     super.dispose();
   }
 
@@ -1609,94 +2090,11 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
                         top: false,
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 280),
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 14),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF141C2F),
-                                    borderRadius: BorderRadius.circular(24),
-                                    border: Border.all(
-                                      color: _isTyping
-                                          ? const Color(0xFF4E8BFF)
-                                          : Colors.white
-                                              .withValues(alpha: 0.14),
-                                      width: _isTyping ? 1.4 : 1.0,
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: _isTyping
-                                            ? const Color(0x664E8BFF)
-                                            : const Color(0x18000000),
-                                        blurRadius: _isTyping ? 18 : 10,
-                                        spreadRadius: _isTyping ? 1 : 0,
-                                        offset: const Offset(0, 4),
-                                      ),
-                                    ],
-                                  ),
-                                  child: TextField(
-                                    controller: _messageController,
-                                    enabled: isMyTurn,
-                                    minLines: 1,
-                                    maxLines: 4,
-                                    textInputAction: TextInputAction.send,
-                                    onSubmitted: (_) {
-                                      if (isMyTurn && !_isSendingMessage) {
-                                        sendMessage();
-                                      }
-                                    },
-                                    decoration: InputDecoration(
-                                      hintText: isMyTurn
-                                          ? _safeWriteHint(l10n)
-                                          : l10n.waitForOpponentTurn,
-                                      hintStyle: TextStyle(
-                                        color:
-                                            Colors.white.withValues(alpha: 0.5),
-                                      ),
-                                      border: InputBorder.none,
-                                    ),
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 15,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              SizedBox(
-                                height: 46,
-                                width: 46,
-                                child: Material(
-                                  color: Colors.transparent,
-                                  shape: const CircleBorder(),
-                                  child: Opacity(
-                                    opacity: (isMyTurn && !_isSendingMessage)
-                                        ? 1
-                                        : 0.45,
-                                    child: InkWell(
-                                      borderRadius: BorderRadius.circular(23),
-                                      onTap: (isMyTurn && !_isSendingMessage)
-                                          ? sendMessage
-                                          : null,
-                                      child: Center(
-                                        child: Icon(
-                                          Icons.send_rounded,
-                                          size: 20,
-                                          color:
-                                              (isMyTurn && !_isSendingMessage)
-                                                  ? const Color(0xFFFFA500)
-                                                  : Colors.grey,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
+                          child: _isRecording
+                              ? _buildRecordingBar(l10n)
+                              : _isUploadingMedia
+                                  ? _buildUploadingBar()
+                                  : _buildMessageInputBar(l10n, isMyTurn),
                         ),
                       ),
                     if (status == 'finished')

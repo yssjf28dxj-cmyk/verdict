@@ -1,5 +1,6 @@
 import 'dart:ui';
 
+import 'package:audioplayers/audioplayers.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -69,6 +70,11 @@ class _DebateMessagesListState extends State<DebateMessagesList> {
       fallback: l10n.anonymous,
     );
     final text = (data['text'] ?? '').toString();
+    final messageType = (data['messageType'] ?? 'text').toString();
+    final mediaUrl = (data['mediaUrl'] ?? '').toString();
+    final mediaDuration = (data['mediaDuration'] is num)
+        ? (data['mediaDuration'] as num).toInt()
+        : 0;
     final createdAt =
         data['createdAt'] is Timestamp ? data['createdAt'] as Timestamp : null;
     final bubbleGradient = isMine
@@ -113,15 +119,38 @@ class _DebateMessagesListState extends State<DebateMessagesList> {
             crossAxisAlignment:
                 isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
             children: [
-              Text(
-                text,
-                style: const TextStyle(
-                  fontSize: 15.5,
-                  height: 1.28,
-                  color: Colors.white,
-                  fontWeight: FontWeight.w500,
+              // Render content based on messageType
+              if (messageType == 'voice' && mediaUrl.isNotEmpty)
+                _VoiceMessageContent(
+                  mediaUrl: mediaUrl,
+                  duration: mediaDuration,
+                  isMine: isMine,
+                )
+              else if (messageType == 'image' && mediaUrl.isNotEmpty)
+                _ImageMessageContent(
+                  mediaUrl: mediaUrl,
+                  isMine: isMine,
+                )
+              else
+                Text(
+                  text,
+                  style: const TextStyle(
+                    fontSize: 15.5,
+                    height: 1.28,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
-              ),
+              if (text.isNotEmpty && messageType != 'text') ...[
+                const SizedBox(height: 6),
+                Text(
+                  text,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.white.withValues(alpha: 0.7),
+                  ),
+                ),
+              ],
               const SizedBox(height: 6),
               Text(
                 _formatTime(createdAt),
@@ -280,6 +309,251 @@ class _DebateMessagesListState extends State<DebateMessagesList> {
           ],
         );
       },
+    );
+  }
+}
+
+// ─── VOICE MESSAGE WIDGET ───────────────────────────────────
+
+class _VoiceMessageContent extends StatefulWidget {
+  final String mediaUrl;
+  final int duration;
+  final bool isMine;
+
+  const _VoiceMessageContent({
+    required this.mediaUrl,
+    required this.duration,
+    required this.isMine,
+  });
+
+  @override
+  State<_VoiceMessageContent> createState() => _VoiceMessageContentState();
+}
+
+class _VoiceMessageContentState extends State<_VoiceMessageContent> {
+  final AudioPlayer _player = AudioPlayer();
+  bool _isPlaying = false;
+  double _progress = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _player.onPlayerComplete.listen((_) {
+      if (mounted) setState(() { _isPlaying = false; _progress = 0; });
+    });
+    _player.onPositionChanged.listen((pos) {
+      if (!mounted || widget.duration <= 0) return;
+      setState(() {
+        _progress = pos.inMilliseconds / (widget.duration * 1000);
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _player.dispose();
+    super.dispose();
+  }
+
+  Future<void> _togglePlay() async {
+    try {
+      if (_isPlaying) {
+        await _player.pause();
+        if (mounted) setState(() => _isPlaying = false);
+      } else {
+        await _player.play(UrlSource(widget.mediaUrl));
+        if (mounted) setState(() => _isPlaying = true);
+      }
+    } catch (e) {
+      debugPrint('[VoicePlayer] Error: $e');
+    }
+  }
+
+  String _formatDuration(int seconds) {
+    final mm = (seconds ~/ 60).toString().padLeft(2, '0');
+    final ss = (seconds % 60).toString().padLeft(2, '0');
+    return '$mm:$ss';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final neonColor = widget.isMine
+        ? const Color(0xFF4E8BFF)
+        : const Color(0xFFFFA500);
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Play/pause button
+        GestureDetector(
+          onTap: _togglePlay,
+          child: Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: neonColor.withValues(alpha: 0.2),
+              border: Border.all(color: neonColor.withValues(alpha: 0.5)),
+              boxShadow: [
+                BoxShadow(
+                  color: neonColor.withValues(alpha: 0.2),
+                  blurRadius: 8,
+                ),
+              ],
+            ),
+            child: Icon(
+              _isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+              color: neonColor,
+              size: 20,
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        // Waveform bars + progress
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                height: 24,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: List.generate(20, (i) {
+                    final barProgress = i / 20;
+                    final isActive = barProgress <= _progress;
+                    // Pseudo-random bar height based on index
+                    final height = 8.0 + ((i * 7 + 3) % 13).toDouble();
+                    return Container(
+                      width: 3,
+                      height: height,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(2),
+                        color: isActive
+                            ? neonColor
+                            : neonColor.withValues(alpha: 0.2),
+                        boxShadow: isActive
+                            ? [
+                                BoxShadow(
+                                  color: neonColor.withValues(alpha: 0.3),
+                                  blurRadius: 4,
+                                ),
+                              ]
+                            : null,
+                      ),
+                    );
+                  }),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _formatDuration(widget.duration),
+                style: TextStyle(
+                  fontSize: 10,
+                  color: Colors.white.withValues(alpha: 0.5),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─── IMAGE MESSAGE WIDGET ───────────────────────────────────
+
+class _ImageMessageContent extends StatelessWidget {
+  final String mediaUrl;
+  final bool isMine;
+
+  const _ImageMessageContent({
+    required this.mediaUrl,
+    required this.isMine,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final neonColor = isMine
+        ? const Color(0xFF4E8BFF)
+        : const Color(0xFFFFA500);
+
+    return GestureDetector(
+      onTap: () => _showFullImage(context),
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 240, maxHeight: 240),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: neonColor.withValues(alpha: 0.4),
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: neonColor.withValues(alpha: 0.15),
+              blurRadius: 12,
+              spreadRadius: 1,
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12.5),
+          child: Image.network(
+            mediaUrl,
+            fit: BoxFit.cover,
+            loadingBuilder: (context, child, progress) {
+              if (progress == null) return child;
+              return SizedBox(
+                width: 200,
+                height: 150,
+                child: Center(
+                  child: CircularProgressIndicator(
+                    value: progress.expectedTotalBytes != null
+                        ? progress.cumulativeBytesLoaded /
+                            progress.expectedTotalBytes!
+                        : null,
+                    strokeWidth: 2,
+                    color: neonColor,
+                  ),
+                ),
+              );
+            },
+            errorBuilder: (context, error, stack) {
+              return Container(
+                width: 200,
+                height: 100,
+                color: Colors.white.withValues(alpha: 0.05),
+                child: const Center(
+                  child: Icon(Icons.broken_image_rounded,
+                      color: Colors.white24, size: 36),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showFullImage(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(16),
+        child: GestureDetector(
+          onTap: () => Navigator.of(ctx).pop(),
+          child: InteractiveViewer(
+            minScale: 0.5,
+            maxScale: 4.0,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Image.network(mediaUrl, fit: BoxFit.contain),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

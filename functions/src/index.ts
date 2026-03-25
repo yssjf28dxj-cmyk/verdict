@@ -1045,7 +1045,36 @@ export const sendDebateMessage = onCall({ invoker: 'public' }, async (request) =
 
   const debateId = asString(request.data?.debateId);
   const rawText = asString(request.data?.text);
-  const text = validateMessageText(rawText);
+  const messageType = asString(request.data?.messageType) || 'text';
+  const mediaUrl = asString(request.data?.mediaUrl) || '';
+  const mediaDuration = typeof request.data?.mediaDuration === 'number'
+    ? Math.min(Math.max(0, request.data.mediaDuration), 300)
+    : 0;
+
+  // Validate messageType
+  const validTypes = ['text', 'voice', 'image'];
+  if (!validTypes.includes(messageType)) {
+    throw new HttpsError('invalid-argument', 'Неверный тип сообщения.', {
+      reason: 'MESSAGE_INVALID_TYPE',
+    });
+  }
+
+  // For text messages, validate text content
+  const text = messageType === 'text' ? validateMessageText(rawText) : (rawText || '').trim();
+
+  // For media messages, mediaUrl is required
+  if ((messageType === 'voice' || messageType === 'image') && !mediaUrl) {
+    throw new HttpsError('invalid-argument', 'mediaUrl обязателен для медиа-сообщений.', {
+      reason: 'MESSAGE_MEDIA_URL_REQUIRED',
+    });
+  }
+
+  // Validate mediaUrl format (must be Firebase Storage URL)
+  if (mediaUrl && !mediaUrl.startsWith('https://firebasestorage.googleapis.com/')) {
+    throw new HttpsError('invalid-argument', 'Некорректный mediaUrl.', {
+      reason: 'MESSAGE_INVALID_MEDIA_URL',
+    });
+  }
 
   // Resolve sender name from Firestore, not from client
   const userDoc = await db.collection('users').doc(uid).get();
@@ -1061,7 +1090,7 @@ export const sendDebateMessage = onCall({ invoker: 'public' }, async (request) =
       reason: 'MESSAGE_DEBATE_ID_REQUIRED',
     });
   }
-  if (!text) {
+  if (messageType === 'text' && !text) {
     throw new HttpsError('invalid-argument', 'Текст сообщения пуст.', {
       reason: 'MESSAGE_TEXT_EMPTY',
     });
@@ -1089,13 +1118,24 @@ export const sendDebateMessage = onCall({ invoker: 'public' }, async (request) =
     });
     const roundIndex = guard.roundIndex;
 
-    tx.set(messageRef, {
-      text,
+    // Build message document based on type
+    const messageData: Record<string, unknown> = {
+      text: text || '',
+      messageType,
       senderId: uid,
       senderName,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       roundIndex,
-    });
+    };
+
+    if (mediaUrl) {
+      messageData.mediaUrl = mediaUrl;
+    }
+    if (messageType === 'voice' && mediaDuration > 0) {
+      messageData.mediaDuration = mediaDuration;
+    }
+
+    tx.set(messageRef, messageData);
   });
 
   return { ok: true, messageId: messageRef.id };
