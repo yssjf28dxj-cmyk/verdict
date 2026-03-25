@@ -92,6 +92,7 @@ class LivePulseIndicator extends StatefulWidget {
 class _LivePulseIndicatorState extends State<LivePulseIndicator>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
+  bool _expanded = false;
 
   @override
   void initState() {
@@ -99,7 +100,18 @@ class _LivePulseIndicatorState extends State<LivePulseIndicator>
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 950),
-    )..repeat(reverse: true);
+    )..addStatusListener((status) {
+        if (!mounted) return;
+        if (status == AnimationStatus.completed) {
+          setState(() => _expanded = false);
+          _controller.reverse();
+        } else if (status == AnimationStatus.dismissed) {
+          setState(() => _expanded = true);
+          _controller.forward();
+        }
+      });
+    _expanded = true;
+    _controller.forward();
   }
 
   @override
@@ -110,38 +122,51 @@ class _LivePulseIndicatorState extends State<LivePulseIndicator>
 
   @override
   Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: Tween<double>(begin: 0.45, end: 1).animate(_controller),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: const Color(0x29FF4B4B),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: const Color(0x99FF4B4B)),
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 950),
+      curve: Curves.easeInOut,
+      padding: EdgeInsets.symmetric(
+        horizontal: _expanded ? 10 : 11,
+        vertical: _expanded ? 6 : 5,
+      ),
+      decoration: BoxDecoration(
+        color: _expanded ? const Color(0x33FF4B4B) : const Color(0x22FF4B4B),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: _expanded ? const Color(0xCCFF4B4B) : const Color(0x99FF4B4B),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 7,
-              height: 7,
-              decoration: const BoxDecoration(
-                color: VerdictStyle.fighterRed,
-                shape: BoxShape.circle,
-              ),
+        boxShadow: [
+          BoxShadow(
+            color: VerdictStyle.fighterRed.withValues(
+              alpha: _expanded ? 0.26 : 0.12,
             ),
-            const SizedBox(width: 6),
-            Text(
-              widget.label,
-              style: const TextStyle(
-                color: Color(0xFFFFB3B3),
-                fontWeight: FontWeight.w900,
-                fontSize: 11,
-                letterSpacing: 0.6,
-              ),
+            blurRadius: _expanded ? 18 : 8,
+            spreadRadius: _expanded ? 1 : 0,
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration: const BoxDecoration(
+              color: VerdictStyle.fighterRed,
+              shape: BoxShape.circle,
             ),
-          ],
-        ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            widget.label,
+            style: const TextStyle(
+              color: Color(0xFFFFB3B3),
+              fontWeight: FontWeight.w900,
+              fontSize: 11,
+              letterSpacing: 0.6,
+            ),
+          ),
+        ],
       ),
     );
   }

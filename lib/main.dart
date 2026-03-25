@@ -3,6 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_displaymode/flutter_displaymode.dart';
 import 'firebase_options.dart';
 import 'app.dart';
+import 'services/sound_service.dart';
 import 'utils/style_utils.dart';
 import 'services/app_locale_controller.dart';
 
@@ -93,6 +94,7 @@ void main() async {
   // }
   await _enableHighRefreshRate();
   await AppLocaleController.instance.loadSavedLocale();
+  await SoundService.instance.warmUp();
   runApp(
     VerdictApp(
       theme: buildVerdictTheme(),

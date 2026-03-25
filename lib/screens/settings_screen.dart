@@ -8,6 +8,7 @@ import '../l10n/app_localizations.dart';
 import '../painters/chat_pattern_painter.dart';
 import '../services/admin_service.dart';
 import '../services/app_locale_controller.dart';
+import '../services/sound_service.dart';
 import '../utils/debate_error_mapper.dart';
 import '../utils/style_utils.dart';
 
@@ -604,6 +605,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Widget _buildSoundCard(AppLocalizations l10n) {
+    return GlassCard(
+      child: Row(
+        children: [
+          const Icon(Icons.volume_up_rounded, color: Colors.white70, size: 22),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              l10n.settingsTitle.contains('Settings')
+                  ? 'Sound Effects'
+                  : 'Звуковые эффекты',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+                fontSize: 15,
+              ),
+            ),
+          ),
+          StatefulBuilder(
+            builder: (context, setSwitchState) {
+              return Switch.adaptive(
+                value: SoundService.instance.soundEnabled,
+                activeTrackColor: VerdictStyle.accentGold,
+                onChanged: (value) async {
+                  await SoundService.instance.setEnabled(value);
+                  setSwitchState(() {});
+                },
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildLanguageCard(AppLocalizations l10n) {
     return GlassCard(
       child: Column(
@@ -706,6 +742,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _buildLanguageCard(l10n),
+                    const SizedBox(height: 14),
+                    _buildSoundCard(l10n),
                     if (_checkingMigrationAccess) ...[
                       const SizedBox(height: 14),
                       const GlassCard(

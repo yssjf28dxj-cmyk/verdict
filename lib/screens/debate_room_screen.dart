@@ -9,6 +9,7 @@ import '../painters/chat_pattern_painter.dart';
 import '../widgets/debate_messages_list.dart';
 import '../services/referee_service.dart';
 import '../services/debate_alert_service.dart';
+import '../services/sound_service.dart';
 import '../utils/debate_error_mapper.dart';
 import '../utils/name_utils.dart';
 import '../utils/style_utils.dart';
@@ -41,6 +42,9 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
   ];
   static const List<int> _roundOptions = <int>[1, 3, 5];
   static const int _advanceJitterWindowMs = 1800;
+  static const double _collapseThresholdPx = 30;
+  static const double _expandThresholdPx = 10;
+  static const double _snapThresholdPx = 20;
 
   void _refreshMyVoteStatus() {
     setState(() {
@@ -110,6 +114,9 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
   String _lastAdvanceSpeakerAttempt = '';
   DateTime? _lastAdvanceAttemptAt;
   int _lastDangerHapticSecond = -1;
+  String _lastBellCueKey = '';
+  bool _headerCollapsed = false;
+  bool _isTyping = false;
   String _lastHydratedFighter1Uid = '';
   String _lastHydratedFighter2Uid = '';
 
@@ -177,14 +184,6 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
       return 'Write a message...';
     }
     return raw;
-  }
-
-  String _safeLocalizedText(String raw, String fallback) {
-    final normalized = raw.trim();
-    if (normalized.isEmpty || normalized.toUpperCase() == 'NOT_FOUND') {
-      return fallback;
-    }
-    return normalized;
   }
 
   String _effectiveInvitedUid(Map<String, dynamic> data) {
@@ -322,6 +321,14 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
     _timeLeftNotifier = ValueNotifier<int>(60);
     _dangerZoneNotifier = ValueNotifier<bool>(false);
     _dangerPulseNotifier = ValueNotifier<bool>(false);
+    _messageController.addListener(() {
+      if (!mounted) return;
+      final next = _messageController.text.trim().isNotEmpty;
+      if (next == _isTyping) return;
+      setState(() {
+        _isTyping = next;
+      });
+    });
     _bootstrapCurrentUserIdentity();
     _startRoundCountdownTicker();
     _loadDebate();
@@ -390,13 +397,15 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
         return;
       }
 
-      if (DebateAlertService.dangerFlashEnabled &&
-          remaining <= 10) {
+      if (DebateAlertService.dangerFlashEnabled && remaining <= 10) {
         _dangerZoneNotifier.value = true;
         _dangerPulseNotifier.value = !_dangerPulseNotifier.value;
         if (_lastDangerHapticSecond != remaining) {
           _lastDangerHapticSecond = remaining;
           HapticFeedback.lightImpact();
+          if (remaining <= 5) {
+            SoundService.instance.play(SFX.tick);
+          }
         }
       } else {
         _dangerZoneNotifier.value = false;
@@ -595,6 +604,9 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
     await _hydrateFighterNamesFromUsers();
 
     _syncRoundCountdownFromData(data, status);
+    if (status == 'active') {
+      _playBellCueIfNeeded(nextRound: roundIndex, force: true);
+    }
 
     setState(() {
       isLoading = false;
@@ -613,6 +625,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
     debateSub = ref.snapshots().listen((doc) {
       final liveData = doc.data() ?? {};
       final previousRound = roundIndex;
+      final previousStatus = status;
 
       if (!mounted) return;
 
@@ -711,6 +724,15 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
         nextRound: roundIndex,
         nextStatus: status,
       );
+
+      if (newStatus == 'active' &&
+          (previousStatus != 'active' || previousRound != roundIndex)) {
+        _playBellCueIfNeeded(nextRound: roundIndex);
+      }
+
+      if (newStatus == 'finished' && previousStatus != 'finished') {
+        HapticFeedback.heavyImpact();
+      }
 
       _hydrateFighterNamesFromUsers();
 
@@ -890,6 +912,284 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
     return hash;
   }
 
+  String _heroTagForSide(int side) {
+    return 'debate-${widget.debateId}-fighter-$side';
+  }
+
+  void _playBellCueIfNeeded({
+    required int nextRound,
+    bool force = false,
+  }) {
+    if (status != 'active' || !isRoundActive) return;
+    final cueKey = 'round-$nextRound';
+    if (!force && cueKey == _lastBellCueKey) return;
+    _lastBellCueKey = cueKey;
+    HapticFeedback.mediumImpact();
+    SoundService.instance.play(SFX.bell);
+  }
+
+  Widget _buildVoteBar() {
+    final totalVotes = votes1 + votes2;
+    final leftFlex = totalVotes == 0 ? 1 : votes1;
+    final rightFlex = totalVotes == 0 ? 1 : votes2;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(999),
+      child: Container(
+        height: 4,
+        color: Colors.white.withValues(alpha: 0.08),
+        child: Row(
+          children: [
+            Expanded(
+              flex: leftFlex,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeOut,
+                color: VerdictStyle.fighterBlue,
+              ),
+            ),
+            Expanded(
+              flex: rightFlex,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeOut,
+                color: VerdictStyle.fighterRed,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatTimeLeft(int seconds) {
+    final safe = seconds < 0 ? 0 : seconds;
+    final mm = (safe ~/ 60).toString().padLeft(2, '0');
+    final ss = (safe % 60).toString().padLeft(2, '0');
+    return '$mm:$ss';
+  }
+
+  Widget _buildCompactAvatar({
+    required String name,
+    required Color color,
+    required String heroTag,
+  }) {
+    final safeName = name.trim().isEmpty ? '?' : name.trim();
+    final initial = safeName.isEmpty ? '?' : safeName.substring(0, 1);
+    return Hero(
+      tag: heroTag,
+      child: CircleAvatar(
+        radius: 14,
+        backgroundColor: color.withValues(alpha: 0.24),
+        child: Text(
+          initial,
+          style: TextStyle(
+            color: color,
+            fontWeight: FontWeight.w900,
+            fontSize: 12,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _onMessagesScroll(ScrollNotification notification) {
+    if (notification.metrics.axis != Axis.vertical) return;
+
+    if (notification is ScrollEndNotification) {
+      final shouldCollapse = notification.metrics.pixels > _snapThresholdPx;
+      if (shouldCollapse == _headerCollapsed || !mounted) return;
+      setState(() {
+        _headerCollapsed = shouldCollapse;
+      });
+      return;
+    }
+
+    final offset = notification.metrics.pixels;
+    final shouldCollapse = _headerCollapsed
+        ? offset > _expandThresholdPx
+        : offset > _collapseThresholdPx;
+    if (shouldCollapse == _headerCollapsed || !mounted) return;
+    setState(() {
+      _headerCollapsed = shouldCollapse;
+    });
+  }
+
+  Color _timerColor(int timeLeft) {
+    if (timeLeft <= 5) return const Color(0xFFFF3B30);
+    if (timeLeft <= 10) return const Color(0xFFFF6B6B);
+    return Colors.white;
+  }
+
+  Widget _buildCompactHeader({
+    required AppLocalizations l10n,
+    required String fighter1Label,
+    required String fighter2Label,
+  }) {
+    return ValueListenableBuilder<int>(
+      valueListenable: _timeLeftNotifier,
+      builder: (context, timeLeft, _) {
+        return ValueListenableBuilder<bool>(
+          valueListenable: _dangerZoneNotifier,
+          builder: (context, isDanger, __) {
+            return ValueListenableBuilder<bool>(
+              valueListenable: _dangerPulseNotifier,
+              builder: (context, pulse, ___) {
+                final isActive = status == 'active';
+                final timerText =
+                    isActive ? _formatTimeLeft(timeLeft) : '--:--';
+                final compactHeight = _headerCollapsed ? 0.0 : 92.0;
+                final borderColor = isDanger
+                    ? (pulse
+                        ? const Color(0x44FF6B6B)
+                        : const Color(0x22FF6B6B))
+                    : Colors.white10;
+
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOut,
+                  height: compactHeight,
+                  margin: EdgeInsets.fromLTRB(12, _headerCollapsed ? 0 : 4, 12,
+                      _headerCollapsed ? 0 : 6),
+                  padding: EdgeInsets.fromLTRB(10, _headerCollapsed ? 0 : 8, 10,
+                      _headerCollapsed ? 0 : 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xCC1A2035),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: borderColor),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          _buildCompactAvatar(
+                            name: fighter1Label,
+                            color: VerdictStyle.fighterBlue,
+                            heroTag: _heroTagForSide(1),
+                          ),
+                          const SizedBox(width: 6),
+                          _buildCompactAvatar(
+                            name: fighter2Label,
+                            color: VerdictStyle.fighterRed,
+                            heroTag: _heroTagForSide(2),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              '$votes1:$votes2',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            timerText,
+                            style: TextStyle(
+                              fontSize: _headerCollapsed ? 13 : 14,
+                              fontWeight: FontWeight.w900,
+                              color: _timerColor(timeLeft),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (!_headerCollapsed) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          status == 'finished'
+                              ? l10n.finishedStatus
+                              : (status == 'waiting'
+                                  ? l10n.waitingOpponent
+                                  : (isFighter
+                                      ? (isMyTurn
+                                          ? l10n.yourTurnUpper
+                                          : l10n.opponentTurnUpper)
+                                      : l10n.viewerUpper)),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white70,
+                          ),
+                        ),
+                        if (_canAcceptPending)
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton(
+                              onPressed: _isAcceptingPending
+                                  ? null
+                                  : _acceptPendingDebate,
+                              style: TextButton.styleFrom(
+                                foregroundColor: VerdictStyle.accentGold,
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 8),
+                                minimumSize: const Size(0, 26),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              child: Text(
+                                _isAcceptingPending
+                                    ? l10n.accepting
+                                    : l10n.acceptChallenge,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                      ],
+                      const SizedBox(height: 6),
+                      _buildVoteBar(),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildPinnedTopStrip() {
+    return ValueListenableBuilder<int>(
+      valueListenable: _timeLeftNotifier,
+      builder: (context, timeLeft, _) {
+        final timerText =
+            status == 'active' ? _formatTimeLeft(timeLeft) : '--:--';
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Text(
+                  '$votes1:$votes2',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  timerText,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                    color: _timerColor(timeLeft),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            _buildVoteBar(),
+          ],
+        );
+      },
+    );
+  }
+
   void _cancelPendingAdvanceIfNeeded({
     required int previousRound,
     required int nextRound,
@@ -965,6 +1265,8 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
     if (!isViewer) return;
     if (hasVotedThisRound) return;
     // Optimistic update — block duplicate taps immediately
+    HapticFeedback.lightImpact();
+    SoundService.instance.play(SFX.click);
     setState(() {
       hasVotedThisRound = true;
       votedSideThisRound = 1;
@@ -1016,6 +1318,8 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
     if (!isViewer) return;
     if (hasVotedThisRound) return;
     // Optimistic update — block duplicate taps immediately
+    HapticFeedback.lightImpact();
+    SoundService.instance.play(SFX.click);
     setState(() {
       hasVotedThisRound = true;
       votedSideThisRound = 2;
@@ -1091,6 +1395,8 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
       'sendDebateMessage',
       options: HttpsCallableOptions(timeout: const Duration(seconds: 20)),
     );
+    HapticFeedback.selectionClick();
+    SoundService.instance.play(SFX.whoosh);
     setState(() {
       _isSendingMessage = true;
     });
@@ -1151,58 +1457,6 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
     }
   }
 
-  String getTypeLabel() {
-    final l10n = AppLocalizations.of(context)!;
-    switch (debateType) {
-      case 'closed':
-        return l10n.closedDebates;
-      case 'request':
-        return l10n.requestOnlyDebates;
-      default:
-        return l10n.openDebates;
-    }
-  }
-
-  Widget _fighterCard(String name, Color color) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: VerdictStyle.cardBg,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.white12),
-        ),
-        child: Column(
-          children: [
-            Icon(Icons.person, color: color, size: 28),
-            const SizedBox(height: 8),
-            Text(
-              name,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Color _timerColor(int timeLeft) {
-    if (timeLeft <= 5) return const Color(0xFFFF3B30);
-    if (timeLeft <= 10) return const Color(0xFFFF6B6B);
-    return Colors.white;
-  }
-
-  Color _timerPanelColor(bool isDanger, bool pulse) {
-    if (!isDanger) return const Color(0xFF151D31);
-    return pulse ? const Color(0xFF3A1E27) : const Color(0xFF321B23);
-  }
-
   @override
   void dispose() {
     _roundCountdownTicker?.cancel();
@@ -1219,9 +1473,6 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final displayTopic = topic.trim().isEmpty
-        ? _safeLocalizedText(l10n.unknownTopic, 'Unknown topic')
-        : topic;
     final displayFighter1Name =
         fighter1Name.trim().isEmpty ? l10n.fighterOne : fighter1Name;
     final displayFighter2Name =
@@ -1238,9 +1489,11 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
 
     return Scaffold(
       resizeToAvoidBottomInset: true,
-      extendBodyBehindAppBar: true,
+      extendBodyBehindAppBar: false,
       appBar: AppBar(
-        title: Text(displayTopic),
+        toolbarHeight: 44,
+        titleSpacing: 6,
+        title: _buildPinnedTopStrip(),
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
@@ -1256,7 +1509,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
             ),
           ),
           LayoutBuilder(
-            builder: (context, constraints) {
+            builder: (context, _) {
               final bottomInset = MediaQuery.of(context).viewInsets.bottom;
               return AnimatedPadding(
                 duration: const Duration(milliseconds: 250),
@@ -1264,383 +1517,54 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
                 padding: EdgeInsets.only(bottom: bottomInset),
                 child: Column(
                   children: [
-                    SizedBox(height: MediaQuery.of(context).padding.top + 14),
-                    Flexible(
-                      child: ClipRect(
-                        child: SingleChildScrollView(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: Column(
+                    _buildCompactHeader(
+                      l10n: l10n,
+                      fighter1Label: displayFighter1Name,
+                      fighter2Label: displayFighter2Name,
+                    ),
+                    if (isViewer && !_headerCollapsed)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+                        child: Row(
                           children: [
-                            Text(
-                              getTypeLabel(),
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white70,
-                                letterSpacing: 1.1,
-                              ),
-                            ),
-                            const SizedBox(height: 14),
-                            Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 16),
-                              child: Row(
-                                children: [
-                                  _fighterCard(
-                                      displayFighter1Name, Colors.blue),
-                                  const Padding(
-                                    padding:
-                                        EdgeInsets.symmetric(horizontal: 10),
-                                    child: Text(
-                                      'VS',
-                                      style: TextStyle(
-                                        fontSize: 22,
-                                        fontWeight: FontWeight.bold,
-                                        color: Color(0xFFFFA500),
-                                      ),
-                                    ),
-                                  ),
-                                  _fighterCard(displayFighter2Name, Colors.red),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 18),
-                            if (status == 'active')
-                              ValueListenableBuilder<int>(
-                                valueListenable: _timeLeftNotifier,
-                                builder: (context, timeLeft, _) {
-                                  return ValueListenableBuilder<bool>(
-                                    valueListenable: _dangerZoneNotifier,
-                                    builder: (context, isDanger, __) {
-                                      return ValueListenableBuilder<bool>(
-                                        valueListenable: _dangerPulseNotifier,
-                                        builder: (context, pulse, ___) {
-                                          return AnimatedContainer(
-                                            duration: const Duration(
-                                                milliseconds: 350),
-                                            margin: const EdgeInsets.symmetric(
-                                                horizontal: 16),
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 16,
-                                              vertical: 14,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: _timerPanelColor(
-                                                  isDanger, pulse),
-                                              borderRadius:
-                                                  BorderRadius.circular(24),
-                                              border: Border.all(
-                                                  color: Colors.white12),
-                                            ),
-                                            child: Column(
-                                              children: [
-                                                Text(
-                                                  '${l10n.timeLabel}: $timeLeft',
-                                                  style: TextStyle(
-                                                    fontSize: 34,
-                                                    fontWeight: FontWeight.bold,
-                                                    color:
-                                                        _timerColor(timeLeft),
-                                                  ),
-                                                ),
-                                                if (timeLeft <= 10)
-                                                  Padding(
-                                                    padding:
-                                                        const EdgeInsets.only(
-                                                            top: 8),
-                                                    child: Text(
-                                                      l10n.timeEnding,
-                                                      style: TextStyle(
-                                                        color: _timerColor(
-                                                            timeLeft),
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                        fontSize: 16,
-                                                        letterSpacing: 1.2,
-                                                      ),
-                                                    ),
-                                                  ),
-                                              ],
-                                            ),
-                                          );
-                                        },
-                                      );
-                                    },
-                                  );
-                                },
-                              )
-                            else if (status == 'waiting')
-                              Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 16),
-                                child: Container(
-                                  width: double.infinity,
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 16, vertical: 14),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF151D31),
-                                    borderRadius: BorderRadius.circular(24),
-                                    border: Border.all(color: Colors.white12),
-                                  ),
-                                  child: Text(
-                                    l10n.waitingOpponent,
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            const SizedBox(height: 18),
-                            if (isFighter && status == 'active')
-                              Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 16),
-                                child: Container(
-                                  width: double.infinity,
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 10),
-                                  decoration: BoxDecoration(
-                                    color: isMyTurn
-                                        ? const Color(0xFF1D2233)
-                                        : const Color(0xFF151D31),
-                                    borderRadius: BorderRadius.circular(24),
-                                    border: Border.all(color: Colors.white12),
-                                  ),
-                                  child: Text(
-                                    '${l10n.roundLabel} $roundIndex/$totalRounds • ${isMyTurn ? l10n.yourTurn : l10n.opponentTurn}',
-                                    textAlign: TextAlign.center,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            if (isFighter && status == 'active')
-                              Padding(
-                                padding:
-                                    const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                                child: LayoutBuilder(
-                                  builder: (context, constraints) {
-                                    final textWidth = constraints.maxWidth > 180
-                                        ? constraints.maxWidth - 160
-                                        : constraints.maxWidth;
-                                    return SizedBox(
-                                      width: textWidth,
-                                      child: Text(
-                                        pendingPenaltySecondsForMe > 0
-                                            ? '${l10n.nextTurnPenaltyPrefix}: -$pendingPenaltySecondsForMe ${l10n.secondsShort}'
-                                            : l10n.noNextTurnPenalty,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white70,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                            if (isViewer && status != 'finished')
-                              Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 16),
-                                child: Text(
-                                  '${l10n.roundLabel} $roundIndex/$totalRounds',
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white70,
-                                  ),
-                                ),
-                              ),
-                            if (_canAcceptPending) ...[
-                              const SizedBox(height: 10),
-                              Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 16),
-                                child: SizedBox(
-                                  width: double.infinity,
-                                  child: ElevatedButton.icon(
-                                    onPressed: _isAcceptingPending
-                                        ? null
-                                        : _acceptPendingDebate,
-                                    icon: _isAcceptingPending
-                                        ? const SizedBox(
-                                            width: 18,
-                                            height: 18,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: Colors.black,
-                                            ),
-                                          )
-                                        : const Icon(Icons.how_to_reg),
-                                    label: Text(
-                                      _isAcceptingPending
-                                          ? l10n.accepting
-                                          : l10n.acceptChallenge,
-                                    ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFFFFA500),
-                                      foregroundColor: Colors.black,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(16),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                            if (isViewer) ...[
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceEvenly,
-                                children: [
-                                  ElevatedButton(
-                                    onPressed: (status == 'finished' ||
-                                            hasVotedThisRound)
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed:
+                                    (status == 'finished' || hasVotedThisRound)
                                         ? null
                                         : vote1,
-                                    child: Text('${l10n.voteFor} 1 ($votes1)'),
+                                style: OutlinedButton.styleFrom(
+                                  side: BorderSide(
+                                    color: VerdictStyle.fighterBlue
+                                        .withValues(alpha: 0.6),
                                   ),
-                                  ElevatedButton(
-                                    onPressed: (status == 'finished' ||
-                                            hasVotedThisRound)
-                                        ? null
-                                        : vote2,
-                                    child: Text('${l10n.voteFor} 2 ($votes2)'),
-                                  ),
-                                ],
-                              ),
-                              if (status != 'finished' && hasVotedThisRound)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 8),
-                                  child: Text(
-                                    votedSideThisRound == 1
-                                        ? '${l10n.alreadyVotedFor} 1'
-                                        : (votedSideThisRound == 2
-                                            ? '${l10n.alreadyVotedFor} 2'
-                                            : l10n.alreadyVotedThisRound),
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white70,
-                                    ),
-                                  ),
+                                  minimumSize: const Size(0, 34),
+                                  foregroundColor: VerdictStyle.fighterBlue,
                                 ),
-                            ] else ...[
-                              Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 16),
-                                child: Container(
-                                  width: double.infinity,
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF1D2233),
-                                    borderRadius: BorderRadius.circular(24),
-                                    border: Border.all(color: Colors.white12),
-                                  ),
-                                  child: Text(
-                                    l10n.votingOnlyForViewers,
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                            const SizedBox(height: 12),
-                            if (isViewer)
-                              Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 16),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    const Icon(Icons.remove_red_eye_outlined,
-                                        color: Colors.white38, size: 16),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      l10n.viewerModeHint,
-                                      style: const TextStyle(
-                                          color: Colors.white38, fontSize: 12),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            const SizedBox(height: 10),
-                            Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 16),
-                              child: ValueListenableBuilder<int>(
-                                valueListenable: _timeLeftNotifier,
-                                builder: (context, timeLeft, _) {
-                                  final label = status == 'finished'
-                                      ? l10n.finishedStatus
-                                      : (status == 'waiting'
-                                          ? l10n.waitingOpponent
-                                          : (isFighter
-                                              ? (isMyTurn
-                                                  ? l10n.yourTurnUpper
-                                                  : l10n.opponentTurnUpper)
-                                              : l10n.viewerUpper));
-                                  return Container(
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 14, vertical: 10),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF1D2233),
-                                      borderRadius: BorderRadius.circular(24),
-                                      border: Border.all(color: Colors.white12),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            '${l10n.roundLabel} $roundIndex/$totalRounds • $label',
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.white,
-                                            ),
-                                          ),
-                                        ),
-                                        if (status == 'active')
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                                horizontal: 10, vertical: 6),
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xFFFFA500)
-                                                  .withValues(alpha: 0.18),
-                                              borderRadius:
-                                                  BorderRadius.circular(999),
-                                            ),
-                                            child: Text(
-                                              timeLeft <= 0
-                                                  ? '00:00'
-                                                  : '00:${timeLeft.toString().padLeft(2, '0')}',
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.white,
-                                              ),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  );
-                                },
+                                child: Text('${l10n.voteFor} 1'),
                               ),
                             ),
-                            const SizedBox(height: 10),
-                            const SizedBox(height: 10),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed:
+                                    (status == 'finished' || hasVotedThisRound)
+                                        ? null
+                                        : vote2,
+                                style: OutlinedButton.styleFrom(
+                                  side: BorderSide(
+                                    color: VerdictStyle.fighterRed
+                                        .withValues(alpha: 0.6),
+                                  ),
+                                  minimumSize: const Size(0, 34),
+                                  foregroundColor: VerdictStyle.fighterRed,
+                                ),
+                                child: Text('${l10n.voteFor} 2'),
+                              ),
+                            ),
                           ],
                         ),
                       ),
-                    ),
-                    ),
                     Expanded(
                       child: Stack(
                         children: [
@@ -1651,14 +1575,30 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
                               ),
                             ),
                           ),
+                          const Positioned.fill(
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: Color(0xCC0D111B),
+                                borderRadius: BorderRadius.all(
+                                  Radius.circular(14),
+                                ),
+                              ),
+                            ),
+                          ),
                           Positioned.fill(
-                            child: DebateMessagesList(
-                              debateId: widget.debateId,
-                              fighter1Id: fighter1,
-                              showWaitingTurn: isFighter &&
-                                  status != 'finished' &&
-                                  !isMyTurn,
-                              waitingText: l10n.waitingYourTurn,
+                            child: NotificationListener<ScrollNotification>(
+                              onNotification: (notification) {
+                                _onMessagesScroll(notification);
+                                return false;
+                              },
+                              child: DebateMessagesList(
+                                debateId: widget.debateId,
+                                fighter1Id: fighter1,
+                                showWaitingTurn: isFighter &&
+                                    status != 'finished' &&
+                                    !isMyTurn,
+                                waitingText: l10n.waitingYourTurn,
+                              ),
                             ),
                           ),
                         ],
@@ -1672,17 +1612,28 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
                           child: Row(
                             children: [
                               Expanded(
-                                child: Container(
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 280),
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: 14),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF1D2233),
+                                    color: const Color(0xFF141C2F),
                                     borderRadius: BorderRadius.circular(24),
-                                    boxShadow: const [
+                                    border: Border.all(
+                                      color: _isTyping
+                                          ? const Color(0xFF4E8BFF)
+                                          : Colors.white
+                                              .withValues(alpha: 0.14),
+                                      width: _isTyping ? 1.4 : 1.0,
+                                    ),
+                                    boxShadow: [
                                       BoxShadow(
-                                        color: Color(0x12000000),
-                                        blurRadius: 12,
-                                        offset: Offset(0, 6),
+                                        color: _isTyping
+                                            ? const Color(0x664E8BFF)
+                                            : const Color(0x18000000),
+                                        blurRadius: _isTyping ? 18 : 10,
+                                        spreadRadius: _isTyping ? 1 : 0,
+                                        offset: const Offset(0, 4),
                                       ),
                                     ],
                                   ),
@@ -1701,11 +1652,16 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
                                       hintText: isMyTurn
                                           ? _safeWriteHint(l10n)
                                           : l10n.waitForOpponentTurn,
-                                      hintStyle: const TextStyle(
-                                          color: Colors.white54),
+                                      hintStyle: TextStyle(
+                                        color:
+                                            Colors.white.withValues(alpha: 0.5),
+                                      ),
                                       border: InputBorder.none,
                                     ),
-                                    style: const TextStyle(color: Colors.white),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 15,
+                                    ),
                                   ),
                                 ),
                               ),

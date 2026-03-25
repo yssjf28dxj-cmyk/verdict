@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../l10n/app_localizations.dart';
 import '../models/debate_history_item.dart';
@@ -246,6 +247,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
       return;
     }
 
+    HapticFeedback.mediumImpact();
     setState(() => _isChallengeSending = true);
 
     try {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
@@ -125,14 +126,16 @@ class _HomeScreenState extends State<HomeScreen> {
     if (target == null) return;
 
     setState(() => _selectedIndex = idx);
-    Navigator.of(context).push(
+    Navigator.of(context)
+        .push(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) => target!,
         transitionsBuilder: (context, animation, secondaryAnimation, child) =>
             FadeTransition(opacity: animation, child: child),
         transitionDuration: const Duration(milliseconds: 200),
       ),
-    ).then((_) {
+    )
+        .then((_) {
       if (mounted) setState(() => _selectedIndex = 0);
     });
   }
@@ -757,6 +760,7 @@ class _DebateCardState extends State<_DebateCard> {
   /// One-click join: calls acceptDebateInvite, then navigates to room
   Future<void> _joinAsFighter(BuildContext context) async {
     if (_isJoining) return;
+    HapticFeedback.mediumImpact();
     setState(() => _isJoining = true);
 
     final l10n = AppLocalizations.of(context)!;
@@ -856,6 +860,7 @@ class _DebateCardState extends State<_DebateCard> {
   Widget _buildFighterAvatar({
     required String name,
     required Color color,
+    required String heroTag,
     bool isEmpty = false,
     double rating = 0,
   }) {
@@ -864,39 +869,42 @@ class _DebateCardState extends State<_DebateCard> {
     return Expanded(
       child: Column(
         children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  color.withValues(alpha: 0.25),
-                  color.withValues(alpha: 0.08),
-                ],
+          Hero(
+            tag: heroTag,
+            child: Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    color.withValues(alpha: 0.25),
+                    color.withValues(alpha: 0.08),
+                  ],
+                ),
+                border: Border.all(
+                  color: isEmpty
+                      ? color.withValues(alpha: 0.2)
+                      : rank.color.withValues(alpha: 0.6),
+                  width: 2,
+                ),
+                boxShadow: (!isEmpty &&
+                        (rank.key == 'master' || rank.key == 'grandmaster'))
+                    ? [
+                        BoxShadow(
+                            color: rank.glowColor,
+                            blurRadius: 10,
+                            spreadRadius: 1)
+                      ]
+                    : null,
               ),
-              border: Border.all(
-                color: isEmpty
-                    ? color.withValues(alpha: 0.2)
-                    : rank.color.withValues(alpha: 0.6),
-                width: 2,
-              ),
-              boxShadow: (!isEmpty &&
-                      (rank.key == 'master' || rank.key == 'grandmaster'))
-                  ? [
-                      BoxShadow(
-                          color: rank.glowColor,
-                          blurRadius: 10,
-                          spreadRadius: 1)
-                    ]
-                  : null,
+              child: isEmpty
+                  ? Icon(Icons.person_add_alt_1,
+                      color: color.withValues(alpha: 0.4), size: 22)
+                  : Icon(Icons.person, color: color, size: 24),
             ),
-            child: isEmpty
-                ? Icon(Icons.person_add_alt_1,
-                    color: color.withValues(alpha: 0.4), size: 22)
-                : Icon(Icons.person, color: color, size: 24),
           ),
           const SizedBox(height: 4),
           if (!isEmpty && rating > 0) ...[
@@ -962,6 +970,69 @@ class _DebateCardState extends State<_DebateCard> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildVoteBar({
+    required int votes1,
+    required int votes2,
+  }) {
+    final totalVotes = votes1 + votes2;
+    final leftFlex = totalVotes == 0 ? 1 : votes1;
+    final rightFlex = totalVotes == 0 ? 1 : votes2;
+
+    return Column(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: Container(
+            height: 8,
+            color: Colors.white.withValues(alpha: 0.06),
+            child: Row(
+              children: [
+                Expanded(
+                  flex: leftFlex,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 450),
+                    curve: Curves.easeOutCubic,
+                    color: VerdictStyle.fighterBlue,
+                  ),
+                ),
+                Expanded(
+                  flex: rightFlex,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 450),
+                    curve: Curves.easeOutCubic,
+                    color: VerdictStyle.fighterRed,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            Text(
+              '$votes1',
+              style: const TextStyle(
+                color: VerdictStyle.fighterBlue,
+                fontWeight: FontWeight.w800,
+                fontSize: 11,
+              ),
+            ),
+            const Spacer(),
+            Text(
+              '$votes2',
+              style: const TextStyle(
+                color: VerdictStyle.fighterRed,
+                fontWeight: FontWeight.w800,
+                fontSize: 11,
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -1188,6 +1259,7 @@ class _DebateCardState extends State<_DebateCard> {
                         _buildFighterAvatar(
                           name: fighter1,
                           color: VerdictStyle.fighterBlue,
+                          heroTag: 'debate-${doc.id}-fighter-1',
                           rating: f1Rating,
                         ),
                         Padding(
@@ -1220,6 +1292,7 @@ class _DebateCardState extends State<_DebateCard> {
                         _buildFighterAvatar(
                           name: isWaiting && !hasFighter2 ? '?' : fighter2,
                           color: VerdictStyle.fighterRed,
+                          heroTag: 'debate-${doc.id}-fighter-2',
                           isEmpty: isWaiting && !hasFighter2,
                           rating: f2Rating,
                         ),
@@ -1242,6 +1315,8 @@ class _DebateCardState extends State<_DebateCard> {
                           _metaChip(_prettyVisibility(l10n, visibility)),
                       ],
                     ),
+                    const SizedBox(height: 10),
+                    _buildVoteBar(votes1: votes1, votes2: votes2),
                   ],
 
                   // ── Action button ──
