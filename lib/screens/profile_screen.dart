@@ -85,10 +85,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return ((_wins + (_draws * 0.5)) / _totalDebates) * 100;
   }
 
+  bool _disposed = false;
+
   @override
   void initState() {
     super.initState();
     _loadProfile();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 
   Future<void> _loadProfile() async {
@@ -229,7 +237,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (e) {
       debugPrint('Error loading profile: $e');
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted && !_disposed) setState(() => _isLoading = false);
     }
   }
 

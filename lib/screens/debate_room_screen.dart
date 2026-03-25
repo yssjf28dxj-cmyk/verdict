@@ -964,6 +964,12 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
     if (status == 'finished') return;
     if (!isViewer) return;
     if (hasVotedThisRound) return;
+    // Optimistic update — block duplicate taps immediately
+    setState(() {
+      hasVotedThisRound = true;
+      votedSideThisRound = 1;
+      _voteStatusRoundIndex = roundIndex;
+    });
     final callable = _functions.httpsCallable(
       'castVote',
       options: HttpsCallableOptions(timeout: const Duration(seconds: 20)),
@@ -973,12 +979,6 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
         'debateId': widget.debateId,
         'side': 1,
         'scope': 'round',
-      });
-      if (!mounted) return;
-      setState(() {
-        hasVotedThisRound = true;
-        votedSideThisRound = 1;
-        _voteStatusRoundIndex = roundIndex;
       });
     } on FirebaseFunctionsException catch (e) {
       if (!mounted) return;
@@ -1015,6 +1015,12 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
     if (status == 'finished') return;
     if (!isViewer) return;
     if (hasVotedThisRound) return;
+    // Optimistic update — block duplicate taps immediately
+    setState(() {
+      hasVotedThisRound = true;
+      votedSideThisRound = 2;
+      _voteStatusRoundIndex = roundIndex;
+    });
     final callable = _functions.httpsCallable(
       'castVote',
       options: HttpsCallableOptions(timeout: const Duration(seconds: 20)),
@@ -1024,12 +1030,6 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
         'debateId': widget.debateId,
         'side': 2,
         'scope': 'round',
-      });
-      if (!mounted) return;
-      setState(() {
-        hasVotedThisRound = true;
-        votedSideThisRound = 2;
-        _voteStatusRoundIndex = roundIndex;
       });
     } on FirebaseFunctionsException catch (e) {
       if (!mounted) return;

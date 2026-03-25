@@ -282,6 +282,7 @@ class _HomeScreenState extends State<HomeScreen> {
       stream: FirebaseFirestore.instance
           .collection('debates')
           .orderBy('createdAt', descending: true)
+          .limit(50)
           .snapshots(),
       builder: (context, snapshot) {
         final uid = FirebaseAuth.instance.currentUser?.uid ?? '';

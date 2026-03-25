@@ -40,10 +40,18 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
   String _style = 'Balanced';
   List<DebateHistoryItem> _recentDebates = const [];
 
+  bool _disposed = false;
+
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -122,7 +130,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
           return bb.compareTo(aa);
         });
 
-      if (!mounted) return;
+      if (!mounted || _disposed) return;
       setState(() {
         _wins = (userData['wins'] as int?) ?? 0;
         _losses = (userData['losses'] as int?) ?? 0;
@@ -136,7 +144,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
         _loading = false;
       });
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || _disposed) return;
       setState(() {
         _loading = false;
       });

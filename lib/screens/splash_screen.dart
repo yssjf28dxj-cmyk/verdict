@@ -17,6 +17,7 @@ class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
+  Timer? _authTimer;
 
   @override
   void initState() {
@@ -30,7 +31,7 @@ class _SplashScreenState extends State<SplashScreen>
       curve: Curves.easeIn,
     );
     _controller.forward();
-    Timer(const Duration(seconds: 3), _checkAuth);
+    _authTimer = Timer(const Duration(seconds: 3), _checkAuth);
   }
 
   void _checkAuth() {
@@ -61,6 +62,7 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   void dispose() {
+    _authTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }
