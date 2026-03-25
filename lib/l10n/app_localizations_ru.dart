@@ -568,4 +568,23 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get balancedStyle => 'Сбалансированный';
+
+  @override
+  String get joinAsFighter => 'ВСТУПИТЬ В БОЙ';
+
+  @override
+  String get watchAndVote => 'СМОТРЕТЬ И ГОЛОСОВАТЬ';
+
+  @override
+  String roundProgress(Object current, Object total) {
+    return 'Раунд $current/$total';
+  }
+
+  @override
+  String viewersCount(Object count) {
+    return '$count смотрят';
+  }
+
+  @override
+  String get waitingForOpponent => 'Ожидание оппонента...';
 }

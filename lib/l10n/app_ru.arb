@@ -186,5 +186,10 @@
   "noUsersFound": "Пользователи не найдены",
   "viewProfile": "Открыть профиль",
   "userWithIdNotFound": "Пользователь с таким ID не найден",
-  "balancedStyle": "Сбалансированный"
+  "balancedStyle": "Сбалансированный",
+  "joinAsFighter": "ВСТУПИТЬ В БОЙ",
+  "watchAndVote": "СМОТРЕТЬ И ГОЛОСОВАТЬ",
+  "roundProgress": "Раунд {current}/{total}",
+  "viewersCount": "{count} смотрят",
+  "waitingForOpponent": "Ожидание оппонента..."
 }

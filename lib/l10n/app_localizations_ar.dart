@@ -568,4 +568,23 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get balancedStyle => 'متوازن';
+
+  @override
+  String get joinAsFighter => 'انضم كمقاتل';
+
+  @override
+  String get watchAndVote => 'شاهد وصوّت';
+
+  @override
+  String roundProgress(Object current, Object total) {
+    return 'الجولة $current/$total';
+  }
+
+  @override
+  String viewersCount(Object count) {
+    return '$count يشاهدون';
+  }
+
+  @override
+  String get waitingForOpponent => 'بانتظار الخصم...';
 }

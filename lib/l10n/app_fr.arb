@@ -186,5 +186,10 @@
   "noUsersFound": "Aucun utilisateur trouve",
   "viewProfile": "Voir le profil",
   "userWithIdNotFound": "Utilisateur avec cet ID introuvable",
-  "balancedStyle": "Equilibre"
+  "balancedStyle": "Equilibre",
+  "joinAsFighter": "REJOINDRE LE COMBAT",
+  "watchAndVote": "REGARDER ET VOTER",
+  "roundProgress": "Round {current}/{total}",
+  "viewersCount": "{count} spectateurs",
+  "waitingForOpponent": "En attente d'un adversaire..."
 }

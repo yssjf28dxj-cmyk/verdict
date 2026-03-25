@@ -186,5 +186,10 @@
   "noUsersFound": "No users found",
   "viewProfile": "View Profile",
   "userWithIdNotFound": "User with this ID not found",
-  "balancedStyle": "Balanced"
+  "balancedStyle": "Balanced",
+  "joinAsFighter": "JOIN AS FIGHTER",
+  "watchAndVote": "WATCH & VOTE",
+  "roundProgress": "Round {current}/{total}",
+  "viewersCount": "{count} watching",
+  "waitingForOpponent": "Waiting for opponent..."
 }

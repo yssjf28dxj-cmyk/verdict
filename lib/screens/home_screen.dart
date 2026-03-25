@@ -396,16 +396,27 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-class _DebateCard extends StatelessWidget {
+class _DebateCard extends StatefulWidget {
   final QueryDocumentSnapshot doc;
   final String currentUid;
   final bool canEnter;
-  final FirebaseFunctions _functions = FirebaseFunctions.instance;
-  _DebateCard({
+  const _DebateCard({
     required this.doc,
     required this.currentUid,
     required this.canEnter,
   });
+
+  @override
+  State<_DebateCard> createState() => _DebateCardState();
+}
+
+class _DebateCardState extends State<_DebateCard> {
+  final FirebaseFunctions _functions = FirebaseFunctions.instance;
+  bool _isJoining = false;
+
+  QueryDocumentSnapshot get doc => widget.doc;
+  String get currentUid => widget.currentUid;
+  bool get canEnter => widget.canEnter;
 
   String _safeLocalizedText(String raw, String fallback) {
     final normalized = raw.trim();
@@ -418,6 +429,15 @@ class _DebateCard extends StatelessWidget {
   List<String> _stringList(dynamic raw) {
     if (raw is! List) return const <String>[];
     return raw.map((e) => e.toString()).where((e) => e.isNotEmpty).toList();
+  }
+
+  bool _isLiveStatus(String status) {
+    final s = status.toLowerCase();
+    return s == 'live' || s == 'active' || s.startsWith('round');
+  }
+
+  bool _isWaitingStatus(String status) {
+    return status.toLowerCase() == 'waiting';
   }
 
   Future<void> _moderateAccessViaFallback({
@@ -699,66 +719,147 @@ class _DebateCard extends StatelessWidget {
     }
   }
 
-  Widget _buildStatusBadge(BuildContext context, String status) {
-    final l10n = AppLocalizations.of(context)!;
-    final normalized = status.toLowerCase();
-    final isLive = normalized == 'live' ||
-        normalized == 'active' ||
-        normalized.startsWith('round');
+  void _navigateToDebate(BuildContext context) {
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            DebateRoomScreen(debateId: doc.id),
+        transitionsBuilder:
+            (context, animation, secondaryAnimation, child) =>
+                FadeTransition(opacity: animation, child: child),
+        transitionDuration: const Duration(milliseconds: 200),
+      ),
+    );
+  }
 
-    if (isLive) {
+  /// One-click join: calls acceptDebateInvite, then navigates to room
+  Future<void> _joinAsFighter(BuildContext context) async {
+    if (_isJoining) return;
+    setState(() => _isJoining = true);
+
+    final l10n = AppLocalizations.of(context)!;
+    try {
+      final callable = _functions.httpsCallable(
+        'acceptDebateInvite',
+        options: HttpsCallableOptions(timeout: const Duration(seconds: 15)),
+      );
+      await callable.call({'debateId': doc.id});
+      if (!context.mounted) return;
+      _navigateToDebate(context);
+    } on FirebaseFunctionsException catch (e) {
+      if (!context.mounted) return;
+      // If already joined or debate started — just navigate
+      if (e.code == 'already-exists' || e.code == 'failed-precondition') {
+        _navigateToDebate(context);
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(mapCallableError(l10n, e,
+              fallbackMessage: 'Failed to join debate')),
+        ),
+      );
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to join debate')),
+      );
+    } finally {
+      if (mounted) setState(() => _isJoining = false);
+    }
+  }
+
+  // ─── DARK-THEMED CARD WIDGETS ─────────────────────────────
+
+  Widget _buildStatusBadge(String status) {
+    if (_isLiveStatus(status)) {
       return const LivePulseIndicator();
     }
 
-    if (normalized == 'waiting') {
+    if (_isWaitingStatus(status)) {
       return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
-          color: const Color(0xFFFFF3E0),
+          color: VerdictStyle.accentGold.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(999),
-        ),
-        child: Text(
-          l10n.waitingStatus,
-          style: const TextStyle(
-            color: Color(0xFFEF6C00),
-            fontWeight: FontWeight.w900,
-            fontSize: 12,
-            letterSpacing: 0.4,
+          border: Border.all(
+            color: VerdictStyle.accentGold.withValues(alpha: 0.4),
           ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 6,
+              height: 6,
+              decoration: const BoxDecoration(
+                color: VerdictStyle.accentGold,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 5),
+            const Text(
+              'WAITING',
+              style: TextStyle(
+                color: VerdictStyle.accentGold,
+                fontWeight: FontWeight.w900,
+                fontSize: 10,
+                letterSpacing: 0.6,
+              ),
+            ),
+          ],
         ),
       );
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: const Color(0xFFF1F3F4),
+        color: Colors.white.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
       ),
-      child: Text(
-        l10n.finishedStatus,
-        style: const TextStyle(
-          color: Color(0xFF757575),
+      child: const Text(
+        'FINISHED',
+        style: TextStyle(
+          color: Colors.white38,
           fontWeight: FontWeight.w900,
-          fontSize: 12,
-          letterSpacing: 0.4,
+          fontSize: 10,
+          letterSpacing: 0.6,
         ),
       ),
     );
   }
 
-  Widget _buildFighter({required String name, required Color color}) {
+  Widget _buildFighterAvatar({
+    required String name,
+    required Color color,
+    bool isEmpty = false,
+  }) {
     return Expanded(
       child: Column(
         children: [
           Container(
-            width: 44,
-            height: 44,
+            width: 48,
+            height: 48,
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
               shape: BoxShape.circle,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  color.withValues(alpha: 0.25),
+                  color.withValues(alpha: 0.08),
+                ],
+              ),
+              border: Border.all(
+                color: color.withValues(alpha: isEmpty ? 0.2 : 0.5),
+                width: 2,
+              ),
             ),
-            child: Icon(Icons.person, color: color, size: 24),
+            child: isEmpty
+                ? Icon(Icons.person_add_alt_1, color: color.withValues(alpha: 0.4), size: 22)
+                : Icon(Icons.person, color: color, size: 24),
           ),
           const SizedBox(height: 6),
           Text(
@@ -766,9 +867,56 @@ class _DebateCard extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 14,
+            style: TextStyle(
+              fontSize: 13,
               fontWeight: FontWeight.w700,
+              color: isEmpty ? Colors.white30 : Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _metaChip(String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: Colors.white54,
+          letterSpacing: 0.3,
+        ),
+      ),
+    );
+  }
+
+  Widget _votePill({required Color color, required int votes}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.how_to_vote, size: 12, color: color),
+          const SizedBox(width: 4),
+          Text(
+            '$votes',
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              color: color,
+              fontSize: 11,
             ),
           ),
         ],
@@ -800,47 +948,46 @@ class _DebateCard extends StatelessWidget {
     }
   }
 
-  Widget _metaChip(String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: const Color(0xFFEEF2F7),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w800,
-          color: Color(0xFF475569),
-          letterSpacing: 0.3,
-        ),
-      ),
-    );
-  }
-
-  Widget _votePill({required Color color, required int votes}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withValues(alpha: 0.45)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.how_to_vote, size: 14, color: color),
-          const SizedBox(width: 5),
-          Text(
-            '$votes',
-            style: TextStyle(
-              fontWeight: FontWeight.w800,
-              color: color,
-              fontSize: 12,
+  Widget _buildActionButton({
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            gradient: LinearGradient(
+              colors: [
+                color,
+                color.withValues(alpha: 0.7),
+              ],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: color.withValues(alpha: 0.35),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w900,
+              fontSize: 13,
+              letterSpacing: 1.0,
             ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -877,182 +1024,271 @@ class _DebateCard extends StatelessWidget {
     final accessRequests = _stringList(data['accessRequests']);
     final alreadyRequested = accessRequests.contains(currentUid);
     final isCreator = currentUid.isNotEmpty && currentUid == creatorId;
+    final int currentRound =
+        (data['currentRound'] is num) ? (data['currentRound'] as num).toInt() : 1;
+    final int totalRounds =
+        (data['totalRounds'] is num) ? (data['totalRounds'] as num).toInt() : 1;
+
+    final isLive = _isLiveStatus(status);
+    final isWaiting = _isWaitingStatus(status);
+    final hasFighter2 = (data['fighter2'] ?? '').toString().isNotEmpty;
+    final isParticipant = currentUid.isNotEmpty &&
+        (currentUid == (data['fighter1'] ?? '') ||
+            currentUid == (data['fighter2'] ?? '') ||
+            currentUid == creatorId);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: GlassCard(
-        enableBlur: false,
-        borderRadius: BorderRadius.circular(24),
-        padding: EdgeInsets.zero,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(24),
-          onTap: () {
-            if (canEnter) {
-              Navigator.of(context).push(
-                PageRouteBuilder(
-                  pageBuilder: (context, animation, secondaryAnimation) =>
-                      DebateRoomScreen(debateId: doc.id),
-                  transitionsBuilder:
-                      (context, animation, secondaryAnimation, child) =>
-                          FadeTransition(opacity: animation, child: child),
-                  transitionDuration: const Duration(milliseconds: 200),
-                ),
-              );
-              return;
-            }
-
-            if (visibility == 'request_only') {
-              _requestAccess(context, doc.id, alreadyRequested);
-              return;
-            }
-
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(l10n.accessRestricted)),
-            );
-          },
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        topic,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                          shadows: [
-                            Shadow(
-                              color: Color(0xCC000000),
-                              blurRadius: 8,
-                              offset: Offset(0, 1),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    _buildStatusBadge(context, status),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    _metaChip(language),
-                    _metaChip(_prettyVisibility(l10n, visibility)),
-                    _metaChip(_prettyRegion(l10n, region)),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: const Color(0x442A3147),
-                    borderRadius: BorderRadius.circular(24),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          color: const Color(0xFF1A2035),
+          border: Border.all(
+            color: isLive
+                ? VerdictStyle.fighterRed.withValues(alpha: 0.3)
+                : Colors.white.withValues(alpha: 0.06),
+            width: isLive ? 1.5 : 1,
+          ),
+          boxShadow: isLive
+              ? [
+                  BoxShadow(
+                    color: VerdictStyle.fighterRed.withValues(alpha: 0.12),
+                    blurRadius: 20,
+                    spreadRadius: 2,
                   ),
-                  child: Row(
+                ]
+              : null,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(20),
+            onTap: () {
+              if (canEnter) {
+                _navigateToDebate(context);
+                return;
+              }
+              if (visibility == 'request_only') {
+                _requestAccess(context, doc.id, alreadyRequested);
+                return;
+              }
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(l10n.accessRestricted)),
+              );
+            },
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ── Header: Status badge + meta chips ──
+                  Row(
                     children: [
-                      _buildFighter(
-                          name: fighter1, color: const Color(0xFF1976D2)),
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 10),
-                        child: Text(
-                          'VS',
+                      _buildStatusBadge(status),
+                      const Spacer(),
+                      if (isLive) ...[
+                        Icon(Icons.visibility, size: 13, color: Colors.white.withValues(alpha: 0.4)),
+                        const SizedBox(width: 4),
+                        Text(
+                          '$viewers',
                           style: TextStyle(
-                            color: Color(0xFFFFA500),
-                            fontWeight: FontWeight.w900,
-                            fontSize: 22,
-                            letterSpacing: 0.6,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white.withValues(alpha: 0.5),
                           ),
                         ),
-                      ),
-                      _buildFighter(
-                          name: fighter2, color: const Color(0xFFD32F2F)),
+                        const SizedBox(width: 10),
+                      ],
+                      ...[
+                        _metaChip(language),
+                        const SizedBox(width: 4),
+                        _metaChip(_prettyRegion(l10n, region)),
+                      ],
                     ],
                   ),
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.remove_red_eye_outlined,
-                      size: 16,
-                      color: Color(0xFF6B7280),
+                  const SizedBox(height: 14),
+
+                  // ── Topic ──
+                  Text(
+                    topic,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                      height: 1.3,
                     ),
-                    Text(
-                      '$viewers',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF4B5563),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // ── Fighters arena ──
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.03),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.05),
                       ),
                     ),
-                    _votePill(color: const Color(0xFF42A5F5), votes: votes1),
-                    _votePill(color: const Color(0xFFEF5350), votes: votes2),
-                    if (!canEnter && visibility == 'request_only')
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
+                    child: Row(
+                      children: [
+                        _buildFighterAvatar(
+                          name: fighter1,
+                          color: VerdictStyle.fighterBlue,
                         ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          child: Column(
+                            children: [
+                              const Text(
+                                'VS',
+                                style: TextStyle(
+                                  color: VerdictStyle.accentGold,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 18,
+                                  letterSpacing: 0.6,
+                                ),
+                              ),
+                              if (isLive) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  l10n.roundProgress(currentRound, totalRounds),
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white.withValues(alpha: 0.4),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        _buildFighterAvatar(
+                          name: isWaiting && !hasFighter2
+                              ? '?'
+                              : fighter2,
+                          color: VerdictStyle.fighterRed,
+                          isEmpty: isWaiting && !hasFighter2,
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // ── Vote pills for live/finished ──
+                  if (!isWaiting) ...[
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        _votePill(
+                            color: VerdictStyle.fighterBlue, votes: votes1),
+                        const SizedBox(width: 8),
+                        _votePill(
+                            color: VerdictStyle.fighterRed, votes: votes2),
+                        const Spacer(),
+                        if (visibility != 'public')
+                          _metaChip(_prettyVisibility(l10n, visibility)),
+                      ],
+                    ),
+                  ],
+
+                  // ── Action button ──
+                  if (isWaiting && !isParticipant && canEnter) ...[
+                    const SizedBox(height: 14),
+                    _isJoining
+                        ? const Center(
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(vertical: 12),
+                              child: SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                  color: VerdictStyle.fighterBlue,
+                                ),
+                              ),
+                            ),
+                          )
+                        : _buildActionButton(
+                            label: l10n.joinAsFighter,
+                            color: VerdictStyle.fighterBlue,
+                            onTap: () => _joinAsFighter(context),
+                          ),
+                  ] else if (isWaiting && isParticipant) ...[
+                    const SizedBox(height: 12),
+                    _buildActionButton(
+                      label: l10n.waitingForOpponent,
+                      color: VerdictStyle.accentGold,
+                      onTap: () => _navigateToDebate(context),
+                    ),
+                  ] else if (isLive && isParticipant && canEnter) ...[
+                    const SizedBox(height: 14),
+                    _buildActionButton(
+                      label: '⚔️  CONTINUE DEBATE',
+                      color: VerdictStyle.accentGold,
+                      onTap: () => _navigateToDebate(context),
+                    ),
+                  ] else if (isLive && !isParticipant && canEnter) ...[
+                    const SizedBox(height: 14),
+                    _buildActionButton(
+                      label: l10n.watchAndVote,
+                      color: VerdictStyle.fighterRed,
+                      onTap: () => _navigateToDebate(context),
+                    ),
+                  ],
+
+                  // ── Access request controls ──
+                  if (!canEnter && visibility == 'request_only') ...[
+                    const SizedBox(height: 12),
+                    _buildActionButton(
+                      label: alreadyRequested
+                          ? _safeLocalizedText(l10n.requestSent, 'Request sent')
+                          : _safeLocalizedText(
+                              l10n.requestAccess, 'Request access'),
+                      color: alreadyRequested
+                          ? Colors.white24
+                          : VerdictStyle.accentGold,
+                      onTap: () =>
+                          _requestAccess(context, doc.id, alreadyRequested),
+                    ),
+                  ],
+
+                  if (isCreator && accessRequests.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    InkWell(
+                      borderRadius: BorderRadius.circular(10),
+                      onTap: () => _showAccessRequestsDialog(
+                        context: context,
+                        debateId: doc.id,
+                        requests: accessRequests,
+                      ),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFFF3E0),
-                          borderRadius: BorderRadius.circular(999),
+                          borderRadius: BorderRadius.circular(10),
+                          color: VerdictStyle.fighterBlue.withValues(alpha: 0.1),
+                          border: Border.all(
+                            color:
+                                VerdictStyle.fighterBlue.withValues(alpha: 0.2),
+                          ),
                         ),
                         child: Text(
-                          alreadyRequested
-                              ? _safeLocalizedText(
-                                  l10n.requestSent, 'Request sent')
-                              : _safeLocalizedText(
-                                  l10n.requestAccess, 'Request access'),
+                          '${_safeLocalizedText(l10n.accessRequestsCountPrefix, 'Access requests')}: ${accessRequests.length}',
+                          textAlign: TextAlign.center,
                           style: const TextStyle(
-                            color: Color(0xFFEF6C00),
-                            fontWeight: FontWeight.w800,
-                            fontSize: 10,
+                            color: VerdictStyle.fighterBlue,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 11,
                           ),
                         ),
                       ),
-                    if (isCreator && accessRequests.isNotEmpty)
-                      InkWell(
-                        borderRadius: BorderRadius.circular(999),
-                        onTap: () => _showAccessRequestsDialog(
-                          context: context,
-                          debateId: doc.id,
-                          requests: accessRequests,
-                        ),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFE8F0FE),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Text(
-                            '${_safeLocalizedText(l10n.accessRequestsCountPrefix, 'Access requests')}: ${accessRequests.length}',
-                            style: const TextStyle(
-                              color: Color(0xFF1D4ED8),
-                              fontWeight: FontWeight.w800,
-                              fontSize: 10,
-                            ),
-                          ),
-                        ),
-                      ),
+                    ),
                   ],
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

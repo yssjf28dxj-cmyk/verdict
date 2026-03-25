@@ -186,5 +186,10 @@
   "noUsersFound": "未找到用户",
   "viewProfile": "查看资料",
   "userWithIdNotFound": "未找到此ID对应的用户",
-  "balancedStyle": "均衡"
+  "balancedStyle": "均衡",
+  "joinAsFighter": "加入战斗",
+  "watchAndVote": "观看并投票",
+  "roundProgress": "第{current}/{total}回合",
+  "viewersCount": "{count}人观看",
+  "waitingForOpponent": "等待对手..."
 }

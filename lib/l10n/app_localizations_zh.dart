@@ -568,4 +568,23 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get balancedStyle => '均衡';
+
+  @override
+  String get joinAsFighter => '加入战斗';
+
+  @override
+  String get watchAndVote => '观看并投票';
+
+  @override
+  String roundProgress(Object current, Object total) {
+    return '第$current/$total回合';
+  }
+
+  @override
+  String viewersCount(Object count) {
+    return '$count人观看';
+  }
+
+  @override
+  String get waitingForOpponent => '等待对手...';
 }

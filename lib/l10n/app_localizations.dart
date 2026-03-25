@@ -1226,6 +1226,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Balanced'**
   String get balancedStyle;
+
+  /// No description provided for @joinAsFighter.
+  ///
+  /// In en, this message translates to:
+  /// **'JOIN AS FIGHTER'**
+  String get joinAsFighter;
+
+  /// No description provided for @watchAndVote.
+  ///
+  /// In en, this message translates to:
+  /// **'WATCH & VOTE'**
+  String get watchAndVote;
+
+  /// No description provided for @roundProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Round {current}/{total}'**
+  String roundProgress(Object current, Object total);
+
+  /// No description provided for @viewersCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} watching'**
+  String viewersCount(Object count);
+
+  /// No description provided for @waitingForOpponent.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for opponent...'**
+  String get waitingForOpponent;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

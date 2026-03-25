@@ -186,5 +186,10 @@
   "noUsersFound": "कोई उपयोगकर्ता नहीं मिला",
   "viewProfile": "प्रोफाइल देखें",
   "userWithIdNotFound": "इस आईडी वाला उपयोगकर्ता नहीं मिला",
-  "balancedStyle": "संतुलित"
+  "balancedStyle": "संतुलित",
+  "joinAsFighter": "लड़ाकू के रूप में शामिल हों",
+  "watchAndVote": "देखें और वोट करें",
+  "roundProgress": "राउंड {current}/{total}",
+  "viewersCount": "{count} देख रहे हैं",
+  "waitingForOpponent": "प्रतिद्वंद्वी की प्रतीक्षा..."
 }

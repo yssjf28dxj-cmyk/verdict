@@ -186,5 +186,10 @@
   "noUsersFound": "لم يتم العثور على مستخدمين",
   "viewProfile": "عرض الملف الشخصي",
   "userWithIdNotFound": "لم يتم العثور على مستخدم بهذا المعرف",
-  "balancedStyle": "متوازن"
+  "balancedStyle": "متوازن",
+  "joinAsFighter": "انضم كمقاتل",
+  "watchAndVote": "شاهد وصوّت",
+  "roundProgress": "الجولة {current}/{total}",
+  "viewersCount": "{count} يشاهدون",
+  "waitingForOpponent": "بانتظار الخصم..."
 }
