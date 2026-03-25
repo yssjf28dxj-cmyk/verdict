@@ -5,6 +5,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/services.dart';
 import '../l10n/app_localizations.dart';
 import '../models/debate_history_item.dart';
+import '../utils/rank_utils.dart';
 import 'auth_screen.dart';
 import 'lobby_screen.dart';
 import 'public_profile_screen.dart';
@@ -579,21 +580,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   .toString();
 
                               return ListTile(
-                                leading: const CircleAvatar(
-                                  backgroundColor: Color(0x332196F3),
-                                  child:
-                                      Icon(Icons.person, color: Colors.white),
+                                leading: CircleAvatar(
+                                  backgroundColor: getRank(rating).color.withValues(alpha: 0.2),
+                                  child: Icon(getRank(rating).icon, color: getRank(rating).color),
                                 ),
                                 title: Text(
                                   name.isNotEmpty ? name : publicId,
                                   style: const TextStyle(color: Colors.white),
                                 ),
-                                subtitle: Text(
-                                  '$publicId   |   ${l10n.rating}: ${rating.toStringAsFixed(1)}   |   ${l10n.reputation}: ${reputation.toStringAsFixed(1)}   |   $style',
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                      color: Colors.white70, fontSize: 12),
+                                subtitle: Row(
+                                  children: [
+                                    RankBadge(rating: rating, iconSize: 12, fontSize: 8),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(
+                                        '$publicId  |  ${reputation.toStringAsFixed(0)} rep',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                            color: Colors.white54, fontSize: 11),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                                 trailing: const Icon(
                                     Icons.arrow_forward_ios_rounded,
@@ -644,6 +652,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(selected.publicId),
+              const SizedBox(height: 8),
+              RankBadge(rating: selected.rating),
               const SizedBox(height: 8),
               Text('${l10n.rating}: ${selected.rating.toStringAsFixed(1)}'),
               Text(
@@ -763,9 +773,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // ─── BUILD ──────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final rank = getRank(_rating);
+    final langCode = Localizations.localeOf(context).languageCode;
+
     return Scaffold(
       extendBodyBehindAppBar: true,
       backgroundColor: VerdictStyle.bg,
@@ -807,370 +822,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child:
                       CircularProgressIndicator(color: VerdictStyle.accentGold),
                 )
-              : Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              : SingleChildScrollView(
+                  padding: EdgeInsets.fromLTRB(
+                    16,
+                    MediaQuery.of(context).padding.top + kToolbarHeight + 8,
+                    16,
+                    100,
+                  ),
                   child: Column(
                     children: [
-                      Expanded(
-                        child: SingleChildScrollView(
-                          child: Column(
-                            children: [
-                              SizedBox(
-                                  height: MediaQuery.of(context).padding.top),
-                              GlassCard(
-                                child: Column(
-                                  children: [
-                                    Container(
-                                      width: 110,
-                                      height: 110,
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        border: Border.all(
-                                          color: VerdictStyle.accentGold
-                                              .withValues(alpha: 0.7),
-                                        ),
-                                        gradient: const LinearGradient(
-                                          colors: [
-                                            Color(0x332196F3),
-                                            Color(0x33FF4B4B),
-                                          ],
-                                        ),
-                                      ),
-                                      child: const Icon(
-                                        Icons.person,
-                                        size: 62,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 14),
-                                    Text(
-                                      (_displayName ?? l10n.guest)
-                                          .toUpperCase(),
-                                      textAlign: TextAlign.center,
-                                      style: const TextStyle(
-                                        fontSize: 22,
-                                        fontWeight: FontWeight.w800,
-                                        letterSpacing: 1.2,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Flexible(
-                                          child: Text(
-                                            _publicId.isNotEmpty
-                                                ? _publicId
-                                                : 'VERDICT-USER',
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
-                                              color: Colors.white70,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w700,
-                                              letterSpacing: 0.6,
-                                            ),
-                                          ),
-                                        ),
-                                        IconButton(
-                                          tooltip: l10n.copyIdTooltip,
-                                          onPressed: _copyPublicId,
-                                          icon: const Icon(
-                                            Icons.copy_rounded,
-                                            size: 18,
-                                            color: Colors.white70,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 8),
-                                    SizedBox(
-                                      width: double.infinity,
-                                      child: FilledButton.icon(
-                                        onPressed: _isInviting
-                                            ? null
-                                            : () => _showInviteByIdDialog(l10n),
-                                        icon: _isInviting
-                                            ? const SizedBox(
-                                                width: 16,
-                                                height: 16,
-                                                child:
-                                                    CircularProgressIndicator(
-                                                  strokeWidth: 2,
-                                                  color: Colors.black,
-                                                ),
-                                              )
-                                            : const Icon(Icons.person_search),
-                                        label: Text(
-                                          _isInviting
-                                              ? '...'
-                                              : l10n.directInvite,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    SizedBox(
-                                      width: double.infinity,
-                                      child: OutlinedButton.icon(
-                                        onPressed: _isInviting
-                                            ? null
-                                            : () =>
-                                                _openUserSearchAndInvite(l10n),
-                                        icon: const Icon(
-                                            Icons.travel_explore_rounded),
-                                        label: Text(l10n.findFighterById),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 14),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: _buildStatCard(
-                                      l10n.wins,
-                                      '$_wins',
-                                      Icons.emoji_events,
-                                      VerdictStyle.accentGold,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: _buildStatCard(
-                                      l10n.rating,
-                                      _rating.toStringAsFixed(1),
-                                      Icons.star,
-                                      VerdictStyle.fighterBlue,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: _buildStatCard(
-                                      l10n.battles,
-                                      '$_totalDebates',
-                                      Icons.bolt,
-                                      VerdictStyle.fighterRed,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 10),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: _buildStatCard(
-                                      l10n.losses,
-                                      '$_losses',
-                                      Icons.trending_down,
-                                      const Color(0xFFFF6B6B),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: _buildStatCard(
-                                      l10n.draws,
-                                      '$_draws',
-                                      Icons.handshake,
-                                      const Color(0xFFFFB74D),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: _buildStatCard(
-                                      l10n.reputation,
-                                      _reputation.toStringAsFixed(1),
-                                      Icons.shield,
-                                      const Color(0xFF4DB6AC),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 10),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: _buildStatCard(
-                                      l10n.winRate,
-                                      '${_winRate.toStringAsFixed(1)}%',
-                                      Icons.percent,
-                                      const Color(0xFF81C784),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: _buildStatCard(
-                                      l10n.audience,
-                                      _viewerScore.toStringAsFixed(1),
-                                      Icons.groups_rounded,
-                                      const Color(0xFF64B5F6),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 10),
-                              GlassCard(
-                                child: Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.psychology_alt_outlined,
-                                      color: VerdictStyle.accentGold,
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Text(
-                                        '${l10n.styleLabel}: ${_debateStyle.isNotEmpty ? _debateStyle : l10n.balancedStyle}',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 14),
-                              GlassCard(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            l10n.recentDebates,
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w800,
-                                              letterSpacing: 0.8,
-                                            ),
-                                          ),
-                                        ),
-                                        if (_allDebates.isNotEmpty)
-                                          TextButton(
-                                            onPressed: _openFullHistory,
-                                            child: Text(l10n.viewAll),
-                                          ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 10),
-                                    if (_recentDebates.isEmpty)
-                                      Text(
-                                        l10n.noDebatesYet,
-                                        style: const TextStyle(
-                                            color: Colors.white70),
-                                      )
-                                    else
-                                      ..._recentDebates.map((item) {
-                                        return Container(
-                                          margin:
-                                              const EdgeInsets.only(bottom: 8),
-                                          padding: const EdgeInsets.all(10),
-                                          decoration: BoxDecoration(
-                                            color: Colors.black
-                                                .withValues(alpha: 0.16),
-                                            borderRadius:
-                                                BorderRadius.circular(14),
-                                            border: Border.all(
-                                              color: Colors.white
-                                                  .withValues(alpha: 0.14),
-                                            ),
-                                          ),
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                item.topic,
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontWeight: FontWeight.w700,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                '${l10n.versusLabel} ${item.opponentLabel}',
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: const TextStyle(
-                                                  color: Colors.white70,
-                                                  fontSize: 12,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Row(
-                                                children: [
-                                                  Text(
-                                                    item.outcomeLabel,
-                                                    style: TextStyle(
-                                                      color: _outcomeColor(
-                                                          item.outcomeLabel),
-                                                      fontWeight:
-                                                          FontWeight.w800,
-                                                      fontSize: 12,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 10),
-                                                  Text(
-                                                    item.status.toUpperCase(),
-                                                    style: const TextStyle(
-                                                      color: Colors.white60,
-                                                      fontSize: 11,
-                                                      fontWeight:
-                                                          FontWeight.w700,
-                                                    ),
-                                                  ),
-                                                  const Spacer(),
-                                                  Text(
-                                                    _formatCreatedAt(
-                                                        item.createdAt),
-                                                    style: const TextStyle(
-                                                      color: Colors.white54,
-                                                      fontSize: 11,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          ),
-                                        );
-                                      }),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+                      // ── HERO FIGHTER CARD ──────────────────
+                      _buildHeroCard(l10n, rank, langCode),
+                      const SizedBox(height: 16),
+
+                      // ── BOXING STATS W/L/D ─────────────────
+                      _buildBoxingStats(l10n),
                       const SizedBox(height: 12),
-                      GlassCard(
-                        child: SizedBox(
-                          width: double.infinity,
-                          height: 56,
-                          child: OutlinedButton.icon(
-                            onPressed: _signOut,
-                            icon: const Icon(Icons.logout),
-                            label: Text(l10n.signOut),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: const Color(0xFFFF7D7D),
-                              side: const BorderSide(color: Color(0xFFFF4B4B)),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(24),
-                              ),
-                              textStyle: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 1.1,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
+
+                      // ── RATING & RANK PROGRESS ─────────────
+                      _buildRatingCard(l10n, rank, langCode),
+                      const SizedBox(height: 12),
+
+                      // ── DETAILED STATS ─────────────────────
+                      _buildDetailedStats(l10n),
+                      const SizedBox(height: 12),
+
+                      // ── ACTION BUTTONS ─────────────────────
+                      _buildActionButtons(l10n),
+                      const SizedBox(height: 16),
+
+                      // ── RECENT DEBATES ─────────────────────
+                      _buildRecentDebates(l10n),
+                      const SizedBox(height: 16),
+
+                      // ── SIGN OUT ───────────────────────────
+                      _buildSignOut(l10n),
                     ],
                   ),
                 ),
@@ -1179,28 +865,725 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildStatCard(
-      String label, String value, IconData icon, Color color) {
-    return GlassCard(
-      padding: const EdgeInsets.symmetric(vertical: 16),
+  // ── HERO CARD ─────────────────────────────────────────────
+
+  Widget _buildHeroCard(AppLocalizations l10n, FighterRank rank, String langCode) {
+    final isElite = rank.key == 'master' || rank.key == 'grandmaster';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            rank.color.withValues(alpha: 0.12),
+            const Color(0xFF1A2035),
+            rank.color.withValues(alpha: 0.06),
+          ],
+        ),
+        border: Border.all(
+          color: rank.color.withValues(alpha: isElite ? 0.5 : 0.2),
+          width: isElite ? 1.5 : 1,
+        ),
+        boxShadow: isElite
+            ? [
+                BoxShadow(
+                  color: rank.glowColor,
+                  blurRadius: 30,
+                  spreadRadius: 2,
+                ),
+              ]
+            : null,
+      ),
       child: Column(
         children: [
-          Icon(icon, color: color, size: 28),
-          const SizedBox(height: 8),
+          // Avatar with rank ring
+          Container(
+            width: 100,
+            height: 100,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  rank.color.withValues(alpha: 0.3),
+                  rank.color.withValues(alpha: 0.08),
+                ],
+              ),
+              border: Border.all(
+                color: rank.color.withValues(alpha: 0.6),
+                width: 3,
+              ),
+              boxShadow: isElite
+                  ? [
+                      BoxShadow(
+                        color: rank.glowColor,
+                        blurRadius: 20,
+                        spreadRadius: 4,
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Icon(
+              Icons.person,
+              size: 52,
+              color: rank.color.withValues(alpha: 0.8),
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          // Fighter name
           Text(
-            value,
+            (_displayName ?? l10n.guest).toUpperCase(),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
+              fontSize: 22,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.5,
               color: Colors.white,
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: const TextStyle(fontSize: 11, color: Colors.white70),
+          const SizedBox(height: 8),
+
+          // Rank badge
+          RankBadge(rating: _rating, iconSize: 16, fontSize: 11),
+          const SizedBox(height: 10),
+
+          // Public ID
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Flexible(
+                child: Text(
+                  _publicId.isNotEmpty ? _publicId : 'VERDICT-USER',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.5),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.6,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              InkWell(
+                onTap: _copyPublicId,
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Icon(
+                    Icons.copy_rounded,
+                    size: 14,
+                    color: Colors.white.withValues(alpha: 0.4),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+
+          // Debate style
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.psychology_alt_outlined,
+                  size: 14,
+                  color: VerdictStyle.accentGold.withValues(alpha: 0.7),
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  '${l10n.styleLabel}: ${_debateStyle.isNotEmpty ? _debateStyle : l10n.balancedStyle}',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.6),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
+      ),
+    );
+  }
+
+  // ── BOXING W/L/D STATS ────────────────────────────────────
+
+  Widget _buildBoxingStats(AppLocalizations l10n) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        color: const Color(0xFF1A2035),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+      ),
+      child: Column(
+        children: [
+          // W — L — D header
+          Row(
+            children: [
+              Expanded(
+                child: _boxingStat(
+                  value: '$_wins',
+                  label: l10n.wins,
+                  color: const Color(0xFF4CAF50),
+                ),
+              ),
+              Container(
+                width: 1,
+                height: 50,
+                color: Colors.white.withValues(alpha: 0.1),
+              ),
+              Expanded(
+                child: _boxingStat(
+                  value: '$_losses',
+                  label: l10n.losses,
+                  color: const Color(0xFFFF6B6B),
+                ),
+              ),
+              Container(
+                width: 1,
+                height: 50,
+                color: Colors.white.withValues(alpha: 0.1),
+              ),
+              Expanded(
+                child: _boxingStat(
+                  value: '$_draws',
+                  label: l10n.draws,
+                  color: const Color(0xFFFFB74D),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // Win Rate bar
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    l10n.winRate,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.5),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.6,
+                    ),
+                  ),
+                  Text(
+                    '${_winRate.toStringAsFixed(1)}%',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: (_winRate / 100).clamp(0.0, 1.0),
+                  minHeight: 6,
+                  backgroundColor: Colors.white.withValues(alpha: 0.08),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    _winRate >= 60
+                        ? const Color(0xFF4CAF50)
+                        : _winRate >= 40
+                            ? VerdictStyle.accentGold
+                            : const Color(0xFFFF6B6B),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _boxingStat({
+    required String value,
+    required String label,
+    required Color color,
+  }) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.w900,
+            color: color,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 9,
+            fontWeight: FontWeight.w800,
+            color: Colors.white.withValues(alpha: 0.4),
+            letterSpacing: 0.8,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── RATING & RANK PROGRESS ────────────────────────────────
+
+  Widget _buildRatingCard(AppLocalizations l10n, FighterRank rank, String langCode) {
+    final progress = rank.progress(_rating);
+    final toNext = rank.pointsToNext(_rating);
+    final isMaxRank = rank.maxRating < 0;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        color: const Color(0xFF1A2035),
+        border: Border.all(
+          color: rank.color.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Icon(rank.icon, color: rank.color, size: 22),
+              const SizedBox(width: 8),
+              Text(
+                l10n.rating,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.5),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.6,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                _rating.toStringAsFixed(0),
+                style: TextStyle(
+                  color: rank.color,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Progress bar to next rank
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: progress,
+                  minHeight: 8,
+                  backgroundColor: Colors.white.withValues(alpha: 0.08),
+                  valueColor: AlwaysStoppedAnimation<Color>(rank.color),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    rank.localizedTitle(langCode),
+                    style: TextStyle(
+                      color: rank.color,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  Text(
+                    isMaxRank ? 'MAX RANK' : '$toNext pts to next',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.4),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── DETAILED STATS ────────────────────────────────────────
+
+  Widget _buildDetailedStats(AppLocalizations l10n) {
+    return Row(
+      children: [
+        Expanded(
+          child: _miniStat(
+            icon: Icons.bolt,
+            label: l10n.battles,
+            value: '$_totalDebates',
+            color: VerdictStyle.fighterRed,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _miniStat(
+            icon: Icons.shield,
+            label: l10n.reputation,
+            value: _reputation.toStringAsFixed(0),
+            color: const Color(0xFF4DB6AC),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _miniStat(
+            icon: Icons.groups_rounded,
+            label: l10n.audience,
+            value: _viewerScore.toStringAsFixed(0),
+            color: const Color(0xFF64B5F6),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _miniStat({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: const Color(0xFF1A2035),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+              color: Colors.white.withValues(alpha: 0.4),
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── ACTION BUTTONS ────────────────────────────────────────
+
+  Widget _buildActionButtons(AppLocalizations l10n) {
+    return Row(
+      children: [
+        Expanded(
+          child: _actionButton(
+            icon: _isInviting
+                ? null
+                : Icons.person_search,
+            label: _isInviting ? '...' : l10n.directInvite,
+            color: VerdictStyle.fighterBlue,
+            onTap: _isInviting ? null : () => _showInviteByIdDialog(l10n),
+            isLoading: _isInviting,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _actionButton(
+            icon: Icons.travel_explore_rounded,
+            label: l10n.findFighterById,
+            color: VerdictStyle.accentGold,
+            onTap: _isInviting ? null : () => _openUserSearchAndInvite(l10n),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _actionButton({
+    required IconData? icon,
+    required String label,
+    required Color color,
+    required VoidCallback? onTap,
+    bool isLoading = false,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            color: color.withValues(alpha: 0.1),
+            border: Border.all(color: color.withValues(alpha: 0.25)),
+          ),
+          child: Column(
+            children: [
+              if (isLoading)
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: color,
+                  ),
+                )
+              else if (icon != null)
+                Icon(icon, color: color, size: 22),
+              const SizedBox(height: 6),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── RECENT DEBATES ────────────────────────────────────────
+
+  Widget _buildRecentDebates(AppLocalizations l10n) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        color: const Color(0xFF1A2035),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.history, color: Colors.white38, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  l10n.recentDebates,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.6),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+              ),
+              if (_allDebates.isNotEmpty)
+                InkWell(
+                  onTap: _openFullHistory,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    child: Text(
+                      l10n.viewAll,
+                      style: TextStyle(
+                        color: VerdictStyle.accentGold.withValues(alpha: 0.7),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (_recentDebates.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 20),
+              child: Center(
+                child: Text(
+                  l10n.noDebatesYet,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.3),
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            )
+          else
+            ..._recentDebates.map((item) => _debateHistoryTile(item, l10n)),
+        ],
+      ),
+    );
+  }
+
+  Widget _debateHistoryTile(DebateHistoryItem item, AppLocalizations l10n) {
+    final color = _outcomeColor(item.outcomeLabel);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: color.withValues(alpha: 0.12),
+        ),
+      ),
+      child: Row(
+        children: [
+          // Outcome indicator
+          Container(
+            width: 4,
+            height: 40,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Content
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.topic,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '${l10n.versusLabel} ${item.opponentLabel}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.45),
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Outcome + date
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  item.outcomeLabel,
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 10,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _formatCreatedAt(item.createdAt),
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.3),
+                  fontSize: 10,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── SIGN OUT ──────────────────────────────────────────────
+
+  Widget _buildSignOut(AppLocalizations l10n) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: _signOut,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: const Color(0xFFFF4B4B).withValues(alpha: 0.25),
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.logout, size: 18, color: const Color(0xFFFF7D7D).withValues(alpha: 0.7)),
+              const SizedBox(width: 8),
+              Text(
+                l10n.signOut,
+                style: TextStyle(
+                  color: const Color(0xFFFF7D7D).withValues(alpha: 0.7),
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

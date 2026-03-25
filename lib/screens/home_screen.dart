@@ -9,6 +9,7 @@ import 'profile_screen.dart';
 import '../painters/chat_pattern_painter.dart';
 import '../utils/debate_error_mapper.dart';
 import '../utils/name_utils.dart';
+import '../utils/rank_utils.dart';
 import '../utils/style_utils.dart';
 import '../l10n/app_localizations.dart';
 
@@ -724,9 +725,8 @@ class _DebateCardState extends State<_DebateCard> {
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
             DebateRoomScreen(debateId: doc.id),
-        transitionsBuilder:
-            (context, animation, secondaryAnimation, child) =>
-                FadeTransition(opacity: animation, child: child),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+            FadeTransition(opacity: animation, child: child),
         transitionDuration: const Duration(milliseconds: 200),
       ),
     );
@@ -835,7 +835,10 @@ class _DebateCardState extends State<_DebateCard> {
     required String name,
     required Color color,
     bool isEmpty = false,
+    double rating = 0,
   }) {
+    final rank = getRank(rating);
+
     return Expanded(
       child: Column(
         children: [
@@ -853,22 +856,38 @@ class _DebateCardState extends State<_DebateCard> {
                 ],
               ),
               border: Border.all(
-                color: color.withValues(alpha: isEmpty ? 0.2 : 0.5),
+                color: isEmpty
+                    ? color.withValues(alpha: 0.2)
+                    : rank.color.withValues(alpha: 0.6),
                 width: 2,
               ),
+              boxShadow: (!isEmpty &&
+                      (rank.key == 'master' || rank.key == 'grandmaster'))
+                  ? [
+                      BoxShadow(
+                          color: rank.glowColor,
+                          blurRadius: 10,
+                          spreadRadius: 1)
+                    ]
+                  : null,
             ),
             child: isEmpty
-                ? Icon(Icons.person_add_alt_1, color: color.withValues(alpha: 0.4), size: 22)
+                ? Icon(Icons.person_add_alt_1,
+                    color: color.withValues(alpha: 0.4), size: 22)
                 : Icon(Icons.person, color: color, size: 24),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
+          if (!isEmpty && rating > 0) ...[
+            RankBadge(rating: rating, showLabel: false, iconSize: 12),
+            const SizedBox(height: 2),
+          ],
           Text(
             name,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 13,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
               color: isEmpty ? Colors.white30 : Colors.white,
             ),
@@ -1024,10 +1043,17 @@ class _DebateCardState extends State<_DebateCard> {
     final accessRequests = _stringList(data['accessRequests']);
     final alreadyRequested = accessRequests.contains(currentUid);
     final isCreator = currentUid.isNotEmpty && currentUid == creatorId;
-    final int currentRound =
-        (data['currentRound'] is num) ? (data['currentRound'] as num).toInt() : 1;
+    final int currentRound = (data['currentRound'] is num)
+        ? (data['currentRound'] as num).toInt()
+        : 1;
     final int totalRounds =
         (data['totalRounds'] is num) ? (data['totalRounds'] as num).toInt() : 1;
+    final double f1Rating = (data['fighter1Rating'] is num)
+        ? (data['fighter1Rating'] as num).toDouble()
+        : 0;
+    final double f2Rating = (data['fighter2Rating'] is num)
+        ? (data['fighter2Rating'] as num).toDouble()
+        : 0;
 
     final isLive = _isLiveStatus(status);
     final isWaiting = _isWaitingStatus(status);
@@ -1087,7 +1113,9 @@ class _DebateCardState extends State<_DebateCard> {
                       _buildStatusBadge(status),
                       const Spacer(),
                       if (isLive) ...[
-                        Icon(Icons.visibility, size: 13, color: Colors.white.withValues(alpha: 0.4)),
+                        Icon(Icons.visibility,
+                            size: 13,
+                            color: Colors.white.withValues(alpha: 0.4)),
                         const SizedBox(width: 4),
                         Text(
                           '$viewers',
@@ -1138,6 +1166,7 @@ class _DebateCardState extends State<_DebateCard> {
                         _buildFighterAvatar(
                           name: fighter1,
                           color: VerdictStyle.fighterBlue,
+                          rating: f1Rating,
                         ),
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -1167,11 +1196,10 @@ class _DebateCardState extends State<_DebateCard> {
                           ),
                         ),
                         _buildFighterAvatar(
-                          name: isWaiting && !hasFighter2
-                              ? '?'
-                              : fighter2,
+                          name: isWaiting && !hasFighter2 ? '?' : fighter2,
                           color: VerdictStyle.fighterRed,
                           isEmpty: isWaiting && !hasFighter2,
+                          rating: f2Rating,
                         ),
                       ],
                     ),
@@ -1269,7 +1297,8 @@ class _DebateCardState extends State<_DebateCard> {
                         padding: const EdgeInsets.symmetric(vertical: 8),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(10),
-                          color: VerdictStyle.fighterBlue.withValues(alpha: 0.1),
+                          color:
+                              VerdictStyle.fighterBlue.withValues(alpha: 0.1),
                           border: Border.all(
                             color:
                                 VerdictStyle.fighterBlue.withValues(alpha: 0.2),

@@ -476,12 +476,14 @@ export const createDebate = onCall({ invoker: 'public' }, async (request) => {
   });
 
   const userDoc = await db.collection('users').doc(uid).get();
+  const userData = userDoc.data() ?? {};
   const fighter1Name = deriveNeutralUserName({
-    profileName: userDoc.data()?.name,
+    profileName: userData.name,
     tokenName: request.auth?.token?.name,
     tokenEmail: request.auth?.token?.email,
     uid,
   });
+  const fighter1Rating = asInt(userData.rating, 0);
 
   const debateRef = db.collection('debates').doc();
   const accessApprovedUserIds = invitedUserId ? [uid, invitedUserId] : [uid];
@@ -490,8 +492,10 @@ export const createDebate = onCall({ invoker: 'public' }, async (request) => {
     creatorId: uid,
     fighter1: uid,
     fighter1Name,
+    fighter1Rating,
     fighter2: invitedUserId || '',
     fighter2Name: '',
+    fighter2Rating: 0,
     invitedUserId: invitedUserId || '',
     status: 'waiting',
     durationSeconds,
@@ -623,12 +627,14 @@ export const acceptDebateInvite = onCall({ invoker: 'public' }, async (request) 
 
     const userRef = db.collection('users').doc(uid);
     const userSnap = await tx.get(userRef);
+    const f2UserData = userSnap.data() ?? {};
     const fighter2Name = deriveNeutralUserName({
-      profileName: userSnap.data()?.name,
+      profileName: f2UserData.name,
       tokenName: request.auth?.token?.name,
       tokenEmail: request.auth?.token?.email,
       uid,
     });
+    const fighter2Rating = asInt(f2UserData.rating, 0);
 
     const creatorProposal = readCreatorTermsProposal(debate);
     const accepterDurationSeconds = sanitizeAllowedInt(
@@ -658,6 +664,7 @@ export const acceptDebateInvite = onCall({ invoker: 'public' }, async (request) 
       fighter2: uid,
       opponentId: uid,
       fighter2Name,
+      fighter2Rating,
       status: 'active',
       durationSeconds: resolved.durationSeconds,
       roundDurationSeconds: resolved.durationSeconds,
