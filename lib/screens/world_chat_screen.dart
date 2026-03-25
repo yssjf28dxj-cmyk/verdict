@@ -4,8 +4,10 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../painters/chat_pattern_painter.dart';
 import '../utils/name_utils.dart';
+import '../utils/rank_utils.dart';
 import '../utils/style_utils.dart';
 import '../l10n/app_localizations.dart';
+import 'public_profile_screen.dart';
 
 class WorldChatScreen extends StatefulWidget {
   const WorldChatScreen({super.key});
@@ -31,6 +33,7 @@ class _WorldChatScreenState extends State<WorldChatScreen>
     _chatStream = FirebaseFirestore.instance
         .collection('world_messages')
         .orderBy('timestamp')
+        .limitToLast(100)
         .snapshots();
   }
 
@@ -87,7 +90,7 @@ class _WorldChatScreenState extends State<WorldChatScreen>
     } on FirebaseFunctionsException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message ?? 'Ошибка отправки')),
+        SnackBar(content: Text(e.message ?? 'Error sending message')),
       );
     } finally {
       if (mounted) setState(() => _sending = false);
@@ -116,6 +119,34 @@ class _WorldChatScreenState extends State<WorldChatScreen>
     final looksLikeTechnicalId = value.length >= 20 && !value.contains(' ');
     if (looksLikeTechnicalId) return l10n.anonymous;
     return value;
+  }
+
+  void _openUserProfile(String senderId, String senderName) {
+    if (senderId.isEmpty) return;
+    final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    if (senderId == currentUid) return; // Don't open own profile from chat
+
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            PublicProfileScreen(
+          uid: senderId,
+          publicId: '',
+          name: senderName,
+        ),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+            FadeTransition(opacity: animation, child: child),
+        transitionDuration: const Duration(milliseconds: 200),
+      ),
+    );
+  }
+
+  String _formatTime(dynamic timestamp) {
+    if (timestamp is Timestamp) {
+      final dt = timestamp.toDate();
+      return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    }
+    return '';
   }
 
   @override
@@ -173,26 +204,45 @@ class _WorldChatScreenState extends State<WorldChatScreen>
                             vertical: 12, horizontal: 10),
                         itemBuilder: (context, i) {
                           final data = docs[i].data() as Map<String, dynamic>;
+                          final senderId =
+                              (data['senderId'] ?? '').toString();
                           final isMe =
-                              user != null && data['senderId'] == user.uid;
+                              user != null && senderId == user.uid;
+                          final senderName = _safeSenderLabel(
+                            l10n,
+                            firstNonEmptyName(
+                              [
+                                data['senderName'],
+                                data['displayName'],
+                                data['sender'],
+                              ],
+                              fallback: l10n.anonymous,
+                            ),
+                          );
+                          final double senderRating =
+                              (data['senderRating'] is num)
+                                  ? (data['senderRating'] as num).toDouble()
+                                  : 0;
+
                           return Align(
                             alignment: isMe
                                 ? Alignment.centerRight
                                 : Alignment.centerLeft,
                             child: Container(
-                              margin: const EdgeInsets.symmetric(vertical: 5),
+                              margin: const EdgeInsets.symmetric(vertical: 4),
                               constraints: BoxConstraints(
                                 maxWidth:
                                     MediaQuery.of(context).size.width * 0.82,
                               ),
                               child: GlassCard(
                                 enableBlur: false,
-                                borderRadius: BorderRadius.circular(24),
+                                borderRadius: BorderRadius.circular(20),
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 14, vertical: 10),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
+                                    // Message text
                                     Text(
                                       (data['text'] ?? '').toString(),
                                       style: const TextStyle(
@@ -201,36 +251,62 @@ class _WorldChatScreenState extends State<WorldChatScreen>
                                       ),
                                     ),
                                     const SizedBox(height: 6),
+                                    // Sender row: name + rank badge + time
                                     Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        Text(
-                                          _safeSenderLabel(
-                                            l10n,
-                                            firstNonEmptyName(
-                                              [
-                                                data['senderName'],
-                                                data['displayName'],
-                                                data['sender'],
+                                        // Clickable name
+                                        InkWell(
+                                          onTap: isMe
+                                              ? null
+                                              : () => _openUserProfile(
+                                                    senderId, senderName),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Text(
+                                                senderName,
+                                                style: TextStyle(
+                                                  color: isMe
+                                                      ? VerdictStyle.fighterBlue
+                                                      : VerdictStyle.accentGold
+                                                          .withValues(
+                                                              alpha: 0.8),
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              ),
+                                              if (!isMe) ...[
+                                                const SizedBox(width: 2),
+                                                Icon(
+                                                  Icons
+                                                      .arrow_forward_ios_rounded,
+                                                  size: 9,
+                                                  color: Colors.white
+                                                      .withValues(alpha: 0.3),
+                                                ),
                                               ],
-                                              fallback: l10n.anonymous,
-                                            ),
-                                          ),
-                                          style: TextStyle(
-                                            color: isMe
-                                                ? VerdictStyle.fighterBlue
-                                                : Colors.white70,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
+                                            ],
                                           ),
                                         ),
-                                        const SizedBox(width: 8),
+                                        const SizedBox(width: 6),
+                                        // Rank badge
+                                        if (senderRating > 0)
+                                          RankBadge(
+                                            rating: senderRating,
+                                            showLabel: false,
+                                            iconSize: 11,
+                                          ),
+                                        const SizedBox(width: 6),
                                         if (data['timestamp'] != null)
                                           Text(
                                             _formatTime(data['timestamp']),
-                                            style: const TextStyle(
-                                              color: Colors.white54,
-                                              fontSize: 11,
+                                            style: TextStyle(
+                                              color: Colors.white
+                                                  .withValues(alpha: 0.35),
+                                              fontSize: 10,
                                             ),
                                           ),
                                       ],
@@ -320,13 +396,5 @@ class _WorldChatScreenState extends State<WorldChatScreen>
         ],
       ),
     );
-  }
-
-  String _formatTime(dynamic timestamp) {
-    if (timestamp is Timestamp) {
-      final dt = timestamp.toDate();
-      return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-    }
-    return '';
   }
 }

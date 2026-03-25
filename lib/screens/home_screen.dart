@@ -4,8 +4,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'create_debate_screen.dart';
 import 'debate_room_screen.dart';
+import 'leaderboard_screen.dart';
 import 'profile_screen.dart';
-// import 'world_chat_screen.dart'; // временно скрыт
+import 'world_chat_screen.dart';
 import '../painters/chat_pattern_painter.dart';
 import '../utils/debate_error_mapper.dart';
 import '../utils/name_utils.dart';
@@ -108,20 +109,32 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onNavTap(int idx) {
-    setState(() => _selectedIndex = idx);
-    // Навигация между экранами с FadeTransition
-    // World Chat временно скрыт (idx == 1 теперь профиль)
-    if (idx == 1) {
-      Navigator.of(context).push(
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) =>
-              const ProfileScreen(),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) =>
-              FadeTransition(opacity: animation, child: child),
-          transitionDuration: const Duration(milliseconds: 200),
-        ),
-      );
+    if (idx == 0) {
+      setState(() => _selectedIndex = 0);
+      return;
     }
+
+    Widget? target;
+    if (idx == 1) {
+      target = const LeaderboardScreen();
+    } else if (idx == 2) {
+      target = const WorldChatScreen();
+    } else if (idx == 3) {
+      target = const ProfileScreen();
+    }
+    if (target == null) return;
+
+    setState(() => _selectedIndex = idx);
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) => target!,
+        transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+            FadeTransition(opacity: animation, child: child),
+        transitionDuration: const Duration(milliseconds: 200),
+      ),
+    ).then((_) {
+      if (mounted) setState(() => _selectedIndex = 0);
+    });
   }
 
   Widget _buildSearchBar(AppLocalizations l10n) {
@@ -381,17 +394,25 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: const Icon(Icons.home),
             label: _safeLocalizedText(l10n.mainTab, 'Home'),
           ),
+          const BottomNavigationBarItem(
+            icon: Icon(Icons.leaderboard),
+            label: 'Top',
+          ),
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.forum_outlined),
+            label: _safeLocalizedText(l10n.worldChatTab, 'Chat'),
+          ),
           BottomNavigationBarItem(
             icon: const Icon(Icons.person),
             label: _safeLocalizedText(l10n.profileTab, 'Profile'),
           ),
         ],
-        selectedItemColor: Colors.orange,
+        selectedItemColor: VerdictStyle.accentGold,
         unselectedItemColor: Colors.grey,
         showUnselectedLabels: true,
         type: BottomNavigationBarType.fixed,
         elevation: 8,
-        backgroundColor: Theme.of(context).colorScheme.surface,
+        backgroundColor: const Color(0xFF0E1320),
       ),
     );
   }

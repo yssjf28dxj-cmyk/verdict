@@ -1143,6 +1143,7 @@ export const sendWorldMessage = onCall({ invoker: 'public' }, async (request) =>
     text: rawText,
     senderId: uid,
     senderName,
+    senderRating: asInt(userData.rating, 0),
     senderPhotoUrl: asString(userData.avatarUrl),
     timestamp: admin.firestore.FieldValue.serverTimestamp(),
   });
