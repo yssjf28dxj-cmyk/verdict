@@ -5,7 +5,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'create_debate_screen.dart';
 import 'debate_room_screen.dart';
 import 'profile_screen.dart';
-import 'world_chat_screen.dart';
+// import 'world_chat_screen.dart'; // временно скрыт
 import '../painters/chat_pattern_painter.dart';
 import '../utils/debate_error_mapper.dart';
 import '../utils/name_utils.dart';
@@ -109,17 +109,8 @@ class _HomeScreenState extends State<HomeScreen> {
   void _onNavTap(int idx) {
     setState(() => _selectedIndex = idx);
     // Навигация между экранами с FadeTransition
+    // World Chat временно скрыт (idx == 1 теперь профиль)
     if (idx == 1) {
-      Navigator.of(context).push(
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) =>
-              const WorldChatScreen(),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) =>
-              FadeTransition(opacity: animation, child: child),
-          transitionDuration: const Duration(milliseconds: 200),
-        ),
-      );
-    } else if (idx == 2) {
       Navigator.of(context).push(
         PageRouteBuilder(
           pageBuilder: (context, animation, secondaryAnimation) =>
@@ -388,10 +379,6 @@ class _HomeScreenState extends State<HomeScreen> {
           BottomNavigationBarItem(
             icon: const Icon(Icons.home),
             label: _safeLocalizedText(l10n.mainTab, 'Home'),
-          ),
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.public),
-            label: _safeLocalizedText(l10n.worldChatTab, 'World Chat'),
           ),
           BottomNavigationBarItem(
             icon: const Icon(Icons.person),

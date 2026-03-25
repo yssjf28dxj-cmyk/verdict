@@ -180,6 +180,17 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /world_messages/{messageId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.senderId == request.auth.uid
+        && request.resource.data.text is string
+        && request.resource.data.text.size() > 0
+        && request.resource.data.text.size() <= 1000;
+      allow update: if false;
+      allow delete: if false;
+    }
+
     match /debates/{debateId} {
       allow get: if canReadDebateByData(resource.data);
       allow list: if isSignedIn();
