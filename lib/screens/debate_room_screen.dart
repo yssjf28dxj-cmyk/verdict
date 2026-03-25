@@ -84,6 +84,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
   int _termsResolvedDuration = 180;
   int _termsResolvedRounds = 3;
   String _termsPolicyVersion = 'v1_mean_nearest_strict';
+  // ignore: unused_field
   bool _termsAreResolved = false;
 
   bool isLoading = true;
@@ -154,12 +155,6 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
 
   int _readRoundIndex(Map<String, dynamic> data, {int fallback = 1}) {
     return Debate.readRoundIndexFromMap(data, fallback: fallback);
-  }
-
-  String _formatDuration(int seconds) {
-    final minutes = seconds ~/ 60;
-    final remainderSeconds = seconds % 60;
-    return '$minutes:${remainderSeconds.toString().padLeft(2, '0')}';
   }
 
   int _effectiveRoundsFromData(Map<String, dynamic> data, int fallback) {
@@ -1640,29 +1635,6 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
                               ),
                             ),
                             const SizedBox(height: 10),
-                            Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 16),
-                              child: Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF151D31),
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(color: Colors.white12),
-                                ),
-                                child: Text(
-                                  _termsAreResolved
-                                      ? 'Terms trace: creator ${_formatDuration(_termsCreatorDuration)} • $_termsCreatorRounds | accepter ${_formatDuration(_termsAccepterDuration)} • $_termsAccepterRounds | final ${_formatDuration(_termsResolvedDuration)} • $_termsResolvedRounds | $_termsPolicyVersion'
-                                      : 'Terms trace: creator ${_formatDuration(_termsCreatorDuration)} • $_termsCreatorRounds | waiting system resolution',
-                                  style: const TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 11,
-                                    height: 1.3,
-                                  ),
-                                ),
-                              ),
-                            ),
                             const SizedBox(height: 10),
                           ],
                         ),
