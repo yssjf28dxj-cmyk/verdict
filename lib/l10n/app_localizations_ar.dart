@@ -1,0 +1,571 @@
+// ignore: unused_import
+import 'package:intl/intl.dart' as intl;
+import 'app_localizations.dart';
+
+// ignore_for_file: type=lint
+
+/// The translations for Arabic (`ar`).
+class AppLocalizationsAr extends AppLocalizations {
+  AppLocalizationsAr([String locale = 'ar']) : super(locale);
+
+  @override
+  String get appTitle => 'VERDICT';
+
+  @override
+  String get homeTitle => 'الرئيسية';
+
+  @override
+  String get createDebates => 'إنشاء مناظرات';
+
+  @override
+  String get searchDebates => 'ابحث في مواضيع المناظرات...';
+
+  @override
+  String get languageAll => 'اللغة: الكل';
+
+  @override
+  String get worldChatTab => 'الدردشة العالمية';
+
+  @override
+  String get profileTab => 'الملف الشخصي';
+
+  @override
+  String get mainTab => 'الرئيسية';
+
+  @override
+  String get profileTitle => 'الملف الشخصي';
+
+  @override
+  String get settingsTitle => 'الإعدادات';
+
+  @override
+  String get languageSetting => 'لغة التطبيق';
+
+  @override
+  String get settings_section_general => 'الإعدادات العامة';
+
+  @override
+  String get settings_language_title => 'لغة التطبيق';
+
+  @override
+  String get signOut => 'تسجيل الخروج';
+
+  @override
+  String get wins => 'الانتصارات';
+
+  @override
+  String get rating => 'التقييم';
+
+  @override
+  String get battles => 'المعارك';
+
+  @override
+  String get guest => 'ضيف';
+
+  @override
+  String get worldChatTitle => 'الدردشة العالمية';
+
+  @override
+  String get messageHint => 'رسالة...';
+
+  @override
+  String get createBattleTitle => 'إنشاء معركة';
+
+  @override
+  String get debateTopicLabel => 'موضوع المناظرة';
+
+  @override
+  String get enterTopic => 'مثال: iOS أم Android؟';
+
+  @override
+  String get roundTimeLabel => 'وقت الجولة';
+
+  @override
+  String get roundsLabel => 'الجولات';
+
+  @override
+  String get modesLabel => 'الأوضاع';
+
+  @override
+  String get languageRegionLabel => 'اللغة والمنطقة';
+
+  @override
+  String get welcomeHeadline => 'مرحباً';
+
+  @override
+  String get publishChallenge => 'نشر التحدي';
+
+  @override
+  String get publicFeed => 'خلاصة عامة';
+
+  @override
+  String get directInvite => 'دعوة مباشرة';
+
+  @override
+  String get publicMode => 'عام';
+
+  @override
+  String get requestOnly => 'عند الطلب';
+
+  @override
+  String get privateMode => 'خاص';
+
+  @override
+  String get opponentId => 'معرّف الخصم';
+
+  @override
+  String get enterOpponentId => 'أدخل معرّف الخصم';
+
+  @override
+  String get lobbyWaitingTitle => 'انتظار';
+
+  @override
+  String get waitingOpponent => 'في انتظار الخصم';
+
+  @override
+  String get searchingOpponent => 'جارٍ البحث عن خصم...';
+
+  @override
+  String get acceptChallenge => 'قبول التحدي';
+
+  @override
+  String get cancelChallenge => 'إلغاء التحدي';
+
+  @override
+  String get accepting => 'جارٍ القبول...';
+
+  @override
+  String get invitedToDebate => 'تمت دعوتك إلى هذه المناظرة';
+
+  @override
+  String get battleAutoStart => 'بمجرد أن يقبل أحدهم، ستبدأ المعركة تلقائياً.';
+
+  @override
+  String get accessRestricted => 'الوصول إلى المناظرة مقيّد';
+
+  @override
+  String get requestAccess => 'طلب الوصول';
+
+  @override
+  String get requestSent => 'تم إرسال الطلب';
+
+  @override
+  String get errorLoading => 'خطأ في التحميل';
+
+  @override
+  String get noDebatesFound => 'لا توجد مناظرات';
+
+  @override
+  String get themeLanguageRU => 'RU';
+
+  @override
+  String get themeLanguageEN => 'EN';
+
+  @override
+  String get themeLanguageAR => 'AR';
+
+  @override
+  String get themeLanguageZH => 'ZH';
+
+  @override
+  String get themeLanguageES => 'ES';
+
+  @override
+  String get themeLanguageFR => 'FR';
+
+  @override
+  String get themeLanguageHI => 'HI';
+
+  @override
+  String get regionGlobal => 'عالمي';
+
+  @override
+  String get regionCis => 'CIS';
+
+  @override
+  String get regionMena => 'MENA';
+
+  @override
+  String get regionEuAf => 'EU/AF';
+
+  @override
+  String get accessApproved => 'تمت الموافقة على الوصول';
+
+  @override
+  String get approveAccessFailed => 'تعذر الموافقة على الوصول';
+
+  @override
+  String get requestRejected => 'تم رفض الطلب';
+
+  @override
+  String get rejectRequestFailed => 'تعذر رفض الطلب';
+
+  @override
+  String get accessRequestsTitle => 'طلبات الوصول';
+
+  @override
+  String get reject => 'رفض';
+
+  @override
+  String get approve => 'موافقة';
+
+  @override
+  String get close => 'إغلاق';
+
+  @override
+  String get loginToRequestAccess => 'سجل الدخول لطلب الوصول';
+
+  @override
+  String get requestAlreadySent => 'تم إرسال الطلب بالفعل';
+
+  @override
+  String get accessRequestSent => 'تم إرسال طلب الوصول';
+
+  @override
+  String get sendRequestFailed => 'تعذر إرسال الطلب';
+
+  @override
+  String get waitingStatus => 'انتظار';
+
+  @override
+  String get finishedStatus => 'منتهي';
+
+  @override
+  String get topicNotSpecified => 'الموضوع غير محدد';
+
+  @override
+  String get fighterOne => 'المقاتل 1';
+
+  @override
+  String get fighterTwo => 'المقاتل 2';
+
+  @override
+  String get accessRequestsCountPrefix => 'طلبات';
+
+  @override
+  String get authRequired => 'يلزم تسجيل الدخول';
+
+  @override
+  String get directInviteNeedsOpponent => 'أدخل معرف الخصم للدعوة المباشرة';
+
+  @override
+  String get privateNeedsOpponent => 'لمناظرة خاصة أدخل معرف الخصم';
+
+  @override
+  String get serverNoDebateId => 'لم يُرجع الخادم debateId';
+
+  @override
+  String get serverErrorPrefix => 'خطأ في الخادم';
+
+  @override
+  String get errorPrefix => 'خطأ';
+
+  @override
+  String get enterTopicValidation => 'أدخل موضوعاً';
+
+  @override
+  String get oneMinute => '1 دقيقة';
+
+  @override
+  String get threeMinutes => '3 دقائق';
+
+  @override
+  String get fiveMinutes => '5 دقائق';
+
+  @override
+  String get oneRound => 'جولة واحدة';
+
+  @override
+  String get threeRounds => '3 جولات';
+
+  @override
+  String get fiveRounds => '5 جولات';
+
+  @override
+  String get secondsShort => 'ث';
+
+  @override
+  String get debateNotFound => 'المناظرة غير موجودة';
+
+  @override
+  String get debateAlreadyActive => 'المناظرة نشطة بالفعل';
+
+  @override
+  String get noAccessToInviteAccept => 'لا تملك صلاحية قبول الدعوة';
+
+  @override
+  String get cannotAcceptOwnChallenge => 'لا يمكنك قبول تحديك الخاص';
+
+  @override
+  String get cancelChallengeFailed => 'تعذر إلغاء التحدي';
+
+  @override
+  String get acceptChallengeFailed => 'تعذر قبول التحدي';
+
+  @override
+  String get loadingTopic => 'جارٍ تحميل الموضوع...';
+
+  @override
+  String get anonymous => 'مجهول';
+
+  @override
+  String get battleDataNotFound => 'بيانات المعركة غير موجودة';
+
+  @override
+  String get unknownTopic => 'موضوع غير معروف';
+
+  @override
+  String get draw => 'تعادل';
+
+  @override
+  String get victoryPrefix => 'فوز';
+
+  @override
+  String get backToHome => 'العودة إلى الرئيسية';
+
+  @override
+  String get versusLabel => 'VS';
+
+  @override
+  String get votesLabel => 'أصوات';
+
+  @override
+  String get guestSignInFailed => 'تعذر تسجيل الدخول كضيف';
+
+  @override
+  String get googleSignInUnavailable => 'تسجيل الدخول عبر Google غير مُعد أو تم إلغاؤه';
+
+  @override
+  String get signInWithGoogle => 'تسجيل الدخول عبر GOOGLE';
+
+  @override
+  String get browseWithoutRegistration => 'الدخول بدون تسجيل';
+
+  @override
+  String get alreadyVoted => 'لقد صوتت بالفعل';
+
+  @override
+  String get notYourTurn => 'ليس دورك الآن';
+
+  @override
+  String get cannotDetectSender => 'تعذر تحديد المرسل';
+
+  @override
+  String get penaltyAppliedPrefix => 'تم تطبيق العقوبة';
+
+  @override
+  String get penaltyApplyFailed => 'تعذر تطبيق العقوبة';
+
+  @override
+  String get closedDebates => 'مناظرات مغلقة';
+
+  @override
+  String get requestOnlyDebates => 'بالطلب';
+
+  @override
+  String get openDebates => 'مناظرات مفتوحة';
+
+  @override
+  String get timeLabel => 'الوقت';
+
+  @override
+  String get timeEnding => 'الوقت ينفد';
+
+  @override
+  String get roundLabel => 'الجولة';
+
+  @override
+  String get yourTurn => 'دورك';
+
+  @override
+  String get opponentTurn => 'دور الخصم';
+
+  @override
+  String get nextTurnPenaltyPrefix => 'عقوبة في الدور التالي';
+
+  @override
+  String get noNextTurnPenalty => 'لا توجد عقوبات في الدور التالي';
+
+  @override
+  String get voteFor => 'صوت لـ';
+
+  @override
+  String get alreadyVotedFor => 'لقد صوتت بالفعل لـ';
+
+  @override
+  String get alreadyVotedThisRound => 'لقد صوتت بالفعل في هذه الجولة';
+
+  @override
+  String get votingOnlyForViewers => 'التصويت متاح للمشاهدين فقط';
+
+  @override
+  String get viewerModeHint => 'وضع المشاهد: يمكنك مشاهدة المناظرة والتصويت، لكن الكتابة متاحة للمقاتلين فقط.';
+
+  @override
+  String get yourTurnUpper => 'دورك';
+
+  @override
+  String get opponentTurnUpper => 'دور الخصم';
+
+  @override
+  String get viewerUpper => 'مشاهد';
+
+  @override
+  String get waitingYourTurn => 'بانتظار دورك';
+
+  @override
+  String get yourTurnWriteArgument => 'دورك الآن. اكتب حجتك...';
+
+  @override
+  String get waitForOpponentTurn => 'انتظر دور الخصم...';
+
+  @override
+  String get battleFinishedGoingToResult => 'انتهت المعركة. جارٍ الانتقال إلى النتيجة...';
+
+  @override
+  String get noMessagesYet => 'لا توجد رسائل بعد';
+
+  @override
+  String get migrationToolsTitle => 'أدوات الترحيل';
+
+  @override
+  String get migrationToolsSubtitle => 'شغّل تنظيف أسماء العناصر النائبة القديمة في Firestore.';
+
+  @override
+  String get runDryMigration => 'تشغيل Dry Run';
+
+  @override
+  String get applyMigration => 'تطبيق الترحيل';
+
+  @override
+  String get migrationDryRunDone => 'اكتمل الـ Dry Run';
+
+  @override
+  String get migrationApplyDone => 'تم تطبيق الترحيل';
+
+  @override
+  String get migrationFailed => 'فشل الترحيل';
+
+  @override
+  String get migrationUsers => 'المستخدمون';
+
+  @override
+  String get migrationDebates => 'المناظرات';
+
+  @override
+  String get migrationWorldMessages => 'رسائل الدردشة العالمية';
+
+  @override
+  String get migrationDebateMessages => 'رسائل المناظرات';
+
+  @override
+  String get migrationLastRunTitle => 'آخر تشغيل للترحيل';
+
+  @override
+  String get migrationLastRunEmpty => 'لا توجد عمليات ترحيل بعد.';
+
+  @override
+  String get migrationModeLabel => 'الوضع';
+
+  @override
+  String get migrationModeDryRun => 'Dry run';
+
+  @override
+  String get migrationModeApply => 'تطبيق';
+
+  @override
+  String get migrationActorLabel => 'تم التشغيل بواسطة';
+
+  @override
+  String get migrationLastRunAtLabel => 'وقت البدء';
+
+  @override
+  String get migrationInProgressTitle => 'الترحيل قيد التشغيل الآن';
+
+  @override
+  String get migrationConfirmTitle => 'تطبيق الترحيل؟';
+
+  @override
+  String get migrationConfirmBody => 'سيؤدي هذا إلى كتابة تغييرات تنظيف البيانات القديمة ذات الأسماء placeholder في Firestore.';
+
+  @override
+  String get migrationHistoryTitle => 'آخر العمليات';
+
+  @override
+  String get migrationHistoryEmpty => 'لا يوجد سجل حديث لعمليات الترحيل.';
+
+  @override
+  String get migrationStatusCompleted => 'مكتمل';
+
+  @override
+  String get migrationStatusFailed => 'فشل';
+
+  @override
+  String get migrationStatusInProgress => 'قيد التنفيذ';
+
+  @override
+  String get viewFullReport => 'عرض التقرير الكامل';
+
+  @override
+  String get migrationFullReportTitle => 'تقرير الترحيل';
+
+  @override
+  String get migrationStatusLabel => 'الحالة';
+
+  @override
+  String get migrationCompletedAtLabel => 'وقت الاكتمال';
+
+  @override
+  String get migrationErrorLabel => 'الخطأ';
+
+  @override
+  String get losses => 'الخسائر';
+
+  @override
+  String get draws => 'التعادلات';
+
+  @override
+  String get reputation => 'السمعة';
+
+  @override
+  String get winRate => 'نسبة الفوز';
+
+  @override
+  String get audience => 'الجمهور';
+
+  @override
+  String get styleLabel => 'الأسلوب';
+
+  @override
+  String get recentDebates => 'المناظرات الأخيرة';
+
+  @override
+  String get viewAll => 'عرض الكل';
+
+  @override
+  String get noDebatesYet => 'لا توجد مناظرات بعد';
+
+  @override
+  String get copyIdTooltip => 'نسخ المعرف';
+
+  @override
+  String get profileIdCopied => 'تم نسخ المعرف';
+
+  @override
+  String get findFighterById => 'ابحث عن مقاتل بالمعرف';
+
+  @override
+  String get searchByPublicIdHint => 'ابحث بالمعرف العام (مثال: VERDICT-ABC123)';
+
+  @override
+  String get noUsersFound => 'لم يتم العثور على مستخدمين';
+
+  @override
+  String get viewProfile => 'عرض الملف الشخصي';
+
+  @override
+  String get userWithIdNotFound => 'لم يتم العثور على مستخدم بهذا المعرف';
+
+  @override
+  String get balancedStyle => 'متوازن';
+}

@@ -1,0 +1,161 @@
+import 'dart:math';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+
+class AuthService {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  String? _lastErrorCode;
+  String? _lastErrorMessage;
+
+  static const Set<String> _retryableAuthCodes = {
+    'network-request-failed',
+    'too-many-requests',
+    'internal-error',
+  };
+
+  String? get lastErrorCode => _lastErrorCode;
+  String? get lastErrorMessage => _lastErrorMessage;
+
+  void _setError({required String code, required String message}) {
+    _lastErrorCode = code;
+    _lastErrorMessage = message;
+    debugPrint('AuthService error [$code]: $message');
+  }
+
+  void _clearError() {
+    _lastErrorCode = null;
+    _lastErrorMessage = null;
+  }
+
+  Future<UserCredential> _signInAnonymouslyWithRetry() async {
+    try {
+      return await _auth.signInAnonymously();
+    } on FirebaseAuthException catch (e) {
+      if (!_retryableAuthCodes.contains(e.code)) rethrow;
+      await Future.delayed(const Duration(milliseconds: 700));
+      return _auth.signInAnonymously();
+    }
+  }
+
+  Future<UserCredential?> signInAnonymously() async {
+    _clearError();
+    try {
+      final credential = await _signInAnonymouslyWithRetry();
+
+      try {
+        final tag = (Random().nextInt(9000) + 1000).toString();
+        await _createUserIfNeeded(
+          uid: credential.user!.uid,
+          name: 'Боец_$tag',
+          email: '',
+        );
+      } catch (e) {
+        debugPrint('AuthService profile bootstrap warning: $e');
+      }
+
+      return credential;
+    } on FirebaseAuthException catch (e) {
+      // keychain-error on simulator: retry without keychain persistence.
+      if (e.code == 'keychain-error') {
+        try {
+          await FirebaseAuth.instance.setPersistence(Persistence.NONE);
+          final credential = await _auth.signInAnonymously();
+          return credential;
+        } catch (e) {
+          debugPrint('AuthService keychain-error recovery failed: $e');
+        }
+      }
+      _setError(
+        code: e.code,
+        message: e.message ?? 'Anonymous sign-in failed.',
+      );
+      return null;
+    } catch (e) {
+      _setError(
+        code: 'anonymous_sign_in_unknown',
+        message: e.toString(),
+      );
+      return null;
+    }
+  }
+
+  Future<UserCredential?> signInWithGoogle() async {
+    _clearError();
+    try {
+      final GoogleSignIn googleSignIn = GoogleSignIn();
+
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+      if (googleUser == null) {
+        _setError(
+          code: 'google_sign_in_cancelled',
+          message: 'Google sign-in cancelled by user.',
+        );
+        return null;
+      }
+
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      final userCredential = await _auth.signInWithCredential(credential);
+      final displayName = userCredential.user?.displayName?.trim() ?? '';
+
+      try {
+        await _createUserIfNeeded(
+          uid: userCredential.user!.uid,
+          name: displayName,
+          email: userCredential.user?.email ?? '',
+        );
+      } catch (e) {
+        debugPrint('AuthService profile bootstrap warning: $e');
+      }
+
+      return userCredential;
+    } on FirebaseAuthException catch (e) {
+      _setError(
+        code: e.code,
+        message: e.message ?? 'Google sign-in failed.',
+      );
+      return null;
+    } catch (e) {
+      _setError(
+        code: 'google_sign_in_unknown',
+        message: e.toString(),
+      );
+      return null;
+    }
+  }
+
+  Future<void> _createUserIfNeeded({
+    required String uid,
+    required String name,
+    required String email,
+  }) async {
+    final userRef = _firestore.collection('users').doc(uid);
+    final userSnap = await userRef.get();
+
+    if (!userSnap.exists) {
+      await userRef.set({
+        'name': name,
+        'email': email,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    }
+  }
+
+  Future<void> signOut() async {
+    try {
+      await GoogleSignIn().signOut();
+    } catch (_) {}
+
+    await _auth.signOut();
+  }
+}

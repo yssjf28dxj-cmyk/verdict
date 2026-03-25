@@ -1,0 +1,1802 @@
+import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_functions/cloud_functions.dart';
+import '../models/debate.dart';
+import '../painters/chat_pattern_painter.dart';
+import '../widgets/debate_messages_list.dart';
+import '../services/referee_service.dart';
+import '../services/debate_alert_service.dart';
+import '../utils/debate_error_mapper.dart';
+import '../utils/name_utils.dart';
+import '../utils/style_utils.dart';
+import '../l10n/app_localizations.dart';
+
+import 'result_screen.dart';
+
+class DebateRoomScreen extends StatefulWidget {
+  final String debateId;
+
+  const DebateRoomScreen({
+    super.key,
+    required this.debateId,
+  });
+
+  @override
+  State<DebateRoomScreen> createState() => _DebateRoomScreenState();
+}
+
+class _DebateRoomScreenState extends State<DebateRoomScreen> {
+  static const List<int> _durationOptions = <int>[
+    30,
+    60,
+    90,
+    120,
+    180,
+    300,
+    420,
+    600,
+  ];
+  static const List<int> _roundOptions = <int>[1, 3, 5];
+  static const int _advanceJitterWindowMs = 1800;
+
+  void _refreshMyVoteStatus() {
+    setState(() {
+      hasVotedThisRound = false;
+      votedSideThisRound = 0;
+    });
+  }
+
+  final TextEditingController _messageController = TextEditingController();
+  final FirebaseFunctions _functions = FirebaseFunctions.instance;
+
+  int votes1 = 0;
+  int votes2 = 0;
+
+  String topic = '';
+  String debateType = 'open';
+  String fighter1 = '';
+  String fighter2 = '';
+  String opponentId = '';
+  String creatorId = '';
+  String fighter1Name = '';
+  String fighter2Name = '';
+  String status = 'active';
+  String activeSpeakerId = '';
+  int roundIndex = 1;
+  int totalRounds = 3;
+  bool isRoundActive = true;
+  int pendingPenaltySecondsForMe = 0;
+  bool hasVotedThisRound = false;
+  int votedSideThisRound = 0;
+  int _voteStatusRoundIndex = -1;
+  bool isTimerRunning = false;
+  Timestamp? startTime;
+  String creationMode = 'public_feed';
+  String invitedUserId = '';
+  bool _isAcceptingPending = false;
+  int _termsCreatorDuration = 180;
+  int _termsCreatorRounds = 3;
+  int _termsAccepterDuration = 180;
+  int _termsAccepterRounds = 3;
+  int _termsResolvedDuration = 180;
+  int _termsResolvedRounds = 3;
+  String _termsPolicyVersion = 'v1_mean_nearest_strict';
+  bool _termsAreResolved = false;
+
+  bool isLoading = true;
+  bool movedToResult = false;
+  bool _accessDeniedHandled = false;
+
+  Timer? _roundCountdownTicker;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? debateSub;
+  DateTime? _roundEndsAtLocal;
+
+  String currentUserId = '';
+  String currentUserName = '';
+
+  late final ValueNotifier<int> _timeLeftNotifier;
+  late final ValueNotifier<bool> _dangerZoneNotifier;
+  late final ValueNotifier<bool> _dangerPulseNotifier;
+
+  bool _advanceInFlight = false;
+  bool _advancePending = false;
+  bool _isSendingMessage = false;
+  int _advanceAttemptToken = 0;
+  int _lastAdvanceRoundAttempt = -1;
+  String _lastAdvanceSpeakerAttempt = '';
+  DateTime? _lastAdvanceAttemptAt;
+  int _lastDangerHapticSecond = -1;
+  String _lastHydratedFighter1Uid = '';
+  String _lastHydratedFighter2Uid = '';
+
+  List<String> _stringList(dynamic raw) {
+    if (raw is! List) return const <String>[];
+    return raw.map((e) => e.toString()).where((e) => e.isNotEmpty).toList();
+  }
+
+  int _sanitizeDuration(dynamic value, int fallback) {
+    final candidate =
+        value is int ? value : (value is num ? value.toInt() : fallback);
+    return _durationOptions.contains(candidate) ? candidate : fallback;
+  }
+
+  int _sanitizeRounds(dynamic value, int fallback) {
+    final candidate =
+        value is int ? value : (value is num ? value.toInt() : fallback);
+    return _roundOptions.contains(candidate) ? candidate : fallback;
+  }
+
+  int _asInt(dynamic value, int fallback) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return fallback;
+  }
+
+  bool _asBool(dynamic value, bool fallback) {
+    if (value is bool) return value;
+    return fallback;
+  }
+
+  String _normalizeStatus(dynamic value, {String fallback = 'waiting'}) {
+    final normalized = (value ?? '').toString().trim();
+    if (normalized.isEmpty) return fallback;
+    if (normalized == 'live') return 'active';
+    if (normalized == 'waiting' ||
+        normalized == 'active' ||
+        normalized == 'finished') {
+      return normalized;
+    }
+    return fallback;
+  }
+
+  int _readRoundIndex(Map<String, dynamic> data, {int fallback = 1}) {
+    return Debate.readRoundIndexFromMap(data, fallback: fallback);
+  }
+
+  String _formatDuration(int seconds) {
+    final minutes = seconds ~/ 60;
+    final remainderSeconds = seconds % 60;
+    return '$minutes:${remainderSeconds.toString().padLeft(2, '0')}';
+  }
+
+  int _effectiveRoundsFromData(Map<String, dynamic> data, int fallback) {
+    final resolved = data['termsResolved'];
+    if (resolved is Map) {
+      final v = _sanitizeRounds(resolved['totalRounds'], fallback);
+      if (v > 0) return v;
+    }
+    final creator = data['termsProposalCreator'];
+    if (creator is Map) {
+      final v = _sanitizeRounds(creator['totalRounds'], fallback);
+      if (v > 0) return v;
+    }
+    return _sanitizeRounds(data['totalRounds'], fallback);
+  }
+
+  String _safeWriteHint(AppLocalizations l10n) {
+    final raw = l10n.messageHint.trim();
+    if (raw.isEmpty || raw.toUpperCase() == 'NOT_FOUND') {
+      return 'Write a message...';
+    }
+    return raw;
+  }
+
+  String _safeLocalizedText(String raw, String fallback) {
+    final normalized = raw.trim();
+    if (normalized.isEmpty || normalized.toUpperCase() == 'NOT_FOUND') {
+      return fallback;
+    }
+    return normalized;
+  }
+
+  String _effectiveInvitedUid(Map<String, dynamic> data) {
+    final invited = (data['invitedUserId'] ?? '').toString();
+    if (invited.isNotEmpty) return invited;
+    final opponent = (data['opponentId'] ?? '').toString();
+    final creator = (data['creatorId'] ?? '').toString();
+    if (opponent.isNotEmpty && opponent != creator) return opponent;
+    final maybeFighter2 = (data['fighter2'] ?? '').toString();
+    final mode = (data['creationMode'] ?? 'public_feed').toString();
+    if (mode == 'direct_invite' && _hasRealOpponentId(creator, maybeFighter2)) {
+      return maybeFighter2;
+    }
+    return '';
+  }
+
+  bool _isDebateParticipant(Map<String, dynamic> data) {
+    final uid = currentUserId.trim();
+    if (uid.isEmpty) return false;
+
+    final creator = (data['creatorId'] ?? '').toString();
+    final opponent = (data['opponentId'] ?? '').toString();
+    final f1 = (data['fighter1'] ?? '').toString();
+    final f2 = (data['fighter2'] ?? '').toString();
+    final effectiveF1 = f1.isNotEmpty ? f1 : creator;
+    final effectiveF2 = f2.isNotEmpty ? f2 : opponent;
+    final invited = (data['invitedUserId'] ?? '').toString();
+    final invitedList = _stringList(data['invitedUserIds']);
+    final effectiveInvitedUid = _effectiveInvitedUid(data);
+
+    return uid == effectiveF1 ||
+        uid == effectiveF2 ||
+        uid == creator ||
+        uid == opponent ||
+        uid == invited ||
+        uid == effectiveInvitedUid ||
+        invitedList.contains(uid);
+  }
+
+  Future<void> _hydrateFighterNamesFromUsers() async {
+    final f1Uid =
+        fighter1.trim().isNotEmpty ? fighter1.trim() : creatorId.trim();
+    final f2Uid =
+        fighter2.trim().isNotEmpty ? fighter2.trim() : opponentId.trim();
+
+    final shouldHydrateF1 = f1Uid.isNotEmpty &&
+        fighter1Name.trim().isEmpty &&
+        _lastHydratedFighter1Uid != f1Uid;
+    final shouldHydrateF2 = f2Uid.isNotEmpty &&
+        fighter2Name.trim().isEmpty &&
+        _lastHydratedFighter2Uid != f2Uid;
+    if (!shouldHydrateF1 && !shouldHydrateF2) return;
+
+    _lastHydratedFighter1Uid = f1Uid;
+    _lastHydratedFighter2Uid = f2Uid;
+
+    var nextF1Name = fighter1Name;
+    var nextF2Name = fighter2Name;
+
+    if (shouldHydrateF1) {
+      try {
+        final snap = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(f1Uid)
+            .get();
+        final data = snap.data();
+        final derived = deriveNeutralName(
+          displayName: sanitizePublicName(data?['name']),
+          email: sanitizePublicName(data?['email']),
+          uid: f1Uid,
+        );
+        if (derived.trim().isNotEmpty) {
+          nextF1Name = derived.trim();
+        }
+      } catch (_) {}
+    }
+
+    if (shouldHydrateF2) {
+      try {
+        final snap = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(f2Uid)
+            .get();
+        final data = snap.data();
+        final derived = deriveNeutralName(
+          displayName: sanitizePublicName(data?['name']),
+          email: sanitizePublicName(data?['email']),
+          uid: f2Uid,
+        );
+        if (derived.trim().isNotEmpty) {
+          nextF2Name = derived.trim();
+        }
+      } catch (_) {}
+    }
+
+    if (!mounted) return;
+    if (nextF1Name != fighter1Name || nextF2Name != fighter2Name) {
+      setState(() {
+        fighter1Name = nextF1Name;
+        fighter2Name = nextF2Name;
+      });
+    }
+  }
+
+  bool _canAccessDebateData(Map<String, dynamic> data) {
+    final uid = currentUserId.trim();
+    final visibility = (data['visibilityMode'] ?? 'public').toString();
+    final creationMode = (data['creationMode'] ?? 'public_feed').toString();
+    final approvedUserIds = _stringList(data['accessApprovedUserIds']);
+
+    final isParticipant = _isDebateParticipant(data);
+
+    if (visibility == 'private') return isParticipant;
+    if (visibility == 'request_only') {
+      if (uid.isEmpty) return false;
+      return isParticipant || approvedUserIds.contains(uid);
+    }
+    if (creationMode == 'direct_invite' && !isParticipant) return false;
+    return true;
+  }
+
+  void _handleAccessDeniedAndExit() {
+    if (_accessDeniedHandled || !mounted) return;
+    _accessDeniedHandled = true;
+    final l10n = AppLocalizations.of(context)!;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(l10n.accessRestricted)),
+    );
+    Navigator.of(context).maybePop();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _timeLeftNotifier = ValueNotifier<int>(60);
+    _dangerZoneNotifier = ValueNotifier<bool>(false);
+    _dangerPulseNotifier = ValueNotifier<bool>(false);
+    _bootstrapCurrentUserIdentity();
+    _startRoundCountdownTicker();
+    _loadDebate();
+  }
+
+  void _bootstrapCurrentUserIdentity() {
+    final user = FirebaseAuth.instance.currentUser;
+    currentUserId = user?.uid ?? '';
+    currentUserName = _bestEffortName(user);
+  }
+
+  String _bestEffortName(User? user) {
+    final fromMemory = sanitizePublicName(currentUserName);
+    if (fromMemory.isNotEmpty) return fromMemory;
+
+    return deriveNeutralName(
+      displayName: user?.displayName ?? '',
+      email: user?.email ?? '',
+      uid: user?.uid ?? '',
+    );
+  }
+
+  Future<void> _hydrateUserNameFromFirestore() async {
+    if (currentUserId.isEmpty) return;
+
+    try {
+      final userSnap = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUserId)
+          .get();
+      final name = sanitizePublicName(userSnap.data()?['name']);
+      if (name.isEmpty) return;
+      if (!mounted) return;
+      setState(() {
+        currentUserName = name;
+      });
+    } catch (_) {
+      // Keep auth-based fallback name when profile lookup fails.
+    }
+  }
+
+  void _startRoundCountdownTicker() {
+    _roundCountdownTicker?.cancel();
+    _roundCountdownTicker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      if (status == 'finished') {
+        _timeLeftNotifier.value = 0;
+        _dangerZoneNotifier.value = false;
+        _dangerPulseNotifier.value = false;
+        return;
+      }
+
+      final remaining = _remainingSecondsFromRoundEnd();
+      _timeLeftNotifier.value = remaining;
+
+      if (remaining <= 0) {
+        _dangerZoneNotifier.value = false;
+        _dangerPulseNotifier.value = false;
+        _lastDangerHapticSecond = -1;
+        if (_shouldAttemptAdvanceFromClient(
+          currentStatus: status,
+          roundActive: isRoundActive,
+        )) {
+          _attemptAdvanceRoundOrFinish();
+        }
+        return;
+      }
+
+      if (DebateAlertService.dangerFlashEnabled &&
+          remaining <= 10) {
+        _dangerZoneNotifier.value = true;
+        _dangerPulseNotifier.value = !_dangerPulseNotifier.value;
+        if (_lastDangerHapticSecond != remaining) {
+          _lastDangerHapticSecond = remaining;
+          HapticFeedback.lightImpact();
+        }
+      } else {
+        _dangerZoneNotifier.value = false;
+        _dangerPulseNotifier.value = false;
+        _lastDangerHapticSecond = -1;
+      }
+    });
+  }
+
+  int _remainingSecondsFromRoundEnd() {
+    final end = _roundEndsAtLocal;
+    if (end == null) return 0;
+    final diff = end.difference(DateTime.now()).inSeconds;
+    return diff < 0 ? 0 : diff;
+  }
+
+  DateTime? _resolveRoundEndsAtFromData(Map<String, dynamic> data) {
+    final rawRoundEndsAt = data['roundEndsAt'];
+    if (rawRoundEndsAt is Timestamp) {
+      return rawRoundEndsAt.toDate();
+    }
+
+    final rawStart = data['startedAt'] ?? data['startTime'];
+    DateTime? startedAt;
+    if (rawStart is Timestamp) {
+      startedAt = rawStart.toDate();
+    } else if (rawStart is DateTime) {
+      startedAt = rawStart;
+    }
+    if (startedAt == null) return null;
+
+    final fallbackDuration =
+        _termsResolvedDuration > 0 ? _termsResolvedDuration : 180;
+    final roundDuration = _sanitizeDuration(
+      data['roundDurationSeconds'] ?? data['durationSeconds'],
+      fallbackDuration,
+    );
+    return startedAt.add(Duration(seconds: roundDuration));
+  }
+
+  bool _shouldAttemptAdvanceFromClient({
+    required String currentStatus,
+    required bool roundActive,
+  }) {
+    if (currentStatus != 'active') return false;
+    if (!roundActive) return false;
+    return true;
+  }
+
+  void _syncRoundCountdownFromData(
+    Map<String, dynamic> data,
+    String newStatus,
+  ) {
+    if (newStatus == 'finished' || newStatus != 'active') {
+      _roundEndsAtLocal = null;
+      _timeLeftNotifier.value = 0;
+      return;
+    }
+
+    final resolvedRoundEnd = _resolveRoundEndsAtFromData(data);
+    if (resolvedRoundEnd != null) {
+      _roundEndsAtLocal = resolvedRoundEnd;
+      _timeLeftNotifier.value = _remainingSecondsFromRoundEnd();
+      return;
+    }
+
+    _roundEndsAtLocal = null;
+    _timeLeftNotifier.value = 0;
+  }
+
+  Future<void> _loadDebate() async {
+    final ref =
+        FirebaseFirestore.instance.collection('debates').doc(widget.debateId);
+    _bootstrapCurrentUserIdentity();
+    DocumentSnapshot<Map<String, dynamic>> snap;
+    Map<String, dynamic>? data;
+
+    try {
+      snap = await ref.get().timeout(const Duration(seconds: 12));
+      data = snap.data();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppLocalizations.of(context)!.accessRestricted)),
+      );
+      Navigator.of(context).maybePop();
+      return;
+    }
+
+    if (!mounted) return;
+
+    if (data == null) {
+      setState(() {
+        isLoading = false;
+        topic = '';
+        debateType = 'open';
+        fighter1 = currentUserId;
+        fighter2 = '';
+        opponentId = '';
+        creatorId = currentUserId;
+        fighter1Name = currentUserName;
+        fighter2Name = '';
+        votes1 = 0;
+        votes2 = 0;
+        status = 'waiting';
+        roundIndex = 1;
+        totalRounds = 3;
+        activeSpeakerId = '';
+        isRoundActive = false;
+        isTimerRunning = false;
+        startTime = null;
+      });
+      return;
+    }
+
+    if (!_canAccessDebateData(data)) {
+      setState(() {
+        isLoading = false;
+      });
+      _handleAccessDeniedAndExit();
+      return;
+    }
+
+    topic = (data['topic'] is String) ? data['topic'] as String : '';
+    debateType =
+        (data['debateType'] is String) ? data['debateType'] as String : 'open';
+    fighter1 = (data['fighter1'] is String) ? data['fighter1'] as String : '';
+    fighter2 = (data['fighter2'] is String) ? data['fighter2'] as String : '';
+    opponentId =
+        (data['opponentId'] is String) ? data['opponentId'] as String : '';
+    creatorId =
+        (data['creatorId'] is String) ? data['creatorId'] as String : '';
+    if (fighter1.trim().isEmpty) fighter1 = creatorId;
+    if (fighter2.trim().isEmpty) fighter2 = opponentId;
+    creationMode = (data['creationMode'] is String)
+        ? data['creationMode'] as String
+        : 'public_feed';
+    invitedUserId = (data['invitedUserId'] is String)
+        ? data['invitedUserId'] as String
+        : '';
+    fighter1Name = sanitizePublicName(data['fighter1Name']);
+    fighter2Name = sanitizePublicName(data['fighter2Name']);
+    votes1 = _asInt(data['votes1'], 0);
+    votes2 = _asInt(data['votes2'], 0);
+    status = _normalizeStatus(data['status'], fallback: 'waiting');
+    roundIndex = _readRoundIndex(data, fallback: 1);
+    totalRounds = _effectiveRoundsFromData(data, totalRounds);
+    activeSpeakerId = (data['activeSpeakerId'] is String)
+        ? data['activeSpeakerId'] as String
+        : '';
+    isTimerRunning = _asBool(data['isTimerRunning'], false);
+    isRoundActive = _asBool(data['isRoundActive'], isRoundActive);
+    startTime = data['startTime'];
+    final creatorProposal = data['termsProposalCreator'] is Map
+        ? data['termsProposalCreator'] as Map
+        : const {};
+    final accepterProposal = data['termsProposalAccepter'] is Map
+        ? data['termsProposalAccepter'] as Map
+        : const {};
+    final resolvedTerms =
+        data['termsResolved'] is Map ? data['termsResolved'] as Map : const {};
+    _termsCreatorDuration = _sanitizeDuration(
+      creatorProposal['roundDurationSeconds'],
+      _sanitizeDuration(
+          data['roundDurationSeconds'] ?? data['durationSeconds'], 180),
+    );
+    _termsCreatorRounds = _sanitizeRounds(
+      creatorProposal['totalRounds'],
+      _sanitizeRounds(data['totalRounds'], 3),
+    );
+    _termsAccepterDuration = _sanitizeDuration(
+      accepterProposal['roundDurationSeconds'],
+      _termsCreatorDuration,
+    );
+    _termsAccepterRounds = _sanitizeRounds(
+      accepterProposal['totalRounds'],
+      _termsCreatorRounds,
+    );
+    _termsResolvedDuration = _sanitizeDuration(
+      resolvedTerms['roundDurationSeconds'],
+      _termsCreatorDuration,
+    );
+    _termsResolvedRounds = _sanitizeRounds(
+      resolvedTerms['totalRounds'],
+      _termsCreatorRounds,
+    );
+    _termsPolicyVersion =
+        (data['termsResolverVersion'] ?? 'v1_mean_nearest_strict').toString();
+    _termsAreResolved =
+        (data['termsResolutionStatus'] ?? '').toString() == 'resolved';
+
+    await _hydrateUserNameFromFirestore();
+    await _hydrateFighterNamesFromUsers();
+
+    _syncRoundCountdownFromData(data, status);
+
+    setState(() {
+      isLoading = false;
+    });
+
+    // Если roundEndsAt ещё не выставлен (новая схема), попросим сервер
+    // инициализировать первый ход/таймер. Это один безопасный вызов.
+    if (data['roundEndsAt'] == null &&
+        _shouldAttemptAdvanceFromClient(
+          currentStatus: status,
+          roundActive: isRoundActive,
+        )) {
+      await _attemptAdvanceRoundOrFinish();
+    }
+
+    debateSub = ref.snapshots().listen((doc) {
+      final liveData = doc.data() ?? {};
+      final previousRound = roundIndex;
+
+      if (!mounted) return;
+
+      if (!_canAccessDebateData(liveData)) {
+        _handleAccessDeniedAndExit();
+        return;
+      }
+
+      final newStatus = _normalizeStatus(liveData['status'] ?? status,
+          fallback: status == 'finished' ? 'finished' : 'waiting');
+      _syncRoundCountdownFromData(liveData, newStatus);
+
+      setState(() {
+        votes1 = _asInt(liveData['votes1'], votes1);
+        votes2 = _asInt(liveData['votes2'], votes2);
+        status = newStatus;
+        fighter1 = (liveData['fighter1'] ?? fighter1).toString();
+        fighter2 = (liveData['fighter2'] ?? fighter2).toString();
+        opponentId = (liveData['opponentId'] ?? opponentId).toString();
+        creatorId = (liveData['creatorId'] ?? creatorId).toString();
+        if (fighter1.trim().isEmpty) {
+          fighter1 = creatorId;
+        }
+        if (fighter2.trim().isEmpty) {
+          fighter2 = opponentId;
+        }
+        creationMode = (liveData['creationMode'] ?? creationMode).toString();
+        invitedUserId = (liveData['invitedUserId'] ?? invitedUserId).toString();
+        fighter1Name = sanitizePublicName(
+          liveData['fighter1Name'] ?? fighter1Name,
+        );
+        fighter2Name = sanitizePublicName(
+          liveData['fighter2Name'] ?? fighter2Name,
+        );
+        activeSpeakerId =
+            (liveData['activeSpeakerId'] ?? activeSpeakerId).toString();
+        roundIndex = _readRoundIndex(liveData, fallback: roundIndex);
+        totalRounds = _effectiveRoundsFromData(liveData, totalRounds);
+        isRoundActive = _asBool(liveData['isRoundActive'], isRoundActive);
+        final creatorProposal = liveData['termsProposalCreator'] is Map
+            ? liveData['termsProposalCreator'] as Map
+            : const {};
+        final accepterProposal = liveData['termsProposalAccepter'] is Map
+            ? liveData['termsProposalAccepter'] as Map
+            : const {};
+        final resolvedTerms = liveData['termsResolved'] is Map
+            ? liveData['termsResolved'] as Map
+            : const {};
+        _termsCreatorDuration = _sanitizeDuration(
+          creatorProposal['roundDurationSeconds'],
+          _sanitizeDuration(
+              liveData['roundDurationSeconds'] ?? liveData['durationSeconds'],
+              _termsCreatorDuration),
+        );
+        _termsCreatorRounds = _sanitizeRounds(
+          creatorProposal['totalRounds'],
+          _sanitizeRounds(liveData['totalRounds'], _termsCreatorRounds),
+        );
+        _termsAccepterDuration = _sanitizeDuration(
+          accepterProposal['roundDurationSeconds'],
+          _termsAccepterDuration,
+        );
+        _termsAccepterRounds = _sanitizeRounds(
+          accepterProposal['totalRounds'],
+          _termsAccepterRounds,
+        );
+        _termsResolvedDuration = _sanitizeDuration(
+          resolvedTerms['roundDurationSeconds'],
+          _termsResolvedDuration,
+        );
+        _termsResolvedRounds = _sanitizeRounds(
+          resolvedTerms['totalRounds'],
+          _termsResolvedRounds,
+        );
+        _termsPolicyVersion =
+            (liveData['termsResolverVersion'] ?? _termsPolicyVersion)
+                .toString();
+        _termsAreResolved =
+            (liveData['termsResolutionStatus'] ?? '').toString() == 'resolved';
+        final pending = liveData['pendingPenalty'];
+        if (pending is Map && currentUserId.isNotEmpty) {
+          final raw = pending[currentUserId];
+          pendingPenaltySecondsForMe =
+              raw is int ? raw : (raw is num ? raw.toInt() : 0);
+        } else {
+          pendingPenaltySecondsForMe = 0;
+        }
+      });
+
+      if (_voteStatusRoundIndex != roundIndex && newStatus != 'finished') {
+        if (isViewer) _refreshMyVoteStatus();
+      }
+
+      _cancelPendingAdvanceIfNeeded(
+        previousRound: previousRound,
+        nextRound: roundIndex,
+        nextStatus: status,
+      );
+
+      _hydrateFighterNamesFromUsers();
+
+      if (_timeLeftNotifier.value == 0 &&
+          _shouldAttemptAdvanceFromClient(
+            currentStatus: newStatus,
+            roundActive: isRoundActive,
+          )) {
+        _attemptAdvanceRoundOrFinish();
+      }
+
+      if (newStatus == 'finished' && !movedToResult) {
+        movedToResult = true;
+        Navigator.pushReplacement(
+          context,
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) =>
+                ResultScreen(debateId: widget.debateId),
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) =>
+                    FadeTransition(opacity: animation, child: child),
+            transitionDuration: const Duration(milliseconds: 200),
+          ),
+        );
+      }
+    }, onError: (_) {
+      _handleAccessDeniedAndExit();
+    });
+  }
+
+  String get _effectiveCurrentUid {
+    if (currentUserId.isNotEmpty) return currentUserId;
+    return FirebaseAuth.instance.currentUser?.uid ?? '';
+  }
+
+  bool get isParticipant {
+    final uid = _effectiveCurrentUid;
+    if (uid.isEmpty) return false;
+    return uid == creatorId ||
+        uid == opponentId ||
+        uid == fighter1 ||
+        uid == fighter2;
+  }
+
+  bool get isFighter {
+    return isParticipant;
+  }
+
+  bool get isViewer {
+    return !isFighter;
+  }
+
+  bool _hasRealOpponentId(String f1, String f2) {
+    final normalized = f2.trim().toLowerCase();
+    if (normalized.isEmpty) return false;
+    if (normalized == f1.trim().toLowerCase()) return false;
+    return !const {
+      'opponent',
+      'invited',
+      'fighter',
+      'оппонент',
+      'приглашен',
+      'приглашён',
+    }.contains(normalized);
+  }
+
+  bool get _canAcceptPending {
+    if (status != 'waiting') return false;
+    final uid = _effectiveCurrentUid;
+    if (uid.isEmpty) return false;
+    if (uid == creatorId || uid == fighter1) return false;
+
+    final effectiveInvitedUid = _effectiveInvitedUid({
+      'invitedUserId': invitedUserId,
+      'opponentId': opponentId,
+      'creatorId': creatorId,
+      'fighter2': fighter2,
+      'creationMode': creationMode,
+    });
+    final isDirectInvite =
+        creationMode == 'direct_invite' || effectiveInvitedUid.isNotEmpty;
+    if (isDirectInvite) {
+      return effectiveInvitedUid.isNotEmpty && uid == effectiveInvitedUid;
+    }
+
+    return !_hasRealOpponentId(fighter1, fighter2);
+  }
+
+  Future<void> _acceptPendingDebate() async {
+    if (_isAcceptingPending || !_canAcceptPending) return;
+    final l10n = AppLocalizations.of(context)!;
+    final callable = _functions.httpsCallable(
+      'acceptDebateInvite',
+      options: HttpsCallableOptions(timeout: const Duration(seconds: 20)),
+    );
+    final payload = {
+      'debateId': widget.debateId,
+      'proposedRoundDurationSeconds': _termsCreatorDuration,
+      'proposedTotalRounds': _termsCreatorRounds,
+    };
+
+    setState(() {
+      _isAcceptingPending = true;
+    });
+
+    try {
+      await callable.call(payload);
+    } on FirebaseFunctionsException catch (e) {
+      if (!mounted) return;
+      final retryableCodes = {
+        'internal',
+        'not-found',
+        'unavailable',
+        'unimplemented',
+      };
+      if (!retryableCodes.contains(e.code)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(mapDebateCallableError(
+              l10n,
+              e,
+              fallbackMessage: l10n.acceptChallengeFailed,
+            )),
+          ),
+        );
+      } else {
+        try {
+          await Future.delayed(const Duration(milliseconds: 900));
+          await callable.call(payload);
+        } on FirebaseFunctionsException catch (retryError) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(mapDebateCallableError(
+                l10n,
+                retryError,
+                fallbackMessage: l10n.acceptChallengeFailed,
+              )),
+            ),
+          );
+        } catch (_) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(l10n.acceptChallengeFailed)),
+          );
+        }
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.acceptChallengeFailed)),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isAcceptingPending = false;
+        });
+      }
+    }
+  }
+
+  bool get isMyTurn {
+    if (!isFighter) return false;
+    if (status == 'finished') return false;
+    if (!isRoundActive) return false;
+    if (activeSpeakerId.trim().isEmpty) return false;
+    if (currentUserId.isNotEmpty) return currentUserId == activeSpeakerId;
+    return currentUserName == activeSpeakerId;
+  }
+
+  int _stableHash(String value) {
+    var hash = 0x811C9DC5;
+    for (final codeUnit in value.codeUnits) {
+      hash ^= codeUnit;
+      hash = (hash * 0x01000193) & 0x7fffffff;
+    }
+    return hash;
+  }
+
+  void _cancelPendingAdvanceIfNeeded({
+    required int previousRound,
+    required int nextRound,
+    required String nextStatus,
+  }) {
+    if (!_advancePending) return;
+    if (nextStatus == 'finished' || nextRound != previousRound) {
+      _advanceAttemptToken++;
+      _advancePending = false;
+    }
+  }
+
+  Future<void> _attemptAdvanceRoundOrFinish() async {
+    if (_advanceInFlight || _advancePending) return;
+    if (status == 'finished') return;
+
+    final now = DateTime.now();
+    final lastAt = _lastAdvanceAttemptAt;
+    if (lastAt != null && now.difference(lastAt).inSeconds < 4) {
+      return;
+    }
+
+    // Дедуп по раунду+спикеру: если уже пытались для этого хода — не спамим.
+    if (_lastAdvanceRoundAttempt == roundIndex &&
+        _lastAdvanceSpeakerAttempt == activeSpeakerId &&
+        lastAt != null) {
+      return;
+    }
+
+    final plannedRound = roundIndex;
+    final attemptToken = ++_advanceAttemptToken;
+    final stableUid = _effectiveCurrentUid;
+    final hashSeed = stableUid.isNotEmpty ? stableUid : widget.debateId;
+    final delayMs = _stableHash(hashSeed) % _advanceJitterWindowMs;
+
+    _advancePending = true;
+    _lastAdvanceAttemptAt = now;
+    _lastAdvanceRoundAttempt = roundIndex;
+    _lastAdvanceSpeakerAttempt = activeSpeakerId;
+
+    await Future.delayed(Duration(milliseconds: delayMs));
+
+    if (!mounted) return;
+    if (attemptToken != _advanceAttemptToken) return;
+
+    _advancePending = false;
+    if (status == 'finished') return;
+    if (roundIndex != plannedRound) return;
+
+    _advanceInFlight = true;
+
+    try {
+      await RefereeService().advanceRoundOrFinish(widget.debateId);
+    } on FirebaseFunctionsException catch (e) {
+      final details = e.details;
+      if (details is Map && details['reason'] == 'ROUND_NOT_ENDED') {
+        return;
+      }
+      if (details is Map && details['reason'] == 'ADVANCE_NOT_PARTICIPANT') {
+        return;
+      }
+    } catch (_) {
+      // Молчаливо игнорируем: сервер может отказать (не ваш ход / раунд не закончился)
+      // или временно быть недоступным. Повторный вызов сделает retry timer.
+    } finally {
+      _advanceInFlight = false;
+    }
+  }
+
+  Future<void> vote1() async {
+    final l10n = AppLocalizations.of(context)!;
+    if (status == 'finished') return;
+    if (!isViewer) return;
+    if (hasVotedThisRound) return;
+    final callable = _functions.httpsCallable(
+      'castVote',
+      options: HttpsCallableOptions(timeout: const Duration(seconds: 20)),
+    );
+    try {
+      await callable.call({
+        'debateId': widget.debateId,
+        'side': 1,
+        'scope': 'round',
+      });
+      if (!mounted) return;
+      setState(() {
+        hasVotedThisRound = true;
+        votedSideThisRound = 1;
+        _voteStatusRoundIndex = roundIndex;
+      });
+    } on FirebaseFunctionsException catch (e) {
+      if (!mounted) return;
+      final details = e.details;
+      final reason = details is Map ? details['reason']?.toString() ?? '' : '';
+      if (reason == 'VOTE_ALREADY_CAST') {
+        setState(() {
+          hasVotedThisRound = true;
+          votedSideThisRound = 0;
+          _voteStatusRoundIndex = roundIndex;
+        });
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            mapDebateCallableError(
+              l10n,
+              e,
+              fallbackMessage: l10n.alreadyVoted,
+            ),
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.alreadyVoted)),
+      );
+    }
+  }
+
+  Future<void> vote2() async {
+    final l10n = AppLocalizations.of(context)!;
+    if (status == 'finished') return;
+    if (!isViewer) return;
+    if (hasVotedThisRound) return;
+    final callable = _functions.httpsCallable(
+      'castVote',
+      options: HttpsCallableOptions(timeout: const Duration(seconds: 20)),
+    );
+    try {
+      await callable.call({
+        'debateId': widget.debateId,
+        'side': 2,
+        'scope': 'round',
+      });
+      if (!mounted) return;
+      setState(() {
+        hasVotedThisRound = true;
+        votedSideThisRound = 2;
+        _voteStatusRoundIndex = roundIndex;
+      });
+    } on FirebaseFunctionsException catch (e) {
+      if (!mounted) return;
+      final details = e.details;
+      final reason = details is Map ? details['reason']?.toString() ?? '' : '';
+      if (reason == 'VOTE_ALREADY_CAST') {
+        setState(() {
+          hasVotedThisRound = true;
+          votedSideThisRound = 0;
+          _voteStatusRoundIndex = roundIndex;
+        });
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            mapDebateCallableError(
+              l10n,
+              e,
+              fallbackMessage: l10n.alreadyVoted,
+            ),
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.alreadyVoted)),
+      );
+    }
+  }
+
+  Future<void> sendMessage() async {
+    final l10n = AppLocalizations.of(context)!;
+    if (_isSendingMessage) return;
+    final text = _messageController.text.trim();
+    if (text.isEmpty) return;
+    if (!isFighter) return;
+    if (status == 'finished') return;
+    if (!isMyTurn) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.notYourTurn)),
+      );
+      return;
+    }
+
+    _bootstrapCurrentUserIdentity();
+    final senderName =
+        _bestEffortName(FirebaseAuth.instance.currentUser).trim();
+    if (senderName.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.cannotDetectSender)),
+      );
+      return;
+    }
+
+    final callable = _functions.httpsCallable(
+      'sendDebateMessage',
+      options: HttpsCallableOptions(timeout: const Duration(seconds: 20)),
+    );
+    setState(() {
+      _isSendingMessage = true;
+    });
+    try {
+      await callable.call({
+        'debateId': widget.debateId,
+        'text': text,
+        'senderName': senderName,
+      });
+      if (!mounted) return;
+      currentUserName = senderName;
+      _messageController.clear();
+    } on FirebaseFunctionsException catch (e) {
+      final retryableCodes = {
+        'internal',
+        'unavailable',
+        'deadline-exceeded',
+      };
+      if (retryableCodes.contains(e.code)) {
+        try {
+          await Future.delayed(const Duration(milliseconds: 700));
+          await callable.call({
+            'debateId': widget.debateId,
+            'text': text,
+            'senderName': senderName,
+          });
+          if (!mounted) return;
+          currentUserName = senderName;
+          _messageController.clear();
+          return;
+        } catch (_) {}
+      }
+      final details = e.details;
+      final reason = details is Map ? (details['reason'] ?? '').toString() : '';
+      if (reason == 'TURN_TIME_EXPIRED' || reason == 'ROUND_NOT_ACTIVE') {
+        _attemptAdvanceRoundOrFinish();
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text(mapDebateCallableError(
+          l10n,
+          e,
+          fallbackMessage: l10n.errorPrefix,
+        ))),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${l10n.errorPrefix}: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSendingMessage = false;
+        });
+      }
+    }
+  }
+
+  String getTypeLabel() {
+    final l10n = AppLocalizations.of(context)!;
+    switch (debateType) {
+      case 'closed':
+        return l10n.closedDebates;
+      case 'request':
+        return l10n.requestOnlyDebates;
+      default:
+        return l10n.openDebates;
+    }
+  }
+
+  Widget _fighterCard(String name, Color color) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: VerdictStyle.cardBg,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: Colors.white12),
+        ),
+        child: Column(
+          children: [
+            Icon(Icons.person, color: color, size: 28),
+            const SizedBox(height: 8),
+            Text(
+              name,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _timerColor(int timeLeft) {
+    if (timeLeft <= 5) return const Color(0xFFFF3B30);
+    if (timeLeft <= 10) return const Color(0xFFFF6B6B);
+    return Colors.white;
+  }
+
+  Color _timerPanelColor(bool isDanger, bool pulse) {
+    if (!isDanger) return const Color(0xFF151D31);
+    return pulse ? const Color(0xFF3A1E27) : const Color(0xFF321B23);
+  }
+
+  @override
+  void dispose() {
+    _roundCountdownTicker?.cancel();
+    debateSub?.cancel();
+    _advanceAttemptToken++;
+    _advancePending = false;
+    _messageController.dispose();
+    _timeLeftNotifier.dispose();
+    _dangerZoneNotifier.dispose();
+    _dangerPulseNotifier.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final displayTopic = topic.trim().isEmpty
+        ? _safeLocalizedText(l10n.unknownTopic, 'Unknown topic')
+        : topic;
+    final displayFighter1Name =
+        fighter1Name.trim().isEmpty ? l10n.fighterOne : fighter1Name;
+    final displayFighter2Name =
+        fighter2Name.trim().isEmpty ? l10n.fighterTwo : fighter2Name;
+    if (isLoading) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(
+            color: Color(0xFFFFA500),
+          ),
+        ),
+      );
+    }
+
+    return Scaffold(
+      resizeToAvoidBottomInset: true,
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        title: Text(displayTopic),
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        foregroundColor: Colors.white,
+      ),
+      backgroundColor: VerdictStyle.bg,
+      body: Stack(
+        children: [
+          const Positioned.fill(
+            child: CustomPaint(
+              painter: ChatPatternPainter(color: Color(0x0AFFFFFF)),
+            ),
+          ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+              return AnimatedPadding(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeOut,
+                padding: EdgeInsets.only(bottom: bottomInset),
+                child: Column(
+                  children: [
+                    SizedBox(height: MediaQuery.of(context).padding.top + 14),
+                    Flexible(
+                      child: ClipRect(
+                        child: SingleChildScrollView(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Column(
+                          children: [
+                            Text(
+                              getTypeLabel(),
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white70,
+                                letterSpacing: 1.1,
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 16),
+                              child: Row(
+                                children: [
+                                  _fighterCard(
+                                      displayFighter1Name, Colors.blue),
+                                  const Padding(
+                                    padding:
+                                        EdgeInsets.symmetric(horizontal: 10),
+                                    child: Text(
+                                      'VS',
+                                      style: TextStyle(
+                                        fontSize: 22,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFFFFA500),
+                                      ),
+                                    ),
+                                  ),
+                                  _fighterCard(displayFighter2Name, Colors.red),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+                            if (status == 'active')
+                              ValueListenableBuilder<int>(
+                                valueListenable: _timeLeftNotifier,
+                                builder: (context, timeLeft, _) {
+                                  return ValueListenableBuilder<bool>(
+                                    valueListenable: _dangerZoneNotifier,
+                                    builder: (context, isDanger, __) {
+                                      return ValueListenableBuilder<bool>(
+                                        valueListenable: _dangerPulseNotifier,
+                                        builder: (context, pulse, ___) {
+                                          return AnimatedContainer(
+                                            duration: const Duration(
+                                                milliseconds: 350),
+                                            margin: const EdgeInsets.symmetric(
+                                                horizontal: 16),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 16,
+                                              vertical: 14,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: _timerPanelColor(
+                                                  isDanger, pulse),
+                                              borderRadius:
+                                                  BorderRadius.circular(24),
+                                              border: Border.all(
+                                                  color: Colors.white12),
+                                            ),
+                                            child: Column(
+                                              children: [
+                                                Text(
+                                                  '${l10n.timeLabel}: $timeLeft',
+                                                  style: TextStyle(
+                                                    fontSize: 34,
+                                                    fontWeight: FontWeight.bold,
+                                                    color:
+                                                        _timerColor(timeLeft),
+                                                  ),
+                                                ),
+                                                if (timeLeft <= 10)
+                                                  Padding(
+                                                    padding:
+                                                        const EdgeInsets.only(
+                                                            top: 8),
+                                                    child: Text(
+                                                      l10n.timeEnding,
+                                                      style: TextStyle(
+                                                        color: _timerColor(
+                                                            timeLeft),
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                        fontSize: 16,
+                                                        letterSpacing: 1.2,
+                                                      ),
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
+                                          );
+                                        },
+                                      );
+                                    },
+                                  );
+                                },
+                              )
+                            else if (status == 'waiting')
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 16),
+                                child: Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 16, vertical: 14),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF151D31),
+                                    borderRadius: BorderRadius.circular(24),
+                                    border: Border.all(color: Colors.white12),
+                                  ),
+                                  child: Text(
+                                    l10n.waitingOpponent,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            const SizedBox(height: 18),
+                            if (isFighter && status == 'active')
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 16),
+                                child: Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 10),
+                                  decoration: BoxDecoration(
+                                    color: isMyTurn
+                                        ? const Color(0xFF1D2233)
+                                        : const Color(0xFF151D31),
+                                    borderRadius: BorderRadius.circular(24),
+                                    border: Border.all(color: Colors.white12),
+                                  ),
+                                  child: Text(
+                                    '${l10n.roundLabel} $roundIndex/$totalRounds • ${isMyTurn ? l10n.yourTurn : l10n.opponentTurn}',
+                                    textAlign: TextAlign.center,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            if (isFighter && status == 'active')
+                              Padding(
+                                padding:
+                                    const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                                child: LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    final textWidth = constraints.maxWidth > 180
+                                        ? constraints.maxWidth - 160
+                                        : constraints.maxWidth;
+                                    return SizedBox(
+                                      width: textWidth,
+                                      child: Text(
+                                        pendingPenaltySecondsForMe > 0
+                                            ? '${l10n.nextTurnPenaltyPrefix}: -$pendingPenaltySecondsForMe ${l10n.secondsShort}'
+                                            : l10n.noNextTurnPenalty,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white70,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            if (isViewer && status != 'finished')
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 16),
+                                child: Text(
+                                  '${l10n.roundLabel} $roundIndex/$totalRounds',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white70,
+                                  ),
+                                ),
+                              ),
+                            if (_canAcceptPending) ...[
+                              const SizedBox(height: 10),
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 16),
+                                child: SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton.icon(
+                                    onPressed: _isAcceptingPending
+                                        ? null
+                                        : _acceptPendingDebate,
+                                    icon: _isAcceptingPending
+                                        ? const SizedBox(
+                                            width: 18,
+                                            height: 18,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: Colors.black,
+                                            ),
+                                          )
+                                        : const Icon(Icons.how_to_reg),
+                                    label: Text(
+                                      _isAcceptingPending
+                                          ? l10n.accepting
+                                          : l10n.acceptChallenge,
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFFFFA500),
+                                      foregroundColor: Colors.black,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                            if (isViewer) ...[
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceEvenly,
+                                children: [
+                                  ElevatedButton(
+                                    onPressed: (status == 'finished' ||
+                                            hasVotedThisRound)
+                                        ? null
+                                        : vote1,
+                                    child: Text('${l10n.voteFor} 1 ($votes1)'),
+                                  ),
+                                  ElevatedButton(
+                                    onPressed: (status == 'finished' ||
+                                            hasVotedThisRound)
+                                        ? null
+                                        : vote2,
+                                    child: Text('${l10n.voteFor} 2 ($votes2)'),
+                                  ),
+                                ],
+                              ),
+                              if (status != 'finished' && hasVotedThisRound)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: Text(
+                                    votedSideThisRound == 1
+                                        ? '${l10n.alreadyVotedFor} 1'
+                                        : (votedSideThisRound == 2
+                                            ? '${l10n.alreadyVotedFor} 2'
+                                            : l10n.alreadyVotedThisRound),
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white70,
+                                    ),
+                                  ),
+                                ),
+                            ] else ...[
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 16),
+                                child: Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF1D2233),
+                                    borderRadius: BorderRadius.circular(24),
+                                    border: Border.all(color: Colors.white12),
+                                  ),
+                                  child: Text(
+                                    l10n.votingOnlyForViewers,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 12),
+                            if (isViewer)
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 16),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(Icons.remove_red_eye_outlined,
+                                        color: Colors.white38, size: 16),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      l10n.viewerModeHint,
+                                      style: const TextStyle(
+                                          color: Colors.white38, fontSize: 12),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            const SizedBox(height: 10),
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 16),
+                              child: ValueListenableBuilder<int>(
+                                valueListenable: _timeLeftNotifier,
+                                builder: (context, timeLeft, _) {
+                                  final label = status == 'finished'
+                                      ? l10n.finishedStatus
+                                      : (status == 'waiting'
+                                          ? l10n.waitingOpponent
+                                          : (isFighter
+                                              ? (isMyTurn
+                                                  ? l10n.yourTurnUpper
+                                                  : l10n.opponentTurnUpper)
+                                              : l10n.viewerUpper));
+                                  return Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 14, vertical: 10),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF1D2233),
+                                      borderRadius: BorderRadius.circular(24),
+                                      border: Border.all(color: Colors.white12),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            '${l10n.roundLabel} $roundIndex/$totalRounds • $label',
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                        if (status == 'active')
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 10, vertical: 6),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFFFA500)
+                                                  .withValues(alpha: 0.18),
+                                              borderRadius:
+                                                  BorderRadius.circular(999),
+                                            ),
+                                            child: Text(
+                                              timeLeft <= 0
+                                                  ? '00:00'
+                                                  : '00:${timeLeft.toString().padLeft(2, '0')}',
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 16),
+                              child: Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF151D31),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: Colors.white12),
+                                ),
+                                child: Text(
+                                  _termsAreResolved
+                                      ? 'Terms trace: creator ${_formatDuration(_termsCreatorDuration)} • $_termsCreatorRounds | accepter ${_formatDuration(_termsAccepterDuration)} • $_termsAccepterRounds | final ${_formatDuration(_termsResolvedDuration)} • $_termsResolvedRounds | $_termsPolicyVersion'
+                                      : 'Terms trace: creator ${_formatDuration(_termsCreatorDuration)} • $_termsCreatorRounds | waiting system resolution',
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 11,
+                                    height: 1.3,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                          ],
+                        ),
+                      ),
+                    ),
+                    ),
+                    Expanded(
+                      child: Stack(
+                        children: [
+                          const Positioned.fill(
+                            child: CustomPaint(
+                              painter: ChatPatternPainter(
+                                color: Color(0x0AFFFFFF),
+                              ),
+                            ),
+                          ),
+                          Positioned.fill(
+                            child: DebateMessagesList(
+                              debateId: widget.debateId,
+                              fighter1Id: fighter1,
+                              showWaitingTurn: isFighter &&
+                                  status != 'finished' &&
+                                  !isMyTurn,
+                              waitingText: l10n.waitingYourTurn,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (isFighter && status != 'finished')
+                      SafeArea(
+                        top: false,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 14),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF1D2233),
+                                    borderRadius: BorderRadius.circular(24),
+                                    boxShadow: const [
+                                      BoxShadow(
+                                        color: Color(0x12000000),
+                                        blurRadius: 12,
+                                        offset: Offset(0, 6),
+                                      ),
+                                    ],
+                                  ),
+                                  child: TextField(
+                                    controller: _messageController,
+                                    enabled: isMyTurn,
+                                    minLines: 1,
+                                    maxLines: 4,
+                                    textInputAction: TextInputAction.send,
+                                    onSubmitted: (_) {
+                                      if (isMyTurn && !_isSendingMessage) {
+                                        sendMessage();
+                                      }
+                                    },
+                                    decoration: InputDecoration(
+                                      hintText: isMyTurn
+                                          ? _safeWriteHint(l10n)
+                                          : l10n.waitForOpponentTurn,
+                                      hintStyle: const TextStyle(
+                                          color: Colors.white54),
+                                      border: InputBorder.none,
+                                    ),
+                                    style: const TextStyle(color: Colors.white),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              SizedBox(
+                                height: 46,
+                                width: 46,
+                                child: Material(
+                                  color: Colors.transparent,
+                                  shape: const CircleBorder(),
+                                  child: Opacity(
+                                    opacity: (isMyTurn && !_isSendingMessage)
+                                        ? 1
+                                        : 0.45,
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(23),
+                                      onTap: (isMyTurn && !_isSendingMessage)
+                                          ? sendMessage
+                                          : null,
+                                      child: Center(
+                                        child: Icon(
+                                          Icons.send_rounded,
+                                          size: 20,
+                                          color:
+                                              (isMyTurn && !_isSendingMessage)
+                                                  ? const Color(0xFFFFA500)
+                                                  : Colors.grey,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    if (status == 'finished')
+                      Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF151D31),
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(color: Colors.white12),
+                        ),
+                        child: Text(
+                          l10n.battleFinishedGoingToResult,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    ); // end Scaffold
+  } // end build
+} // end _DebateRoomScreenState

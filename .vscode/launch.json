@@ -1,0 +1,22 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Flutter (Current Device, Terminal)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "flutterMode": "debug",
+      "console": "terminal"
+    },
+    {
+      "name": "Flutter (Wireless Android, Terminal)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "flutterMode": "debug",
+      "deviceId": "adb-ac7a31cd-TtkJX7._adb-tls-connect._tcp",
+      "console": "terminal"
+    }
+  ]
+}

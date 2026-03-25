@@ -1,0 +1,219 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isDebateFighter(debate) {
+      return isSignedIn()
+        && (request.auth.uid == debate.data.fighter1
+          || request.auth.uid == debate.data.fighter2);
+    }
+
+    function isDebateViewer(debate) {
+      return isSignedIn()
+        && request.auth.uid != debate.data.fighter1
+        && request.auth.uid != debate.data.fighter2;
+    }
+
+    function isDebateParticipantByData(data) {
+      return isSignedIn()
+        && (
+          request.auth.uid == data.fighter1
+          || request.auth.uid == data.fighter2
+          || request.auth.uid == data.creatorId
+          || request.auth.uid == data.invitedUserId
+          || (data.invitedUserIds is list && data.invitedUserIds.hasAny([request.auth.uid]))
+        );
+    }
+
+    function isPublicDebateByData(data) {
+      return !(data.visibilityMode is string) || data.visibilityMode == 'public';
+    }
+
+    function canReadDebateByData(data) {
+      return isPublicDebateByData(data)
+        || (data.visibilityMode == 'request_only' && isSignedIn())
+        || isDebateParticipantByData(data);
+    }
+
+    function validCreationMode(mode) {
+      return mode == 'public_feed' || mode == 'direct_invite';
+    }
+
+    function validVisibilityMode(mode) {
+      return mode == 'public' || mode == 'request_only' || mode == 'private';
+    }
+
+    function validLanguage(code) {
+      return code == 'ru' || code == 'en' || code == 'ar';
+    }
+
+    function validRegion(code) {
+      return code == 'global' || code == 'cis' || code == 'mena' || code == 'europe_africa';
+    }
+
+    function validRounds(v) {
+      return v == 1 || v == 3 || v == 5;
+    }
+
+    function validDuration(v) {
+      return v == 30 || v == 60 || v == 90 || v == 120 || v == 180 || v == 300 || v == 420 || v == 600;
+    }
+
+    function canCreateDebateClient() {
+      return isSignedIn()
+        && request.resource.data.creatorId == request.auth.uid
+        && request.resource.data.fighter1 == request.auth.uid
+        && request.resource.data.status == 'waiting'
+        && request.resource.data.topic is string
+        && request.resource.data.topic.size() >= 3
+        && request.resource.data.durationSeconds is int
+        && request.resource.data.roundDurationSeconds is int
+        && validDuration(request.resource.data.durationSeconds)
+        && request.resource.data.roundDurationSeconds == request.resource.data.durationSeconds
+        && request.resource.data.roundIndex == 1
+        && request.resource.data.currentRound == 1
+        && request.resource.data.votes1 == 0
+        && request.resource.data.votes2 == 0
+        && request.resource.data.viewerCount == 0
+        && validRounds(request.resource.data.totalRounds)
+        && validCreationMode(request.resource.data.creationMode)
+        && validVisibilityMode(request.resource.data.visibilityMode)
+        && validLanguage(request.resource.data.languageCode)
+        && validRegion(request.resource.data.region)
+        && request.resource.data.accessRequests is list
+        && request.resource.data.accessApprovedUserIds is list
+        && request.resource.data.accessApprovedUserIds.hasAny([request.auth.uid])
+        && (request.resource.data.creationMode != 'direct_invite'
+          || (request.resource.data.invitedUserId is string && request.resource.data.invitedUserId.size() > 0));
+    }
+
+    function canAcceptInviteClient() {
+      return isSignedIn()
+        && resource.data.status == 'waiting'
+        && request.auth.uid == resource.data.invitedUserId
+        && onlyChangedKeys([
+          'fighter2',
+          'fighter2Name',
+          'status',
+          'isRoundActive',
+          'activeSpeakerId',
+          'roundEndsAt',
+          'acceptedAt',
+          'accessApprovedUserIds',
+          'accessRequests',
+          'roundIndex',
+          'currentRound'
+        ])
+        && request.resource.data.fighter2 == request.auth.uid
+        && request.resource.data.status == 'active'
+        && request.resource.data.isRoundActive == true
+        && request.resource.data.accessApprovedUserIds is list
+        && (!('accessApprovedUserIds' in resource.data)
+          || request.resource.data.accessApprovedUserIds.hasAll(resource.data.accessApprovedUserIds))
+        && request.resource.data.accessApprovedUserIds.hasAny([request.auth.uid])
+        && request.resource.data.accessRequests is list
+        && request.resource.data.fighter1 == resource.data.fighter1
+        && request.resource.data.creatorId == resource.data.creatorId
+        && request.resource.data.creationMode == resource.data.creationMode
+        && request.resource.data.visibilityMode == resource.data.visibilityMode;
+    }
+
+    function canRequestAccessClient() {
+      return isSignedIn()
+        && resource.data.visibilityMode == 'request_only'
+        && onlyChangedKeys(['accessRequests'])
+        && request.resource.data.accessRequests is list
+        && (!('accessRequests' in resource.data)
+          || request.resource.data.accessRequests.hasAll(resource.data.accessRequests))
+        && request.resource.data.accessRequests.hasAny([request.auth.uid]);
+    }
+
+    function canModerateAccessRequestsClient() {
+      return isSignedIn()
+        && resource.data.visibilityMode == 'request_only'
+        && request.auth.uid == resource.data.creatorId
+        && onlyChangedKeys(['accessRequests', 'accessApprovedUserIds'])
+        && request.resource.data.accessRequests is list
+        && request.resource.data.accessApprovedUserIds is list
+        && (!('accessApprovedUserIds' in resource.data)
+          || request.resource.data.accessApprovedUserIds.hasAll(resource.data.accessApprovedUserIds));
+    }
+
+    function canCancelWaitingDebate() {
+      return isSignedIn()
+        && request.auth.uid == resource.data.creatorId
+        && resource.data.status == 'waiting';
+    }
+
+    function onlyChangedKeys(allowedKeys) {
+      return request.resource.data.diff(resource.data).changedKeys().hasOnly(allowedKeys);
+    }
+
+    function voteIncrementIsValid(field) {
+      return request.resource.data[field] == resource.data[field] + 1;
+    }
+
+    match /users/{uid} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.uid == uid;
+      allow update: if isSignedIn() && request.auth.uid == uid
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['rank', 'isBanned']);
+      allow delete: if false;
+    }
+
+    match /lobbies/{lobbyId} {
+      allow read: if isSignedIn();
+
+      // Создавать лобби может авторизованный пользователь.
+      allow create: if isSignedIn()
+        && request.resource.data.creatorId == request.auth.uid;
+
+      // Обновлять лобби могут только участники лобби.
+      allow update: if isSignedIn()
+        && (request.auth.uid == resource.data.creatorId
+          || request.auth.uid == resource.data.opponentId);
+
+      allow delete: if false;
+    }
+
+    match /debates/{debateId} {
+      allow get: if canReadDebateByData(resource.data);
+      allow list: if isSignedIn();
+
+      // Разрешаем строго валидированное клиентское создание как fallback.
+      allow create: if canCreateDebateClient();
+
+      // Обновления дебата делает Cloud Functions (Admin SDK).
+      // Клиенту разрешаем только принятие инвайта, отправку access-request и
+      // модерацию заявок создателем request-only дебата.
+      allow update: if canAcceptInviteClient()
+        || canRequestAccessClient()
+        || canModerateAccessRequestsClient();
+
+      // Создатель может отменить вызов только до старта.
+      allow delete: if canCancelWaitingDebate();
+
+      match /messages/{messageId} {
+        allow read: if canReadDebateByData(get(/databases/$(database)/documents/debates/$(debateId)).data);
+
+        // Сообщения создаются через Cloud Functions (Admin SDK).
+        allow create: if false;
+
+        allow update: if false;
+        allow delete: if false;
+      }
+
+      match /votes/{uid} {
+        allow read: if false;
+        allow create: if false;
+        allow update: if false;
+        allow delete: if false;
+      }
+    }
+  }
+}
+

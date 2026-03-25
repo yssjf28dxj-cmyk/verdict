@@ -1,0 +1,51 @@
+name: verdict
+description: "A new Flutter project."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  intl: ^0.20.2
+  cupertino_icons: ^1.0.2
+  vibration: ^2.0.0
+  # Библиотеки для Firebase и Google входа
+  firebase_core: ^4.0.0
+  firebase_auth: ^6.0.0
+  cloud_firestore: ^6.0.0
+  cloud_functions: ^6.0.0
+  google_sign_in: ^6.2.1
+  
+  # Иконки для интерфейса
+  font_awesome_flutter: ^10.12.0
+  firebase_storage: ^13.0.0
+  image_picker: ^1.2.1
+  shared_preferences: ^2.3.2
+  flutter_displaymode: ^0.6.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  # Инструмент для создания иконок приложения
+  flutter_launcher_icons: "^0.13.1"
+
+# Настройка иконок приложения (твое золотое V)
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/logo.png"
+  adaptive_icon_background: "#000000"
+  adaptive_icon_foreground: "assets/logo.png"
+
+flutter:
+  uses-material-design: true
+  generate: true
+  # Регистрация папки с картинками
+  assets:
+    - assets/logo.png
