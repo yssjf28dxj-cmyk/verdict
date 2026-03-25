@@ -71,14 +71,18 @@ class _WorldChatScreenState extends State<WorldChatScreen>
     final user = FirebaseAuth.instance.currentUser;
     final text = _controller.text.trim();
     if (user == null || text.isEmpty) return;
+
+    // Save text before clearing, so we can restore on error
+    final savedText = text;
     setState(() => _sending = true);
     _controller.clear();
+
     try {
       final callable = FirebaseFunctions.instance.httpsCallable(
         'sendWorldMessage',
         options: HttpsCallableOptions(timeout: const Duration(seconds: 15)),
       );
-      await callable.call({'text': text});
+      await callable.call({'text': savedText});
       await Future.delayed(const Duration(milliseconds: 100));
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
@@ -88,9 +92,27 @@ class _WorldChatScreenState extends State<WorldChatScreen>
         );
       }
     } on FirebaseFunctionsException catch (e) {
+      // Restore text on error so user can retry
+      _controller.text = savedText;
+      if (!mounted) return;
+      final errorDetail = e.message ?? e.code;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Send failed: $errorDetail'),
+          backgroundColor: const Color(0xFFD32F2F),
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    } catch (e) {
+      // Catch network errors, timeouts, etc.
+      _controller.text = savedText;
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message ?? 'Error sending message')),
+        SnackBar(
+          content: Text('Send failed: $e'),
+          backgroundColor: const Color(0xFFD32F2F),
+          duration: const Duration(seconds: 4),
+        ),
       );
     } finally {
       if (mounted) setState(() => _sending = false);
