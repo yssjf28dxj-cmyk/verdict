@@ -11,6 +11,7 @@ import 'package:record/record.dart';
 import '../models/debate.dart';
 import '../painters/chat_pattern_painter.dart';
 import '../widgets/debate_messages_list.dart';
+import '../widgets/debate_input_bar.dart';
 import '../services/media_upload_service.dart';
 import '../services/referee_service.dart';
 import '../services/debate_alert_service.dart';
@@ -126,7 +127,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
   int _lastDangerHapticSecond = -1;
   String _lastBellCueKey = '';
   bool _headerCollapsed = false;
-  bool _isTyping = false;
+  // _isTyping removed — now owned by DebateInputBar._NormalInputBar
   String _lastHydratedFighter1Uid = '';
   String _lastHydratedFighter2Uid = '';
 
@@ -186,14 +187,6 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
       if (v > 0) return v;
     }
     return _sanitizeRounds(data['totalRounds'], fallback);
-  }
-
-  String _safeWriteHint(AppLocalizations l10n) {
-    final raw = l10n.messageHint.trim();
-    if (raw.isEmpty || raw.toUpperCase() == 'NOT_FOUND') {
-      return 'Write a message...';
-    }
-    return raw;
   }
 
   String _effectiveInvitedUid(Map<String, dynamic> data) {
@@ -331,14 +324,6 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
     _timeLeftNotifier = ValueNotifier<int>(60);
     _dangerZoneNotifier = ValueNotifier<bool>(false);
     _dangerPulseNotifier = ValueNotifier<bool>(false);
-    _messageController.addListener(() {
-      if (!mounted) return;
-      final next = _messageController.text.trim().isNotEmpty;
-      if (next == _isTyping) return;
-      setState(() {
-        _isTyping = next;
-      });
-    });
     _bootstrapCurrentUserIdentity();
     _startRoundCountdownTicker();
     _loadDebate();
@@ -1458,281 +1443,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
     }
   }
 
-  // ─── INPUT BAR BUILDERS ────────────────────────────────────
-
-  Widget _buildMessageInputBar(AppLocalizations l10n, bool isMyTurn) {
-    final canAct = isMyTurn && !_isSendingMessage;
-    return Row(
-      children: [
-        // Gallery button
-        _buildMediaButton(
-          icon: Icons.photo_outlined,
-          onTap: canAct ? _pickAndSendImage : null,
-          enabled: canAct,
-        ),
-        const SizedBox(width: 6),
-        // Text field
-        Expanded(
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 280),
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            decoration: BoxDecoration(
-              color: const Color(0xFF141C2F),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: _isTyping
-                    ? const Color(0xFF4E8BFF)
-                    : Colors.white.withValues(alpha: 0.14),
-                width: _isTyping ? 1.4 : 1.0,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: _isTyping
-                      ? const Color(0x664E8BFF)
-                      : const Color(0x18000000),
-                  blurRadius: _isTyping ? 18 : 10,
-                  spreadRadius: _isTyping ? 1 : 0,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: TextField(
-              controller: _messageController,
-              enabled: isMyTurn,
-              minLines: 1,
-              maxLines: 4,
-              textInputAction: TextInputAction.send,
-              onSubmitted: (_) {
-                if (canAct) sendMessage();
-              },
-              decoration: InputDecoration(
-                hintText: isMyTurn
-                    ? _safeWriteHint(l10n)
-                    : l10n.waitForOpponentTurn,
-                hintStyle: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.5),
-                ),
-                border: InputBorder.none,
-              ),
-              style: const TextStyle(color: Colors.white, fontSize: 15),
-            ),
-          ),
-        ),
-        const SizedBox(width: 6),
-        // Mic button (hold to record)
-        GestureDetector(
-          onLongPressStart: canAct ? (_) => _startRecording() : null,
-          onLongPressEnd: canAct ? (_) => _stopRecordingAndSend() : null,
-          child: _buildMediaButton(
-            icon: Icons.mic_rounded,
-            enabled: canAct,
-          ),
-        ),
-        const SizedBox(width: 6),
-        // Send button
-        SizedBox(
-          height: 42,
-          width: 42,
-          child: Material(
-            color: Colors.transparent,
-            shape: const CircleBorder(),
-            child: Opacity(
-              opacity: canAct ? 1 : 0.45,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(21),
-                onTap: canAct ? sendMessage : null,
-                child: Center(
-                  child: Icon(
-                    Icons.send_rounded,
-                    size: 20,
-                    color: canAct ? const Color(0xFFFFA500) : Colors.grey,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMediaButton({
-    required IconData icon,
-    VoidCallback? onTap,
-    bool enabled = true,
-  }) {
-    return SizedBox(
-      height: 42,
-      width: 42,
-      child: Material(
-        color: Colors.transparent,
-        shape: const CircleBorder(),
-        child: Opacity(
-          opacity: enabled ? 0.7 : 0.3,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(21),
-            onTap: onTap,
-            child: Center(
-              child: Icon(icon, size: 22, color: Colors.white),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRecordingBar(AppLocalizations l10n) {
-    return Container(
-      height: 52,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A0A0A),
-        borderRadius: BorderRadius.circular(26),
-        border: Border.all(
-          color: const Color(0xFFFF4B4B).withValues(alpha: 0.5),
-          width: 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFFFF4B4B).withValues(alpha: 0.15),
-            blurRadius: 16,
-            spreadRadius: 1,
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          // Pulsing red dot
-          TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0.3, end: 1.0),
-            duration: const Duration(milliseconds: 600),
-            curve: Curves.easeInOut,
-            builder: (context, value, _) {
-              return Container(
-                width: 10,
-                height: 10,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Color.lerp(
-                    const Color(0xFFFF4B4B).withValues(alpha: 0.3),
-                    const Color(0xFFFF4B4B),
-                    value,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFFFF4B4B).withValues(alpha: value * 0.4),
-                      blurRadius: 8,
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-          const SizedBox(width: 12),
-          // Recording timer
-          StreamBuilder(
-            stream: Stream.periodic(const Duration(seconds: 1)),
-            builder: (context, _) {
-              final elapsed = _recordingStartTime != null
-                  ? DateTime.now().difference(_recordingStartTime!).inSeconds
-                  : 0;
-              final mm = (elapsed ~/ 60).toString().padLeft(2, '0');
-              final ss = (elapsed % 60).toString().padLeft(2, '0');
-              return Text(
-                '$mm:$ss',
-                style: const TextStyle(
-                  color: Color(0xFFFF6B6B),
-                  fontWeight: FontWeight.w800,
-                  fontSize: 16,
-                  fontFeatures: [FontFeature.tabularFigures()],
-                ),
-              );
-            },
-          ),
-          const SizedBox(width: 12),
-          // Waveform placeholder
-          Expanded(
-            child: _buildWaveformPlaceholder(),
-          ),
-          const SizedBox(width: 12),
-          // Cancel button
-          IconButton(
-            icon: const Icon(Icons.close, color: Colors.white54, size: 20),
-            onPressed: _cancelRecording,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-          ),
-          // Stop & Send button
-          IconButton(
-            icon: const Icon(Icons.send_rounded,
-                color: Color(0xFFFF4B4B), size: 22),
-            onPressed: _stopRecordingAndSend,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildWaveformPlaceholder() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: List.generate(16, (i) {
-        return TweenAnimationBuilder<double>(
-          tween: Tween(begin: 0.2, end: 0.5 + (i % 3) * 0.2),
-          duration: Duration(milliseconds: 300 + (i * 50 % 400)),
-          curve: Curves.easeInOut,
-          builder: (context, value, _) {
-            return Container(
-              width: 2.5,
-              height: 20 * value,
-              decoration: BoxDecoration(
-                color: const Color(0xFFFF4B4B).withValues(alpha: 0.6),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            );
-          },
-        );
-      }),
-    );
-  }
-
-  Widget _buildUploadingBar() {
-    return Container(
-      height: 52,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      decoration: BoxDecoration(
-        color: const Color(0xFF141C2F),
-        borderRadius: BorderRadius.circular(26),
-        border: Border.all(
-          color: const Color(0xFFFFA500).withValues(alpha: 0.3),
-        ),
-      ),
-      child: const Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          SizedBox(
-            width: 18,
-            height: 18,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: Color(0xFFFFA500),
-            ),
-          ),
-          SizedBox(width: 12),
-          Text(
-            'Uploading...',
-            style: TextStyle(
-              color: Colors.white70,
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  // Input bar UI extracted to lib/widgets/debate_input_bar.dart
 
   // ─── VOICE RECORDING ──────────────────────────────────────
 
@@ -1863,6 +1574,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
     if (senderName.isEmpty) return;
 
     setState(() => _isUploadingMedia = true);
+    bool succeeded = false;
 
     try {
       // 1. Upload to Firebase Storage
@@ -1881,14 +1593,10 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
         );
       }
 
-      if (downloadUrl == null || !mounted) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('${l10n.errorPrefix}: Upload failed')),
-          );
-        }
-        return;
+      if (downloadUrl == null) {
+        throw Exception('Upload returned null URL');
       }
+      if (!mounted) return;
 
       // 2. Call Cloud Function with media data
       final callable = _functions.httpsCallable(
@@ -1904,6 +1612,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
         if (mediaDuration > 0) 'mediaDuration': mediaDuration,
       });
 
+      succeeded = true;
       if (!mounted) return;
       SoundService.instance.play(SFX.whoosh);
       HapticFeedback.selectionClick();
@@ -1911,19 +1620,41 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          duration: const Duration(seconds: 10),
           content: Text(mapDebateCallableError(l10n, e,
               fallbackMessage: l10n.errorPrefix)),
+          action: SnackBarAction(
+            label: 'Retry',
+            onPressed: () => _sendMediaMessage(
+              filePath: filePath,
+              messageType: messageType,
+              mediaDuration: mediaDuration,
+            ),
+          ),
         ),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${l10n.errorPrefix}: $e')),
+        SnackBar(
+          duration: const Duration(seconds: 10),
+          content: Text('${l10n.errorPrefix}: Upload failed. Check connection.'),
+          action: SnackBarAction(
+            label: 'Retry',
+            onPressed: () => _sendMediaMessage(
+              filePath: filePath,
+              messageType: messageType,
+              mediaDuration: mediaDuration,
+            ),
+          ),
+        ),
       );
     } finally {
       if (mounted) setState(() => _isUploadingMedia = false);
-      // Clean up temp file
-      try { File(filePath).deleteSync(); } catch (_) {}
+      // Only delete temp file on success — keep it for retry on failure.
+      if (succeeded) {
+        try { File(filePath).deleteSync(); } catch (_) {}
+      }
     }
   }
 
@@ -2080,11 +1811,20 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
                         top: false,
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-                          child: _isRecording
-                              ? _buildRecordingBar(l10n)
-                              : _isUploadingMedia
-                                  ? _buildUploadingBar()
-                                  : _buildMessageInputBar(l10n, isMyTurn),
+                          child: DebateInputBar(
+                            isMyTurn: isMyTurn,
+                            isSendingMessage: _isSendingMessage,
+                            isUploading: _isUploadingMedia,
+                            isRecording: _isRecording,
+                            recordingStartTime: _recordingStartTime,
+                            textController: _messageController,
+                            onSend: sendMessage,
+                            onMicLongPressStart: (_) => _startRecording(),
+                            onMicLongPressEnd: (_) => _stopRecordingAndSend(),
+                            onPickImage: _pickAndSendImage,
+                            onCancelRecording: _cancelRecording,
+                            onSendRecording: _stopRecordingAndSend,
+                          ),
                         ),
                       ),
                     if (status == 'finished')
