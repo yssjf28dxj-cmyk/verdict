@@ -47,8 +47,6 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
   ];
   static const List<int> _roundOptions = <int>[1, 3, 5];
   static const int _advanceJitterWindowMs = 1800;
-  static const double _collapseThresholdPx = 30;
-  static const double _expandThresholdPx = 10;
   static const double _snapThresholdPx = 20;
 
   void _refreshMyVoteStatus() {
@@ -1006,21 +1004,12 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
   }
 
   void _onMessagesScroll(ScrollNotification notification) {
+    // Only react to scroll END — calling setState during active scroll
+    // interrupts the gesture and freezes the ListView.
     if (notification.metrics.axis != Axis.vertical) return;
+    if (notification is! ScrollEndNotification) return;
 
-    if (notification is ScrollEndNotification) {
-      final shouldCollapse = notification.metrics.pixels > _snapThresholdPx;
-      if (shouldCollapse == _headerCollapsed || !mounted) return;
-      setState(() {
-        _headerCollapsed = shouldCollapse;
-      });
-      return;
-    }
-
-    final offset = notification.metrics.pixels;
-    final shouldCollapse = _headerCollapsed
-        ? offset > _expandThresholdPx
-        : offset > _collapseThresholdPx;
+    final shouldCollapse = notification.metrics.pixels > _snapThresholdPx;
     if (shouldCollapse == _headerCollapsed || !mounted) return;
     setState(() {
       _headerCollapsed = shouldCollapse;
@@ -1762,6 +1751,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
           encoder: AudioEncoder.aacLc,
           bitRate: 128000,
           sampleRate: 44100,
+          numChannels: 1, // mono — eliminates stereo phase artifacts & crackling
         ),
         path: path,
       );
