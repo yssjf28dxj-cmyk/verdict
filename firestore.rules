@@ -73,7 +73,10 @@ service cloud.firestore {
 
       allow update: if isSignedIn()
         && request.auth.uid == uid
-        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['rank', 'isBanned', 'createdAt'])
+        // Server-only fields — clients must never overwrite these directly.
+        // stats (win/loss/rating) are written exclusively by Cloud Functions
+        // (advanceRoundOrFinish / profileStatsApplied).
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['rank', 'isBanned', 'createdAt', 'stats'])
         && request.resource.data.keys().hasOnly(['name', 'email', 'createdAt', 'avatarUrl', 'displayName', 'rank', 'isBanned', 'settings', 'lastSeen', 'stats']);
 
       allow delete: if false;

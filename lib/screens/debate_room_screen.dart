@@ -35,7 +35,8 @@ class DebateRoomScreen extends StatefulWidget {
   State<DebateRoomScreen> createState() => _DebateRoomScreenState();
 }
 
-class _DebateRoomScreenState extends State<DebateRoomScreen> {
+class _DebateRoomScreenState extends State<DebateRoomScreen>
+    with WidgetsBindingObserver {
   static const List<int> _durationOptions = <int>[
     30,
     60,
@@ -321,12 +322,26 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _timeLeftNotifier = ValueNotifier<int>(60);
     _dangerZoneNotifier = ValueNotifier<bool>(false);
     _dangerPulseNotifier = ValueNotifier<bool>(false);
     _bootstrapCurrentUserIdentity();
     _startRoundCountdownTicker();
     _loadDebate();
+  }
+
+  /// Releases the microphone when the app is backgrounded or interrupted
+  /// by an incoming call. Prevents mic lock and silent crash on iOS/Android.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      if (_isRecording) {
+        debugPrint('[Voice] App backgrounded — cancelling active recording.');
+        _cancelRecording();
+      }
+    }
   }
 
   void _bootstrapCurrentUserIdentity() {
@@ -1660,6 +1675,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _roundCountdownTicker?.cancel();
     debateSub?.cancel();
     _advanceAttemptToken++;
