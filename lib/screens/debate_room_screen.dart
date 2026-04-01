@@ -49,6 +49,9 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
   ];
   static const List<int> _roundOptions = <int>[1, 3, 5];
   static const int _advanceJitterWindowMs = 1800;
+  // Must mirror UPLOAD_GRACE_MS in functions/src/index.ts.
+  // Keeps the client from triggering advance during the server-side grace window.
+  static const int _uploadGraceMs = 7000;
   static const double _snapThresholdPx = 20;
 
   void _refreshMyVoteStatus() {
@@ -120,7 +123,9 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
 
   bool _advanceInFlight = false;
   bool _advancePending = false;
+  bool _graceDelayActive = false;
   bool _isSendingMessage = false;
+  bool _isYieldingTurn = false;
   int _advanceAttemptToken = 0;
   int _lastAdvanceRoundAttempt = -1;
   String _lastAdvanceSpeakerAttempt = '';
@@ -398,11 +403,26 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
         _dangerZoneNotifier.value = false;
         _dangerPulseNotifier.value = false;
         _lastDangerHapticSecond = -1;
-        if (_shouldAttemptAdvanceFromClient(
-          currentStatus: status,
-          roundActive: isRoundActive,
-        )) {
-          _attemptAdvanceRoundOrFinish();
+        // Schedule advance only once per round expiry (_graceDelayActive guard).
+        // The 7s delay mirrors UPLOAD_GRACE_MS on the server: in-flight uploads
+        // have until T+7s to be accepted before advanceRoundOrFinish fires.
+        if (!_graceDelayActive &&
+            _shouldAttemptAdvanceFromClient(
+              currentStatus: status,
+              roundActive: isRoundActive,
+            )) {
+          _graceDelayActive = true;
+          final capturedToken = _advanceAttemptToken;
+          Future.delayed(
+            const Duration(milliseconds: _uploadGraceMs),
+            () {
+              if (!mounted) return;
+              if (movedToResult) return;
+              if (_advanceAttemptToken != capturedToken) return;
+              _graceDelayActive = false;
+              _attemptAdvanceRoundOrFinish();
+            },
+          );
         }
         return;
       }
@@ -1196,10 +1216,10 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
     required int nextRound,
     required String nextStatus,
   }) {
-    if (!_advancePending) return;
     if (nextStatus == 'finished' || nextRound != previousRound) {
       _advanceAttemptToken++;
       _advancePending = false;
+      _graceDelayActive = false;
     }
   }
 
@@ -1573,6 +1593,133 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
     }
   }
 
+  // ─── YIELD TURN ───────────────────────────────────────────
+
+  Future<void> _onYieldPressed() async {
+    if (_isYieldingTurn) return;
+    final l10n = AppLocalizations.of(context)!;
+
+    // Flow B: upload in progress → warn about cancellation.
+    // Flow A: no upload → simple confirmation.
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => _isUploadingMedia
+          ? AlertDialog(
+              backgroundColor: const Color(0xFF141C2F),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: BorderSide(
+                  color: Colors.orange.withValues(alpha: 0.4),
+                  width: 1.2,
+                ),
+              ),
+              title: const Text(
+                'Отменить отправку и уступить?',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 17,
+                ),
+              ),
+              content: const Text(
+                'Ваше сообщение ещё загружается. Если уступить сейчас, загрузка будет отменена.',
+                style: TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(false),
+                  child: Text(
+                    'Продолжить загрузку',
+                    style: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(true),
+                  child: const Text(
+                    'Отменить и уступить',
+                    style: TextStyle(
+                      color: Color(0xFFFFA500),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            )
+          : AlertDialog(
+              backgroundColor: const Color(0xFF141C2F),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: BorderSide(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  width: 1,
+                ),
+              ),
+              title: const Text(
+                'Уступить слово?',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 17,
+                ),
+              ),
+              content: const Text(
+                'Ваше оставшееся время будет передано оппоненту.',
+                style: TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(false),
+                  child: Text(
+                    'Отмена',
+                    style: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(true),
+                  child: const Text(
+                    'Уступить',
+                    style: TextStyle(
+                      color: Color(0xFFFFA500),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+    );
+
+    if (confirmed != true) return;
+    if (!mounted) return;
+
+    // Policy B: cancel any in-flight upload before yielding.
+    if (_isUploadingMedia) {
+      setState(() => _isUploadingMedia = false);
+    }
+
+    setState(() => _isYieldingTurn = true);
+    try {
+      await _functions
+          .httpsCallable('yieldTurn')
+          .call({'debateId': widget.debateId});
+    } on FirebaseFunctionsException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            mapDebateCallableError(l10n, e, fallbackMessage: l10n.errorPrefix),
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${l10n.errorPrefix}: не удалось уступить слово.')),
+      );
+    } finally {
+      if (mounted) setState(() => _isYieldingTurn = false);
+    }
+  }
+
   // ─── SHARED MEDIA UPLOAD & SEND ───────────────────────────
 
   Future<void> _sendMediaMessage({
@@ -1832,6 +1979,8 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
                             isSendingMessage: _isSendingMessage,
                             isUploading: _isUploadingMedia,
                             isRecording: _isRecording,
+                            isRoundActive: isRoundActive,
+                            isYielding: _isYieldingTurn,
                             recordingStartTime: _recordingStartTime,
                             textController: _messageController,
                             onSend: sendMessage,
@@ -1840,6 +1989,9 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
                             onPickImage: _pickAndSendImage,
                             onCancelRecording: _cancelRecording,
                             onSendRecording: _stopRecordingAndSend,
+                            onYield: isMyTurn && isRoundActive
+                                ? _onYieldPressed
+                                : null,
                           ),
                         ),
                       ),

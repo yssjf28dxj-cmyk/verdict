@@ -21,6 +21,8 @@ class DebateInputBar extends StatelessWidget {
   final bool isSendingMessage;
   final bool isUploading;
   final bool isRecording;
+  final bool isRoundActive;
+  final bool isYielding;
   final DateTime? recordingStartTime;
   final TextEditingController textController;
   final VoidCallback onSend;
@@ -29,6 +31,9 @@ class DebateInputBar extends StatelessWidget {
   final VoidCallback onPickImage;
   final VoidCallback onCancelRecording;
   final VoidCallback onSendRecording;
+  /// Called when the user confirms yielding (either Flow A or Flow B).
+  /// Null when yield is not available (not speaker's turn, round inactive).
+  final VoidCallback? onYield;
 
   const DebateInputBar({
     super.key,
@@ -36,6 +41,8 @@ class DebateInputBar extends StatelessWidget {
     required this.isSendingMessage,
     required this.isUploading,
     required this.isRecording,
+    required this.isRoundActive,
+    required this.isYielding,
     required this.recordingStartTime,
     required this.textController,
     required this.onSend,
@@ -44,7 +51,10 @@ class DebateInputBar extends StatelessWidget {
     required this.onPickImage,
     required this.onCancelRecording,
     required this.onSendRecording,
+    this.onYield,
   });
+
+  bool get _yieldAvailable => isMyTurn && isRoundActive && !isYielding;
 
   @override
   Widget build(BuildContext context) {
@@ -56,16 +66,20 @@ class DebateInputBar extends StatelessWidget {
       );
     }
     if (isUploading) {
-      return const _UploadingBar();
+      return _UploadingBar(
+        onYield: _yieldAvailable ? onYield : null,
+      );
     }
     return _NormalInputBar(
       isMyTurn: isMyTurn,
       isSending: isSendingMessage,
+      yieldAvailable: _yieldAvailable,
       textController: textController,
       onSend: onSend,
       onMicLongPressStart: onMicLongPressStart,
       onMicLongPressEnd: onMicLongPressEnd,
       onPickImage: onPickImage,
+      onYield: onYield,
     );
   }
 }
@@ -75,20 +89,24 @@ class DebateInputBar extends StatelessWidget {
 class _NormalInputBar extends StatefulWidget {
   final bool isMyTurn;
   final bool isSending;
+  final bool yieldAvailable;
   final TextEditingController textController;
   final VoidCallback onSend;
   final void Function(LongPressStartDetails) onMicLongPressStart;
   final void Function(LongPressEndDetails) onMicLongPressEnd;
   final VoidCallback onPickImage;
+  final VoidCallback? onYield;
 
   const _NormalInputBar({
     required this.isMyTurn,
     required this.isSending,
+    required this.yieldAvailable,
     required this.textController,
     required this.onSend,
     required this.onMicLongPressStart,
     required this.onMicLongPressEnd,
     required this.onPickImage,
+    this.onYield,
   });
 
   @override
@@ -201,6 +219,12 @@ class _NormalInputBarState extends State<_NormalInputBar> {
           ),
         ),
         const SizedBox(width: 6),
+
+        // ── Yield button (active speaker only) ──
+        if (widget.yieldAvailable) ...[
+          _YieldButton(onTap: widget.onYield),
+          const SizedBox(width: 6),
+        ],
 
         // ── Send button ──
         _SendButton(
@@ -425,7 +449,9 @@ class _RecordingWaveformState extends State<_RecordingWaveform>
 // ─── UPLOADING STATE ─────────────────────────────────────────
 
 class _UploadingBar extends StatelessWidget {
-  const _UploadingBar();
+  final VoidCallback? onYield;
+
+  const _UploadingBar({this.onYield});
 
   @override
   Widget build(BuildContext context) {
@@ -439,10 +465,9 @@ class _UploadingBar extends StatelessWidget {
           color: const Color(0xFFFFA500).withValues(alpha: 0.3),
         ),
       ),
-      child: const Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+      child: Row(
         children: [
-          SizedBox(
+          const SizedBox(
             width: 18,
             height: 18,
             child: CircularProgressIndicator(
@@ -450,15 +475,19 @@ class _UploadingBar extends StatelessWidget {
               color: Color(0xFFFFA500),
             ),
           ),
-          SizedBox(width: 12),
-          Text(
-            'Uploading...',
-            style: TextStyle(
-              color: Colors.white70,
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Text(
+              'Uploading...',
+              style: TextStyle(
+                color: Colors.white70,
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+              ),
             ),
           ),
+          // Policy B: Yield is still reachable while upload is in progress.
+          if (onYield != null) _YieldButton(onTap: onYield),
         ],
       ),
     );
@@ -493,6 +522,38 @@ class _MediaButton extends StatelessWidget {
             onTap: onTap,
             child: Center(
               child: Icon(icon, size: 22, color: Colors.white),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _YieldButton extends StatelessWidget {
+  final VoidCallback? onTap;
+
+  const _YieldButton({this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 42,
+      width: 42,
+      child: Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        child: Tooltip(
+          message: 'Уступить слово',
+          child: InkWell(
+            borderRadius: BorderRadius.circular(21),
+            onTap: onTap,
+            child: Center(
+              child: Icon(
+                Icons.skip_next_rounded,
+                size: 22,
+                color: const Color(0xFFFFA500).withValues(alpha: 0.85),
+              ),
             ),
           ),
         ),

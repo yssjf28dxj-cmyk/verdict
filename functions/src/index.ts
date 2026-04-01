@@ -46,6 +46,11 @@ const ALLOWED_DURATIONS = [30, 60, 90, 120, 180, 300, 420, 600] as const;
 const ALLOWED_ROUNDS = [1, 3, 5] as const;
 const TERMS_POLICY_VERSION = 'v1_mean_nearest_strict';
 const MAX_MIGRATION_EMERGENCY_TTL_MS = 24 * 60 * 60 * 1000;
+// Grace window (ms) given to in-flight media uploads that started just before
+// a round timer expired. Applied in sendDebateMessage (accept late messages),
+// advanceRoundOrFinish (delay client-triggered advance), and
+// autoAdvanceLiveDebates (delay scheduled advance query threshold).
+export const UPLOAD_GRACE_MS = 7_000;
 const CANONICAL_DEBATE_STATUSES = ['waiting', 'active', 'finished'] as const;
 
 function asString(v: unknown): string {
@@ -1115,6 +1120,7 @@ export const sendDebateMessage = onCall({ invoker: 'public' }, async (request) =
       hasReadAccess: canUserReadDebate(uid, debate),
       status,
       isPlayableStatus: isDebatePlayableStatus(status),
+      uploadGraceMs: UPLOAD_GRACE_MS,
     });
     const roundIndex = guard.roundIndex;
 
@@ -1139,6 +1145,82 @@ export const sendDebateMessage = onCall({ invoker: 'public' }, async (request) =
   });
 
   return { ok: true, messageId: messageRef.id };
+});
+
+// Allows the active speaker to surrender their remaining time and immediately
+// pass control to the opponent. Sets roundEndsAt to the past (beyond the grace
+// window) so the next ticker tick triggers advance without delay.
+export const yieldTurn = onCall({ invoker: 'public' }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) {
+    throw new HttpsError('unauthenticated', 'Требуется авторизация.', {
+      reason: 'YIELD_AUTH_REQUIRED',
+    });
+  }
+
+  const debateId = asString(request.data?.debateId);
+  if (!debateId) {
+    throw new HttpsError('invalid-argument', 'debateId обязателен.', {
+      reason: 'YIELD_DEBATE_ID_REQUIRED',
+    });
+  }
+
+  const debateRef = db.collection('debates').doc(debateId);
+
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(debateRef);
+    if (!snap.exists) {
+      throw new HttpsError('not-found', 'Дебат не найден.', {
+        reason: 'YIELD_NOT_FOUND',
+      });
+    }
+
+    const debate = snap.data() ?? {};
+    const status = normalizeDebateStatus(debate.status, 'active');
+
+    if (status === 'finished') {
+      throw new HttpsError('failed-precondition', 'Дебат уже завершён.', {
+        reason: 'YIELD_DEBATE_FINISHED',
+      });
+    }
+    if (status !== 'active') {
+      throw new HttpsError('failed-precondition', 'Дебат не активен.', {
+        reason: 'YIELD_DEBATE_NOT_ACTIVE',
+      });
+    }
+
+    const isRoundActive =
+      typeof debate.isRoundActive === 'boolean' ? debate.isRoundActive : true;
+    if (!isRoundActive) {
+      throw new HttpsError('failed-precondition', 'Раунд не активен.', {
+        reason: 'YIELD_ROUND_NOT_ACTIVE',
+      });
+    }
+
+    const activeSpeakerId = asString(debate.activeSpeakerId);
+    if (!activeSpeakerId) {
+      throw new HttpsError('failed-precondition', 'Активный спикер не назначен.', {
+        reason: 'YIELD_NO_ACTIVE_SPEAKER',
+      });
+    }
+    if (uid !== activeSpeakerId) {
+      throw new HttpsError('permission-denied', 'Только активный спикер может уступить слово.', {
+        reason: 'YIELD_NOT_ACTIVE_SPEAKER',
+      });
+    }
+
+    // Place roundEndsAt firmly in the past — beyond the grace window — so that
+    // both the client ticker and autoAdvanceLiveDebates detect expiry on the
+    // very next check without waiting for UPLOAD_GRACE_MS to elapse.
+    const expiredMs = Date.now() - UPLOAD_GRACE_MS - 100;
+
+    tx.update(debateRef, {
+      roundEndsAt: admin.firestore.Timestamp.fromMillis(expiredMs),
+      yieldedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  });
+
+  return { ok: true };
 });
 
 export const sendWorldMessage = onCall({ invoker: 'public' }, async (request) => {
@@ -1524,7 +1606,10 @@ export const advanceRoundOrFinish = onCall({ invoker: 'public' }, async (request
     const nowMs = Date.now();
     const endMs = (roundEndsAt.toDate() as Date).getTime();
     // Не бросаем ошибку: клиенты/таймеры часто опрашивают advance — no-op без шума в логах.
-    if (nowMs < endMs) {
+    // UPLOAD_GRACE_MS: hold off advancing until the grace window has passed so that
+    // in-flight media uploads that started just before expiry can still be accepted
+    // by sendDebateMessage (which uses the same UPLOAD_GRACE_MS threshold).
+    if (nowMs < endMs + UPLOAD_GRACE_MS) {
       return;
     }
 
@@ -1665,14 +1750,18 @@ export const initDebateOnCreate = onDocumentCreated(
 export const autoAdvanceLiveDebates = onSchedule(
   { schedule: 'every 1 minutes' },
   async () => {
-    const now = admin.firestore.Timestamp.now();
+    // Threshold: only pick up debates where the timer AND the grace window have
+    // both fully expired. This guarantees in-flight uploads still within
+    // UPLOAD_GRACE_MS of roundEndsAt are never prematurely advanced.
+    const thresholdMs = Date.now() - UPLOAD_GRACE_MS;
+    const threshold = admin.firestore.Timestamp.fromMillis(thresholdMs);
 
-    // Берём только активные дебаты, где roundEndsAt уже прошёл.
+    // Берём только активные дебаты, где roundEndsAt уже прошёл вместе с grace-окном.
     // (Если понадобится — добавим индекс позже.)
     const q = await db
       .collection('debates')
       .where('status', 'in', ['live', 'active'])
-      .where('roundEndsAt', '<=', now)
+      .where('roundEndsAt', '<=', threshold)
       .limit(50)
       .get();
 

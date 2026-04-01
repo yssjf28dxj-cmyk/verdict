@@ -191,8 +191,10 @@ export function assertCanSendMessage(params: {
   hasReadAccess: boolean;
   status: string;
   isPlayableStatus: boolean;
+  /** Grace window in ms for in-flight uploads that started before round expiry. */
+  uploadGraceMs?: number;
 }): { roundIndex: number } {
-  const { uid, debate, hasReadAccess, status, isPlayableStatus } = params;
+  const { uid, debate, hasReadAccess, status, isPlayableStatus, uploadGraceMs = 0 } = params;
 
   if (!hasReadAccess) {
     throw new HttpsError('permission-denied', 'Нет доступа к этому дебату.', {
@@ -243,7 +245,7 @@ export function assertCanSendMessage(params: {
     && uid === activeSpeakerId
   ) {
     const endMs = ((roundEndsAtGuard as { toDate: () => Date }).toDate()).getTime();
-    if (Date.now() > endMs) {
+    if (Date.now() > endMs + uploadGraceMs) {
       throw new HttpsError('failed-precondition', 'Время хода истекло.', {
         reason: 'TURN_TIME_EXPIRED',
       });
