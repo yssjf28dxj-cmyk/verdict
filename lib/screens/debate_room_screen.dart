@@ -1780,6 +1780,27 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
       HapticFeedback.selectionClick();
     } on FirebaseFunctionsException catch (e) {
       if (!mounted) return;
+      // Turn-expiry errors mean the grace window passed before the upload
+      // completed. Retrying won't succeed — the round has already switched.
+      // Show a brief, non-blocking toast and discard silently.
+      final reason =
+          (e.details is Map ? e.details['reason'] : null)?.toString() ?? '';
+      const turnExpiryCodes = {
+        'TURN_NOT_ACTIVE_SPEAKER',
+        'TURN_TIME_EXPIRED',
+        'ROUND_NOT_ACTIVE',
+      };
+      if (turnExpiryCodes.contains(reason)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            duration: Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+            content: Text('Время истекло — сообщение не отправлено.'),
+          ),
+        );
+        return;
+      }
+      // All other CF errors: show with Retry option.
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           duration: const Duration(seconds: 10),
@@ -1853,7 +1874,10 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
     }
 
     return Scaffold(
-      resizeToAvoidBottomInset: true,
+      // false: keyboard avoidance is handled manually via AnimatedPadding +
+      // viewInsets.bottom in the body Stack. Using true here would double-pad
+      // and leave an empty strip when the keyboard dismisses.
+      resizeToAvoidBottomInset: false,
       extendBodyBehindAppBar: false,
       appBar: AppBar(
         toolbarHeight: 44,

@@ -65,14 +65,13 @@ class DebateInputBar extends StatelessWidget {
         onSend: onSendRecording,
       );
     }
-    if (isUploading) {
-      return _UploadingBar(
-        onYield: _yieldAvailable ? onYield : null,
-      );
-    }
+    // Uploading no longer shows a full-width blocking bar.
+    // The normal bar stays visible with inputs disabled and an inline spinner
+    // replacing the send button — yield remains accessible (Policy B).
     return _NormalInputBar(
       isMyTurn: isMyTurn,
       isSending: isSendingMessage,
+      isUploading: isUploading,
       yieldAvailable: _yieldAvailable,
       textController: textController,
       onSend: onSend,
@@ -89,6 +88,7 @@ class DebateInputBar extends StatelessWidget {
 class _NormalInputBar extends StatefulWidget {
   final bool isMyTurn;
   final bool isSending;
+  final bool isUploading;
   final bool yieldAvailable;
   final TextEditingController textController;
   final VoidCallback onSend;
@@ -100,6 +100,7 @@ class _NormalInputBar extends StatefulWidget {
   const _NormalInputBar({
     required this.isMyTurn,
     required this.isSending,
+    required this.isUploading,
     required this.yieldAvailable,
     required this.textController,
     required this.onSend,
@@ -140,7 +141,8 @@ class _NormalInputBarState extends State<_NormalInputBar> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final canAct = widget.isMyTurn && !widget.isSending;
+    // Uploading locks gallery/mic/send but not yield (Policy B).
+    final canAct = widget.isMyTurn && !widget.isSending && !widget.isUploading;
 
     return Row(
       children: [
@@ -226,11 +228,27 @@ class _NormalInputBarState extends State<_NormalInputBar> {
           const SizedBox(width: 6),
         ],
 
-        // ── Send button ──
-        _SendButton(
-          enabled: canAct,
-          onTap: canAct ? widget.onSend : null,
-        ),
+        // ── Send / Upload spinner ──
+        if (widget.isUploading)
+          const SizedBox(
+            width: 42,
+            height: 42,
+            child: Center(
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.2,
+                  color: Color(0xFFFFA500),
+                ),
+              ),
+            ),
+          )
+        else
+          _SendButton(
+            enabled: canAct,
+            onTap: canAct ? widget.onSend : null,
+          ),
       ],
     );
   }
@@ -442,54 +460,6 @@ class _RecordingWaveformState extends State<_RecordingWaveform>
           }),
         );
       },
-    );
-  }
-}
-
-// ─── UPLOADING STATE ─────────────────────────────────────────
-
-class _UploadingBar extends StatelessWidget {
-  final VoidCallback? onYield;
-
-  const _UploadingBar({this.onYield});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 52,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      decoration: BoxDecoration(
-        color: const Color(0xFF141C2F),
-        borderRadius: BorderRadius.circular(26),
-        border: Border.all(
-          color: const Color(0xFFFFA500).withValues(alpha: 0.3),
-        ),
-      ),
-      child: Row(
-        children: [
-          const SizedBox(
-            width: 18,
-            height: 18,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: Color(0xFFFFA500),
-            ),
-          ),
-          const SizedBox(width: 12),
-          const Expanded(
-            child: Text(
-              'Uploading...',
-              style: TextStyle(
-                color: Colors.white70,
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
-              ),
-            ),
-          ),
-          // Policy B: Yield is still reachable while upload is in progress.
-          if (onYield != null) _YieldButton(onTap: onYield),
-        ],
-      ),
     );
   }
 }
