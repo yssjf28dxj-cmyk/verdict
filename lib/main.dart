@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_displaymode/flutter_displaymode.dart';
 import 'firebase_options.dart';
 import 'app.dart';
@@ -68,6 +69,7 @@ ThemeData buildVerdictTheme() {
 }
 
 Future<void> _enableHighRefreshRate() async {
+  if (kIsWeb) return;
   try {
     final supported = await FlutterDisplayMode.supported;
     if (supported.isEmpty) return;
@@ -81,8 +83,9 @@ Future<void> _enableHighRefreshRate() async {
     pool.sort((a, b) => b.refreshRate.compareTo(a.refreshRate));
     await FlutterDisplayMode.setPreferredMode(pool.first);
   } catch (e, stackTrace) {
-    // Keep default mode when API is unavailable, but record the error.
-    FirebaseCrashlytics.instance.recordError(e, stackTrace, reason: 'High refresh rate fallback');
+    if (!kIsWeb) {
+      FirebaseCrashlytics.instance.recordError(e, stackTrace, reason: 'High refresh rate fallback');
+    }
   }
 }
 
@@ -92,14 +95,16 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   
-  // Перехват всех ошибок Flutter:
-  FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
+  if (!kIsWeb) {
+    // Перехват всех ошибок Flutter:
+    FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
 
-  // Перехват асинхронных ошибок (события из изолятов, таймеров и т.д.):
-  PlatformDispatcher.instance.onError = (error, stack) {
-    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
-    return true;
-  };
+    // Перехват асинхронных ошибок (события из изолятов, таймеров и т.д.):
+    PlatformDispatcher.instance.onError = (error, stack) {
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+      return true;
+    };
+  }
 
   // Эмулятор отключён — все вызовы идут в продакшн.
   // if (kDebugMode) {

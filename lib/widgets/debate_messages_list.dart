@@ -122,7 +122,8 @@ class _DebateMessagesListState extends State<DebateMessagesList> {
     // ── Bubble colour tokens ─────────────────────────────────
     final bubbleColor = isMine ? const Color(0xFFFFD700) : const Color(0xFF2A2A2A);
 
-    // ── Inner content ────────────────────────────────────────
+    final hasImage = messageType == 'image' && mediaUrl.isNotEmpty;
+
     final content = Column(
       crossAxisAlignment:
           isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
@@ -134,7 +135,7 @@ class _DebateMessagesListState extends State<DebateMessagesList> {
             duration: mediaDuration,
             isMine: isMine,
           )
-        else if (messageType == 'image' && mediaUrl.isNotEmpty)
+        else if (hasImage)
           _ImageMessageContent(mediaUrl: mediaUrl, isMine: isMine)
         else
           Text(
@@ -148,22 +149,32 @@ class _DebateMessagesListState extends State<DebateMessagesList> {
           ),
         if (text.isNotEmpty && messageType != 'text') ...[
           const SizedBox(height: 6),
-          Text(
-            text,
-            style: TextStyle(
-              fontSize: 13,
-              color: isMine ? Colors.black87 : Colors.white70,
+          Padding(
+            padding: hasImage
+                ? const EdgeInsets.symmetric(horizontal: 12)
+                : EdgeInsets.zero,
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 13,
+                color: isMine ? Colors.black87 : Colors.white70,
+              ),
             ),
           ),
         ],
-        const SizedBox(height: 5),
+        SizedBox(height: hasImage && text.isEmpty ? 6 : 5),
         // Timestamp — right-aligned micro label
-        Text(
-          _formatTime(createdAt),
-          style: TextStyle(
-            fontSize: 10,
-            color: isMine ? Colors.black54 : Colors.white.withValues(alpha: 0.42),
-            fontWeight: FontWeight.w500,
+        Padding(
+          padding: hasImage
+              ? const EdgeInsets.fromLTRB(12, 0, 12, 10)
+              : EdgeInsets.zero,
+          child: Text(
+            _formatTime(createdAt),
+            style: TextStyle(
+              fontSize: 10,
+              color: isMine ? Colors.black54 : Colors.white.withValues(alpha: 0.42),
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ),
       ],
@@ -171,7 +182,10 @@ class _DebateMessagesListState extends State<DebateMessagesList> {
 
     final glassBubble = Container(
       constraints: const BoxConstraints(maxWidth: 290),
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      padding: hasImage
+          ? EdgeInsets.zero
+          : const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      clipBehavior: hasImage ? Clip.antiAlias : Clip.none,
       decoration: BoxDecoration(
         color: bubbleColor,
         borderRadius: BorderRadius.only(
@@ -565,7 +579,7 @@ class _VoiceMessageContentState extends State<_VoiceMessageContent>
   Widget build(BuildContext context) {
     final neonColor = widget.isMine
         ? Colors.black87
-        : const Color(0xFFFFA500);
+        : const Color(0xFFFFD700);
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -763,66 +777,41 @@ class _ImageMessageContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final neonColor =
-        isMine ? const Color(0xFF4E8BFF) : const Color(0xFFFFA500);
+        isMine ? Colors.black87 : const Color(0xFFFFD700);
 
     return GestureDetector(
       onTap: () => _showFullImage(context),
       child: Hero(
         tag: 'img-$mediaUrl',
-        child: Container(
-          constraints:
-              const BoxConstraints(maxWidth: 240, maxHeight: 240),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.only(
-              topLeft: const Radius.circular(18),
-              topRight: const Radius.circular(18),
-              bottomLeft: Radius.circular(isMine ? 18 : 4),
-              bottomRight: Radius.circular(isMine ? 4 : 18),
-            ),
-            boxShadow: const [
-              BoxShadow(
-                color: Colors.black12,
-                blurRadius: 4,
-                offset: Offset(0, 2),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.only(
-              topLeft: const Radius.circular(18),
-              topRight: const Radius.circular(18),
-              bottomLeft: Radius.circular(isMine ? 18 : 4),
-              bottomRight: Radius.circular(isMine ? 4 : 18),
-            ),
-            child: Image.network(
-              mediaUrl,
-              fit: BoxFit.cover,
-              loadingBuilder: (_, child, progress) {
-                if (progress == null) return child;
-                return SizedBox(
-                  width: 200,
-                  height: 150,
-                  child: Center(
-                    child: CircularProgressIndicator(
-                      value: progress.expectedTotalBytes != null
-                          ? progress.cumulativeBytesLoaded /
-                              progress.expectedTotalBytes!
-                          : null,
-                      strokeWidth: 2,
-                      color: neonColor,
-                    ),
-                  ),
-                );
-              },
-              errorBuilder: (_, __, ___) => Container(
-                width: 200,
-                height: 100,
-                color: Colors.white.withValues(alpha: 0.05),
-                child: const Center(
-                  child: Icon(Icons.broken_image_rounded,
-                      color: Colors.white24, size: 36),
+        child: Image.network(
+          mediaUrl,
+          fit: BoxFit.cover,
+          width: 290, // Fills the max width of the container 
+          height: 200, 
+          loadingBuilder: (_, child, progress) {
+            if (progress == null) return child;
+            return SizedBox(
+              width: 290,
+              height: 200,
+              child: Center(
+                child: CircularProgressIndicator(
+                  value: progress.expectedTotalBytes != null
+                      ? progress.cumulativeBytesLoaded /
+                          progress.expectedTotalBytes!
+                      : null,
+                  strokeWidth: 2,
+                  color: neonColor,
                 ),
               ),
+            );
+          },
+          errorBuilder: (_, __, ___) => Container(
+            width: 290,
+            height: 200,
+            color: Colors.black.withValues(alpha: 0.1),
+            child: const Center(
+              child: Icon(Icons.broken_image_rounded,
+                  color: Colors.white24, size: 36),
             ),
           ),
         ),
@@ -832,7 +821,7 @@ class _ImageMessageContent extends StatelessWidget {
 
   void _showFullImage(BuildContext context) {
     final neonColor =
-        isMine ? const Color(0xFF4E8BFF) : const Color(0xFFFFA500);
+        isMine ? Colors.black87 : const Color(0xFFFFD700);
 
     showGeneralDialog(
       context: context,

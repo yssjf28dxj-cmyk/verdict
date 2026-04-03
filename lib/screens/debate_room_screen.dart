@@ -64,40 +64,60 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
   final TextEditingController _messageController = TextEditingController();
   final FirebaseFunctions _functions = FirebaseFunctions.instance;
 
-  int votes1 = 0;
-  int votes2 = 0;
+  Debate? _debate;
 
-  String topic = '';
-  String debateType = 'open';
-  String fighter1 = '';
-  String fighter2 = '';
-  String opponentId = '';
-  String creatorId = '';
-  String fighter1Name = '';
-  String fighter2Name = '';
-  String status = 'active';
-  String activeSpeakerId = '';
-  int roundIndex = 1;
-  int totalRounds = 3;
-  bool isRoundActive = true;
+  int get votes1 => _debate?.votes1 ?? 0;
+  int get votes2 => _debate?.votes2 ?? 0;
+
+  String get topic => _debate?.topic ?? '';
+  String get debateType => _debate?.debateType ?? 'open';
+  String get fighter1 => _debate?.fighter1 ?? '';
+  String get fighter2 => _debate?.fighter2 ?? '';
+  String get opponentId => _debate?.opponentId ?? '';
+  String get creatorId => _debate?.creatorId ?? '';
+
+  String _localFighter1Name = '';
+  String _localFighter2Name = '';
+  String get fighter1Name => _localFighter1Name.isNotEmpty ? _localFighter1Name : (_debate?.fighter1Name ?? '');
+  set fighter1Name(String v) => _localFighter1Name = v;
+  String get fighter2Name => _localFighter2Name.isNotEmpty ? _localFighter2Name : (_debate?.fighter2Name ?? '');
+  set fighter2Name(String v) => _localFighter2Name = v;
+
+  String get status => _debate?.status ?? 'active';
+  String get activeSpeakerId => _debate?.activeSpeakerId ?? '';
+  int get roundIndex => _debate?.roundIndex ?? 1;
+  int get totalRounds => _debate?.totalRounds ?? 3;
+
+  bool _localIsRoundActive = true;
+  bool _isRoundActiveMutated = false;
+  bool get isRoundActive => _isRoundActiveMutated ? _localIsRoundActive : (_debate?.isRoundActive ?? true);
+  set isRoundActive(bool v) {
+    _localIsRoundActive = v;
+    _isRoundActiveMutated = true;
+  }
+
   int pendingPenaltySecondsForMe = 0;
   bool hasVotedThisRound = false;
   int votedSideThisRound = 0;
   int _voteStatusRoundIndex = -1;
-  bool isTimerRunning = false;
-  Timestamp? startTime;
-  String creationMode = 'public_feed';
-  String invitedUserId = '';
+  bool get isTimerRunning => _debate?.isTimerRunning ?? false;
+  Timestamp? get startTime => _debate?.startTime;
+  String get creationMode => _debate?.creationMode ?? 'public_feed';
+  String get invitedUserId => _debate?.invitedUserId ?? '';
   bool _isAcceptingPending = false;
-  int _termsCreatorDuration = 180;
-  int _termsCreatorRounds = 3;
-  int _termsAccepterDuration = 180;
-  int _termsAccepterRounds = 3;
-  int _termsResolvedDuration = 180;
-  int _termsResolvedRounds = 3;
-  String _termsPolicyVersion = 'v1_mean_nearest_strict';
-  // ignore: unused_field
-  bool _termsAreResolved = false;
+
+  int _sanitizeDuration(dynamic value, int fallback) {
+    final candidate = value is int ? value : (value is num ? value.toInt() : fallback);
+    return _durationOptions.contains(candidate) ? candidate : fallback;
+  }
+  int _sanitizeRounds(dynamic value, int fallback) {
+    final candidate = value is int ? value : (value is num ? value.toInt() : fallback);
+    return _roundOptions.contains(candidate) ? candidate : fallback;
+  }
+
+  int get _termsCreatorDuration => _sanitizeDuration(_debate?.termsProposalCreator['roundDurationSeconds'], _sanitizeDuration(_debate?.durationSeconds, 180));
+  int get _termsCreatorRounds => _sanitizeRounds(_debate?.termsProposalCreator['totalRounds'], _sanitizeRounds(_debate?.totalRounds, 3));
+  int get _termsResolvedDuration => _sanitizeDuration(_debate?.termsResolved['roundDurationSeconds'], _termsCreatorDuration);
 
   bool isLoading = true;
   bool movedToResult = false;
@@ -142,28 +162,11 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
     return raw.map((e) => e.toString()).where((e) => e.isNotEmpty).toList();
   }
 
-  int _sanitizeDuration(dynamic value, int fallback) {
-    final candidate =
-        value is int ? value : (value is num ? value.toInt() : fallback);
-    return _durationOptions.contains(candidate) ? candidate : fallback;
-  }
+  // _sanitize functions moved above
 
-  int _sanitizeRounds(dynamic value, int fallback) {
-    final candidate =
-        value is int ? value : (value is num ? value.toInt() : fallback);
-    return _roundOptions.contains(candidate) ? candidate : fallback;
-  }
 
-  int _asInt(dynamic value, int fallback) {
-    if (value is int) return value;
-    if (value is num) return value.toInt();
-    return fallback;
-  }
 
-  bool _asBool(dynamic value, bool fallback) {
-    if (value is bool) return value;
-    return fallback;
-  }
+
 
   String _normalizeStatus(dynamic value, {String fallback = 'waiting'}) {
     final normalized = (value ?? '').toString().trim();
@@ -177,23 +180,9 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
     return fallback;
   }
 
-  int _readRoundIndex(Map<String, dynamic> data, {int fallback = 1}) {
-    return Debate.readRoundIndexFromMap(data, fallback: fallback);
-  }
 
-  int _effectiveRoundsFromData(Map<String, dynamic> data, int fallback) {
-    final resolved = data['termsResolved'];
-    if (resolved is Map) {
-      final v = _sanitizeRounds(resolved['totalRounds'], fallback);
-      if (v > 0) return v;
-    }
-    final creator = data['termsProposalCreator'];
-    if (creator is Map) {
-      final v = _sanitizeRounds(creator['totalRounds'], fallback);
-      if (v > 0) return v;
-    }
-    return _sanitizeRounds(data['totalRounds'], fallback);
-  }
+
+
 
   String _effectiveInvitedUid(Map<String, dynamic> data) {
     final invited = (data['invitedUserId'] ?? '').toString();
@@ -538,23 +527,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
     if (data == null) {
       setState(() {
         isLoading = false;
-        topic = '';
-        debateType = 'open';
-        fighter1 = currentUserId;
-        fighter2 = '';
-        opponentId = '';
-        creatorId = currentUserId;
-        fighter1Name = currentUserName;
-        fighter2Name = '';
-        votes1 = 0;
-        votes2 = 0;
-        status = 'waiting';
-        roundIndex = 1;
-        totalRounds = 3;
-        activeSpeakerId = '';
-        isRoundActive = false;
-        isTimerRunning = false;
-        startTime = null;
+        _debate = null;
       });
       return;
     }
@@ -567,73 +540,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
       return;
     }
 
-    topic = (data['topic'] is String) ? data['topic'] as String : '';
-    debateType =
-        (data['debateType'] is String) ? data['debateType'] as String : 'open';
-    fighter1 = (data['fighter1'] is String) ? data['fighter1'] as String : '';
-    fighter2 = (data['fighter2'] is String) ? data['fighter2'] as String : '';
-    opponentId =
-        (data['opponentId'] is String) ? data['opponentId'] as String : '';
-    creatorId =
-        (data['creatorId'] is String) ? data['creatorId'] as String : '';
-    if (fighter1.trim().isEmpty) fighter1 = creatorId;
-    if (fighter2.trim().isEmpty) fighter2 = opponentId;
-    creationMode = (data['creationMode'] is String)
-        ? data['creationMode'] as String
-        : 'public_feed';
-    invitedUserId = (data['invitedUserId'] is String)
-        ? data['invitedUserId'] as String
-        : '';
-    fighter1Name = sanitizePublicName(data['fighter1Name']);
-    fighter2Name = sanitizePublicName(data['fighter2Name']);
-    votes1 = _asInt(data['votes1'], 0);
-    votes2 = _asInt(data['votes2'], 0);
-    status = _normalizeStatus(data['status'], fallback: 'waiting');
-    roundIndex = _readRoundIndex(data, fallback: 1);
-    totalRounds = _effectiveRoundsFromData(data, totalRounds);
-    activeSpeakerId = (data['activeSpeakerId'] is String)
-        ? data['activeSpeakerId'] as String
-        : '';
-    isTimerRunning = _asBool(data['isTimerRunning'], false);
-    isRoundActive = _asBool(data['isRoundActive'], isRoundActive);
-    startTime = data['startTime'];
-    final creatorProposal = data['termsProposalCreator'] is Map
-        ? data['termsProposalCreator'] as Map
-        : const {};
-    final accepterProposal = data['termsProposalAccepter'] is Map
-        ? data['termsProposalAccepter'] as Map
-        : const {};
-    final resolvedTerms =
-        data['termsResolved'] is Map ? data['termsResolved'] as Map : const {};
-    _termsCreatorDuration = _sanitizeDuration(
-      creatorProposal['roundDurationSeconds'],
-      _sanitizeDuration(
-          data['roundDurationSeconds'] ?? data['durationSeconds'], 180),
-    );
-    _termsCreatorRounds = _sanitizeRounds(
-      creatorProposal['totalRounds'],
-      _sanitizeRounds(data['totalRounds'], 3),
-    );
-    _termsAccepterDuration = _sanitizeDuration(
-      accepterProposal['roundDurationSeconds'],
-      _termsCreatorDuration,
-    );
-    _termsAccepterRounds = _sanitizeRounds(
-      accepterProposal['totalRounds'],
-      _termsCreatorRounds,
-    );
-    _termsResolvedDuration = _sanitizeDuration(
-      resolvedTerms['roundDurationSeconds'],
-      _termsCreatorDuration,
-    );
-    _termsResolvedRounds = _sanitizeRounds(
-      resolvedTerms['totalRounds'],
-      _termsCreatorRounds,
-    );
-    _termsPolicyVersion =
-        (data['termsResolverVersion'] ?? 'v1_mean_nearest_strict').toString();
-    _termsAreResolved =
-        (data['termsResolutionStatus'] ?? '').toString() == 'resolved';
+    _debate = Debate.fromMap(widget.debateId, data);
 
     await _hydrateUserNameFromFirestore();
     await _hydrateFighterNamesFromUsers();
@@ -673,73 +580,8 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
           fallback: status == 'finished' ? 'finished' : 'waiting');
       _syncRoundCountdownFromData(liveData, newStatus);
 
+      _debate = Debate.fromMap(widget.debateId, liveData);
       setState(() {
-        votes1 = _asInt(liveData['votes1'], votes1);
-        votes2 = _asInt(liveData['votes2'], votes2);
-        status = newStatus;
-        fighter1 = (liveData['fighter1'] ?? fighter1).toString();
-        fighter2 = (liveData['fighter2'] ?? fighter2).toString();
-        opponentId = (liveData['opponentId'] ?? opponentId).toString();
-        creatorId = (liveData['creatorId'] ?? creatorId).toString();
-        if (fighter1.trim().isEmpty) {
-          fighter1 = creatorId;
-        }
-        if (fighter2.trim().isEmpty) {
-          fighter2 = opponentId;
-        }
-        creationMode = (liveData['creationMode'] ?? creationMode).toString();
-        invitedUserId = (liveData['invitedUserId'] ?? invitedUserId).toString();
-        fighter1Name = sanitizePublicName(
-          liveData['fighter1Name'] ?? fighter1Name,
-        );
-        fighter2Name = sanitizePublicName(
-          liveData['fighter2Name'] ?? fighter2Name,
-        );
-        activeSpeakerId =
-            (liveData['activeSpeakerId'] ?? activeSpeakerId).toString();
-        roundIndex = _readRoundIndex(liveData, fallback: roundIndex);
-        totalRounds = _effectiveRoundsFromData(liveData, totalRounds);
-        isRoundActive = _asBool(liveData['isRoundActive'], isRoundActive);
-        final creatorProposal = liveData['termsProposalCreator'] is Map
-            ? liveData['termsProposalCreator'] as Map
-            : const {};
-        final accepterProposal = liveData['termsProposalAccepter'] is Map
-            ? liveData['termsProposalAccepter'] as Map
-            : const {};
-        final resolvedTerms = liveData['termsResolved'] is Map
-            ? liveData['termsResolved'] as Map
-            : const {};
-        _termsCreatorDuration = _sanitizeDuration(
-          creatorProposal['roundDurationSeconds'],
-          _sanitizeDuration(
-              liveData['roundDurationSeconds'] ?? liveData['durationSeconds'],
-              _termsCreatorDuration),
-        );
-        _termsCreatorRounds = _sanitizeRounds(
-          creatorProposal['totalRounds'],
-          _sanitizeRounds(liveData['totalRounds'], _termsCreatorRounds),
-        );
-        _termsAccepterDuration = _sanitizeDuration(
-          accepterProposal['roundDurationSeconds'],
-          _termsAccepterDuration,
-        );
-        _termsAccepterRounds = _sanitizeRounds(
-          accepterProposal['totalRounds'],
-          _termsAccepterRounds,
-        );
-        _termsResolvedDuration = _sanitizeDuration(
-          resolvedTerms['roundDurationSeconds'],
-          _termsResolvedDuration,
-        );
-        _termsResolvedRounds = _sanitizeRounds(
-          resolvedTerms['totalRounds'],
-          _termsResolvedRounds,
-        );
-        _termsPolicyVersion =
-            (liveData['termsResolverVersion'] ?? _termsPolicyVersion)
-                .toString();
-        _termsAreResolved =
-            (liveData['termsResolutionStatus'] ?? '').toString() == 'resolved';
         final pending = liveData['pendingPenalty'];
         if (pending is Map && currentUserId.isNotEmpty) {
           final raw = pending[currentUserId];
