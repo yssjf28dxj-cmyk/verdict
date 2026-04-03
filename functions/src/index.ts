@@ -1,4 +1,5 @@
 import * as admin from 'firebase-admin';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { onDocumentCreated, onDocumentUpdated } from 'firebase-functions/v2/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
@@ -1145,6 +1146,178 @@ export const sendDebateMessage = onCall({ invoker: 'public' }, async (request) =
   });
 
   return { ok: true, messageId: messageRef.id };
+});
+
+// ─── AI JUDGE ────────────────────────────────────────────────────────────────
+// Reads all text messages from the finished debate, sends them to Gemini,
+// and writes a structured AI verdict to debates/{debateId}.aiResult.
+// Safe to call only once — re-calls are rejected with FINALIZE_ALREADY_JUDGED.
+export const finalizeBattle = onCall({ invoker: 'public' }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) {
+    throw new HttpsError('unauthenticated', 'Требуется авторизация.', {
+      reason: 'FINALIZE_AUTH_REQUIRED',
+    });
+  }
+
+  const debateId = asString(request.data?.debateId);
+  if (!debateId) {
+    throw new HttpsError('invalid-argument', 'debateId обязателен.', {
+      reason: 'FINALIZE_DEBATE_ID_REQUIRED',
+    });
+  }
+
+  const debateRef = db.collection('debates').doc(debateId);
+  const snap = await debateRef.get();
+  if (!snap.exists) {
+    throw new HttpsError('not-found', 'Дебат не найден.', {
+      reason: 'FINALIZE_NOT_FOUND',
+    });
+  }
+
+  const debate = snap.data() ?? {};
+
+  // Only participants may trigger AI judging.
+  const fighter1 = asString(debate['fighter1']) || asString(debate['creatorId']);
+  const fighter2 = asString(debate['fighter2']) || asString(debate['opponentId']);
+  if (uid !== fighter1 && uid !== fighter2) {
+    throw new HttpsError('permission-denied', 'Только участники могут запросить вердикт ИИ.', {
+      reason: 'FINALIZE_NOT_PARTICIPANT',
+    });
+  }
+
+  // Guard: debate must be finished before judging.
+  const status = normalizeDebateStatus(debate['status'], 'active');
+  if (status !== 'finished') {
+    throw new HttpsError('failed-precondition', 'Дебат ещё не завершён.', {
+      reason: 'FINALIZE_NOT_FINISHED',
+    });
+  }
+
+  // Guard: idempotency — prevent duplicate AI calls.
+  if (debate['aiResult'] != null) {
+    throw new HttpsError('already-exists', 'ИИ-вердикт уже вынесен.', {
+      reason: 'FINALIZE_ALREADY_JUDGED',
+    });
+  }
+
+  // Read names for the prompt.
+  const topic = asString(debate['topic']) || 'Неизвестная тема';
+  const fighter1Name = asString(debate['fighter1Name']) || 'Боец A';
+  const fighter2Name = asString(debate['fighter2Name']) || 'Боец Б';
+
+  // Fetch up to 200 text messages, ordered by creation time.
+  const msgSnap = await debateRef
+    .collection('messages')
+    .orderBy('createdAt', 'asc')
+    .limit(200)
+    .get();
+
+  // Build message log — skip voice/image (no transcript available).
+  const lines: string[] = [];
+  for (const doc of msgSnap.docs) {
+    const m = doc.data();
+    if (asString(m['messageType']) !== 'text') continue;
+    const text = asString(m['text']).trim();
+    if (!text) continue;
+    const senderId = asString(m['senderId']);
+    const label = senderId === fighter1 ? fighter1Name : fighter2Name;
+    lines.push(`[${label}]: ${text}`);
+  }
+
+  if (lines.length === 0) {
+    // No text messages → write a "no-content" result rather than crashing.
+    await debateRef.update({
+      aiResult: {
+        winnerId: 'draw',
+        winnerKey: 'draw',
+        scoreA: 50,
+        scoreB: 50,
+        reasoning: 'Текстовых аргументов не обнаружено — вердикт не может быть вынесен.',
+        judgedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+    });
+    return { ok: true, skipped: true };
+  }
+
+  // ── Gemini call ──────────────────────────────────────────────
+  const apiKey = process.env['GEMINI_API_KEY'] ?? '';
+  if (!apiKey) {
+    throw new HttpsError('internal', 'Gemini API key не настроен.', {
+      reason: 'FINALIZE_NO_API_KEY',
+    });
+  }
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+
+  const prompt = `
+Ты строгий судья дебатов. Оцени следующий дебат на тему: "${topic}".
+
+Боец A: ${fighter1Name} (ID: ${fighter1})
+Боец Б: ${fighter2Name} (ID: ${fighter2})
+
+Переписка дебата:
+${lines.join('\n')}
+
+Оцени логику, аргументы и убедительность каждого бойца.
+Ответь ТОЛЬКО валидным JSON без markdown-блоков:
+{"winnerId":"<UID победителя или строка 'draw'>","winnerKey":"<fighter1|fighter2|draw>","scoreA":<0-100>,"scoreB":<0-100>,"reasoning":"<2-3 предложения на русском>"}
+`.trim();
+
+  let aiResult: Record<string, unknown>;
+  try {
+    const response = await model.generateContent(prompt);
+    const raw = response.response.text().trim();
+    // Strip accidental markdown fences if Gemini wraps in ```json ... ```
+    const jsonStr = raw.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/,'');
+    const parsed = JSON.parse(jsonStr) as {
+      winnerId: string;
+      winnerKey: string;
+      scoreA: number;
+      scoreB: number;
+      reasoning: string;
+    };
+
+    // Clamp scores to valid range.
+    aiResult = {
+      winnerId: asString(parsed.winnerId) || 'draw',
+      winnerKey: asString(parsed.winnerKey) || 'draw',
+      scoreA: Math.min(100, Math.max(0, Number(parsed.scoreA) || 50)),
+      scoreB: Math.min(100, Math.max(0, Number(parsed.scoreB) || 50)),
+      reasoning: asString(parsed.reasoning) || '',
+      judgedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+  } catch (err) {
+    // On Gemini error or JSON parse failure — write error marker so client
+    // can hide the AI card gracefully instead of showing a frozen spinner.
+    await debateRef.update({
+      aiResult: {
+        error: true,
+        reason: err instanceof Error ? err.message : 'unknown',
+        judgedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+    });
+    return { ok: false, error: true };
+  }
+
+  await debateRef.update({ aiResult });
+
+  // Increment wins for the AI-determined winner (skip on draw).
+  const winnerId = aiResult['winnerId'] as string;
+  if (winnerId && winnerId !== 'draw') {
+    await admin.firestore().collection('users').doc(winnerId).update({
+      wins: admin.firestore.FieldValue.increment(1),
+    });
+  }
+
+  await logCoreEvent(db, 'debate.ai_judged', {
+    debateId,
+    actorUid: uid,
+    winnerKey: aiResult['winnerKey'],
+  });
+
+  return { ok: true };
 });
 
 // Allows the active speaker to surrender their remaining time and immediately

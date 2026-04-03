@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
-import 'lobby_screen.dart';
 import '../painters/chat_pattern_painter.dart';
 import '../utils/debate_error_mapper.dart';
 import '../utils/style_utils.dart';
 import '../l10n/app_localizations.dart';
+import 'package:go_router/go_router.dart';
 
 class CreateDebateScreen extends StatefulWidget {
   const CreateDebateScreen({super.key});
@@ -158,15 +158,7 @@ class _CreateDebateScreenState extends State<CreateDebateScreen> {
   }
 
   void _goToLobby(String debateId) {
-    Navigator.of(context).pushReplacement(
-      PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            LobbyScreen(debateId: debateId),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) =>
-            FadeTransition(opacity: animation, child: child),
-        transitionDuration: const Duration(milliseconds: 200),
-      ),
-    );
+    context.replace('/lobby/$debateId');
   }
 
   Future<void> _createDebate(AppLocalizations l10n) async {

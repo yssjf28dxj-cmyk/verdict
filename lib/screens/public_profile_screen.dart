@@ -10,7 +10,7 @@ import '../painters/chat_pattern_painter.dart';
 import '../utils/rank_utils.dart';
 import '../utils/style_utils.dart';
 import '../utils/debate_error_mapper.dart';
-import 'lobby_screen.dart';
+import 'package:go_router/go_router.dart';
 
 class PublicProfileScreen extends StatefulWidget {
   const PublicProfileScreen({
@@ -273,11 +273,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
       }
 
       if (!mounted) return;
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => LobbyScreen(debateId: debateId),
-        ),
-      );
+      context.push('/lobby/$debateId');
     } on FirebaseFunctionsException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

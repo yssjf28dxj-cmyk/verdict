@@ -2,11 +2,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
-import 'debate_room_screen.dart';
 import '../painters/chat_pattern_painter.dart';
 import '../utils/debate_error_mapper.dart';
 import '../utils/style_utils.dart';
 import '../l10n/app_localizations.dart';
+import 'package:go_router/go_router.dart';
 
 class LobbyScreen extends StatefulWidget {
   final String debateId;
@@ -176,9 +176,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
     final payload = {'debateId': widget.debateId};
     setState(() => _isCancelling = true);
     try {
-      await callable.call(payload);
       if (!mounted) return;
-      Navigator.of(context).pop();
+      context.pop();
     } on FirebaseFunctionsException catch (e) {
       if (!mounted) return;
       final retryableCodes = {
@@ -204,7 +203,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
         await Future.delayed(const Duration(milliseconds: 900));
         await callable.call(payload);
         if (!mounted) return;
-        Navigator.of(context).pop();
+        context.pop();
       } on FirebaseFunctionsException catch (retryError) {
         if (!mounted) return;
         setState(() => _isCancelling = false);
@@ -311,15 +310,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
     Future.delayed(const Duration(milliseconds: 1200), () {
       if (!mounted || _navigated) return;
       _navigated = true;
-      Navigator.of(context).pushReplacement(
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) =>
-              DebateRoomScreen(debateId: widget.debateId),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) =>
-              FadeTransition(opacity: animation, child: child),
-          transitionDuration: const Duration(milliseconds: 200),
-        ),
-      );
+      context.replace('/debate/${widget.debateId}');
     });
   }
 

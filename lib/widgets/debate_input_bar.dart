@@ -162,12 +162,16 @@ class _NormalInputBarState extends State<_NormalInputBar> {
               duration: const Duration(milliseconds: 280),
               padding: const EdgeInsets.symmetric(horizontal: 14),
               decoration: BoxDecoration(
-                color: const Color(0xFF141C2F),
+                color: widget.isMyTurn 
+                    ? const Color(0xFF141C2F) 
+                    : const Color(0xFF1A1A1A).withValues(alpha: 0.6),
                 borderRadius: BorderRadius.circular(24),
                 border: Border.all(
-                  color: isTyping
-                      ? const Color(0xFF4E8BFF)
-                      : Colors.white.withValues(alpha: 0.14),
+                  color: widget.isMyTurn
+                      ? (isTyping
+                          ? const Color(0xFF4E8BFF)
+                          : Colors.white.withValues(alpha: 0.14))
+                      : Colors.transparent, // Completely greyed out border
                   width: isTyping ? 1.4 : 1.0,
                 ),
                 boxShadow: [
@@ -199,11 +203,16 @@ class _NormalInputBarState extends State<_NormalInputBar> {
                     ? _safeHint(l10n)
                     : l10n.waitForOpponentTurn,
                 hintStyle: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.5),
+                  color: widget.isMyTurn 
+                      ? Colors.white.withValues(alpha: 0.5)
+                      : Colors.white.withValues(alpha: 0.25), // Stronger fade for waiting state
                 ),
                 border: InputBorder.none,
               ),
-              style: const TextStyle(color: Colors.white, fontSize: 15),
+              style: TextStyle(
+                color: widget.isMyTurn ? Colors.white : Colors.white54, 
+                fontSize: 15
+              ),
             ),
           ),
         ),

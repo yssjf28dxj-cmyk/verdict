@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,7 +12,8 @@ import '../painters/chat_pattern_painter.dart';
 import '../services/sound_service.dart';
 import '../utils/name_utils.dart';
 import '../utils/style_utils.dart';
-import 'home_screen.dart';
+import '../widgets/ai_result_card.dart';
+import 'package:go_router/go_router.dart';
 
 class ResultScreen extends StatefulWidget {
   final String debateId;
@@ -25,6 +28,13 @@ class _ResultScreenState extends State<ResultScreen> {
   late final Future<DocumentSnapshot<Map<String, dynamic>>> _debateFuture;
   bool _didPlayOutcomeCue = false;
 
+  // ── AI Judge state ────────────────────────────────────────────────────────
+  final ValueNotifier<Map<String, dynamic>?> _aiResult = ValueNotifier(null);
+  final ValueNotifier<bool> _aiLoading = ValueNotifier(false);
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _aiSub;
+  Timer? _aiTimeoutTimer;
+  bool _didRequestAi = false;
+
   @override
   void initState() {
     super.initState();
@@ -32,6 +42,71 @@ class _ResultScreenState extends State<ResultScreen> {
         .collection('debates')
         .doc(widget.debateId)
         .get();
+  }
+
+  @override
+  void dispose() {
+    _aiTimeoutTimer?.cancel();
+    _aiResult.dispose();
+    _aiLoading.dispose();
+    _aiSub?.cancel();
+    super.dispose();
+  }
+
+  // Idempotent: calls finalizeBattle once, then streams for the written result.
+  void _maybeRequestAiVerdict(Map<String, dynamic> data) {
+    if (_didRequestAi) return;
+    _didRequestAi = true;
+
+    // Already judged — show immediately without calling CF.
+    final existing = data['aiResult'];
+    if (existing is Map) {
+      _aiResult.value = Map<String, dynamic>.from(existing);
+      return;
+    }
+
+    _aiLoading.value = true;
+
+    // Fire-and-forget — stream catches the Firestore write regardless of
+    // whether the CF response arrives (handles network drops cleanly).
+    unawaited(() async {
+      try {
+        await FirebaseFunctions.instance
+            .httpsCallable('finalizeBattle')
+            .call({'debateId': widget.debateId});
+      } catch (e) {
+        // FINALIZE_ALREADY_JUDGED is expected on re-entry — stream handles it.
+        debugPrint('[AI Judge] finalizeBattle: $e');
+      }
+    }());
+
+    // Stream on the debate doc — stops as soon as aiResult appears.
+    _aiSub = FirebaseFirestore.instance
+        .collection('debates')
+        .doc(widget.debateId)
+        .snapshots()
+        .listen((snap) {
+      final d = snap.data();
+      if (d == null) return;
+      final aiData = d['aiResult'];
+      if (aiData is Map) {
+        _aiTimeoutTimer?.cancel();
+        if (mounted) {
+          _aiResult.value = Map<String, dynamic>.from(aiData);
+          _aiLoading.value = false;
+        }
+        _aiSub?.cancel();
+      }
+    });
+
+    // Fallback: if AI result doesn't arrive within 15s, show error card.
+    _aiTimeoutTimer = Timer(const Duration(seconds: 15), () {
+      if (!mounted) return;
+      if (_aiResult.value != null) return; // already resolved
+      _aiSub?.cancel();
+      _aiResult.value = {'error': true, 'reason': 'timeout'};
+      _aiLoading.value = false;
+    });
   }
 
   int _asInt(dynamic value) {
@@ -207,12 +282,11 @@ class _ResultScreenState extends State<ResultScreen> {
               }
 
               final data = rawData;
-              if (!_didPlayOutcomeCue) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (!mounted) return;
-                  _playOutcomeCue(data);
-                });
-              }
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+                if (!_didPlayOutcomeCue) _playOutcomeCue(data);
+                _maybeRequestAiVerdict(data);
+              });
 
               final topic = firstNonEmptyName(
                 [data['topic']],
@@ -239,176 +313,213 @@ class _ResultScreenState extends State<ResultScreen> {
                 winnerColor = VerdictStyle.fighterRed;
               }
 
-              return Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      l10n.debateTopicLabel,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.5),
-                        fontSize: 14,
-                        letterSpacing: 1.5,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      topic,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 36),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        _buildHeroAvatar(
-                          heroTag: 'debate-${widget.debateId}-fighter-1',
-                          color: VerdictStyle.fighterBlue,
-                          name: fighter1Name,
-                        ),
-                        Text(
-                          l10n.versusLabel,
-                          style: const TextStyle(
-                            color: Color(0xFFFFA500),
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        _buildHeroAvatar(
-                          heroTag: 'debate-${widget.debateId}-fighter-2',
-                          color: VerdictStyle.fighterRed,
-                          name: fighter2Name,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 28),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(24),
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 30,
-                            horizontal: 20,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0x661D2233),
-                            borderRadius: BorderRadius.circular(24),
-                            border: Border.all(
-                              color: winnerColor.withValues(alpha: 0.5),
-                              width: 2,
+              return Column(
+                children: [
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            l10n.debateTopicLabel,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.5),
+                              fontSize: 14,
+                              letterSpacing: 1.5,
                             ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: winnerColor.withValues(alpha: 0.2),
-                                blurRadius: 20,
-                                spreadRadius: 5,
-                              ),
-                            ],
                           ),
-                          child: Column(
+                          const SizedBox(height: 8),
+                          Text(
+                            topic,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 36),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Icon(
-                                Icons.emoji_events,
-                                size: 60,
-                                color: winnerColor,
+                              _buildHeroAvatar(
+                                heroTag: 'debate-${widget.debateId}-fighter-1',
+                                color: VerdictStyle.fighterBlue,
+                                name: fighter1Name,
                               ),
-                              const SizedBox(height: 16),
                               Text(
-                                winnerName,
-                                textAlign: TextAlign.center,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: winnerColor,
-                                  fontSize: 28,
+                                l10n.versusLabel,
+                                style: const TextStyle(
+                                  color: Color(0xFFFFA500),
+                                  fontSize: 20,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 28),
-                    GlassCard(
-                      borderRadius: BorderRadius.circular(24),
-                      child: Column(
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _buildStatCol(
-                                  fighter1Name,
-                                  votes1.toString(),
-                                  VerdictStyle.fighterBlue,
-                                  context,
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: _buildStatCol(
-                                  fighter2Name,
-                                  votes2.toString(),
-                                  VerdictStyle.fighterRed,
-                                  context,
-                                ),
+                              _buildHeroAvatar(
+                                heroTag: 'debate-${widget.debateId}-fighter-2',
+                                color: VerdictStyle.fighterRed,
+                                name: fighter2Name,
                               ),
                             ],
                           ),
-                          const SizedBox(height: 18),
-                          _buildVoteBar(votes1: votes1, votes2: votes2),
+                          const SizedBox(height: 28),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(24),
+                            child: BackdropFilter(
+                              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 30,
+                                  horizontal: 20,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0x661D2233),
+                                  borderRadius: BorderRadius.circular(24),
+                                  border: Border.all(
+                                    color: winnerColor.withValues(alpha: 0.5),
+                                    width: 2,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: winnerColor.withValues(alpha: 0.2),
+                                      blurRadius: 20,
+                                      spreadRadius: 5,
+                                    ),
+                                  ],
+                                ),
+                                child: Column(
+                                  children: [
+                                    Icon(
+                                      Icons.emoji_events,
+                                      size: 60,
+                                      color: winnerColor,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      winnerName,
+                                      textAlign: TextAlign.center,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: winnerColor,
+                                        fontSize: 28,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 28),
+                          GlassCard(
+                            borderRadius: BorderRadius.circular(24),
+                            child: Column(
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _buildStatCol(
+                                        fighter1Name,
+                                        votes1.toString(),
+                                        VerdictStyle.fighterBlue,
+                                        context,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: _buildStatCol(
+                                        fighter2Name,
+                                        votes2.toString(),
+                                        VerdictStyle.fighterRed,
+                                        context,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 18),
+                                _buildVoteBar(votes1: votes1, votes2: votes2),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          ValueListenableBuilder<bool>(
+                            valueListenable: _aiLoading,
+                            builder: (context, loading, _) {
+                              if (!loading) return const SizedBox.shrink();
+                              return const GlassCard(
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.2,
+                                        color: Color(0xFFFFA500),
+                                      ),
+                                    ),
+                                    SizedBox(width: 10),
+                                    Text(
+                                      'Судья анализирует...',
+                                      style: TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                          ValueListenableBuilder<Map<String, dynamic>?>(
+                            valueListenable: _aiResult,
+                            builder: (context, aiResult, _) {
+                              if (aiResult == null) {
+                                return const SizedBox.shrink();
+                              }
+                              return Padding(
+                                padding: const EdgeInsets.only(top: 12),
+                                child: AiResultCard(
+                                  aiResult: aiResult,
+                                  fighter1Name: fighter1Name,
+                                  fighter2Name: fighter2Name,
+                                ),
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 24),
+                          SizedBox(
+                            height: 56,
+                            child: ElevatedButton(
+                              onPressed: () {
+                                context.go('/');
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: VerdictStyle.accentGold,
+                                foregroundColor: Colors.black,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(24),
+                                ),
+                              ),
+                              child: Text(
+                                l10n.backToHome,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 20),
                         ],
                       ),
                     ),
-                    const Spacer(),
-                    SizedBox(
-                      height: 56,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.of(context).pushAndRemoveUntil(
-                            PageRouteBuilder(
-                              pageBuilder:
-                                  (context, animation, secondaryAnimation) =>
-                                      const HomeScreen(),
-                              transitionsBuilder: (context, animation,
-                                      secondaryAnimation, child) =>
-                                  FadeTransition(
-                                opacity: animation,
-                                child: child,
-                              ),
-                              transitionDuration:
-                                  const Duration(milliseconds: 200),
-                            ),
-                            (route) => false,
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: VerdictStyle.accentGold,
-                          foregroundColor: Colors.black,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(24),
-                          ),
-                        ),
-                        child: Text(
-                          l10n.backToHome,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                  ],
-                ),
+                  ),
+                ],
               );
             },
           ),

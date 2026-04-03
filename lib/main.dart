@@ -1,11 +1,13 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter_displaymode/flutter_displaymode.dart';
 import 'firebase_options.dart';
 import 'app.dart';
-import 'services/sound_service.dart';
 import 'utils/style_utils.dart';
 import 'services/app_locale_controller.dart';
+import 'utils/di.dart';
 
 ThemeData buildVerdictTheme() {
   final scheme = ColorScheme.fromSeed(
@@ -78,8 +80,9 @@ Future<void> _enableHighRefreshRate() async {
     final pool = sameResolution.isNotEmpty ? sameResolution : supported;
     pool.sort((a, b) => b.refreshRate.compareTo(a.refreshRate));
     await FlutterDisplayMode.setPreferredMode(pool.first);
-  } catch (_) {
-    // Keep default mode when API is unavailable.
+  } catch (e, stackTrace) {
+    // Keep default mode when API is unavailable, but record the error.
+    FirebaseCrashlytics.instance.recordError(e, stackTrace, reason: 'High refresh rate fallback');
   }
 }
 
@@ -88,13 +91,24 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  
+  // Перехват всех ошибок Flutter:
+  FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
+
+  // Перехват асинхронных ошибок (события из изолятов, таймеров и т.д.):
+  PlatformDispatcher.instance.onError = (error, stack) {
+    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    return true;
+  };
+
   // Эмулятор отключён — все вызовы идут в продакшн.
   // if (kDebugMode) {
   //   FirebaseFunctions.instance.useFunctionsEmulator('localhost', 5001);
   // }
   await _enableHighRefreshRate();
-  await AppLocaleController.instance.loadSavedLocale();
-  await SoundService.instance.warmUp();
+  // Инициализация Dependency Injection
+  setupDI();
+
   runApp(
     VerdictApp(
       theme: buildVerdictTheme(),

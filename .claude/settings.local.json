@@ -1,7 +1,20 @@
 {
   "permissions": {
     "allow": [
-      "Bash(firebase functions:log --only createDebate)"
+      "Bash(firebase functions:log --only createDebate)",
+      "Bash(dart run:*)",
+      "Bash(flutter analyze:*)",
+      "Bash(npx tsc:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(npm run:*)",
+      "Bash(firebase functions:list)",
+      "Bash(firebase deploy:*)",
+      "Bash(flutter pub:*)",
+      "Bash(sips -g pixelWidth -g pixelHeight assets/logo.png)",
+      "Bash(identify assets/logo.png)",
+      "Bash(flutter clean:*)",
+      "Bash(pod install:*)"
     ]
   }
 }

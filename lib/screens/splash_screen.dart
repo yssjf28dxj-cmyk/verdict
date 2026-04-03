@@ -1,10 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'home_screen.dart';
-import 'auth_screen.dart';
+import 'package:go_router/go_router.dart';
 import '../painters/chat_pattern_painter.dart';
 import '../utils/style_utils.dart';
+import '../services/app_locale_controller.dart';
+import '../services/sound_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -17,7 +18,6 @@ class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
-  Timer? _authTimer;
 
   @override
   void initState() {
@@ -31,38 +31,32 @@ class _SplashScreenState extends State<SplashScreen>
       curve: Curves.easeIn,
     );
     _controller.forward();
-    _authTimer = Timer(const Duration(seconds: 3), _checkAuth);
+    _initApp();
+  }
+
+  Future<void> _initApp() async {
+    // В это время идет анимация SplashScreen, и мы загружаем тяжелые ресурсы:
+    await Future.wait([
+      AppLocaleController.instance.loadSavedLocale(),
+      SoundService.instance.warmUp(),
+      // Гарантируем, что сплеш висит минимум 1.2 секунды для завершения анимации
+      Future.delayed(const Duration(milliseconds: 1200)),
+    ]);
+    _checkAuth();
   }
 
   void _checkAuth() {
     final user = FirebaseAuth.instance.currentUser;
     if (!mounted) return;
     if (user != null) {
-      Navigator.of(context).pushReplacement(
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) =>
-              const HomeScreen(),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) =>
-              FadeTransition(opacity: animation, child: child),
-          transitionDuration: const Duration(milliseconds: 200),
-        ),
-      );
+      if (context.mounted) context.go('/home');
     } else {
-      Navigator.of(context).pushReplacement(
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) =>
-              const AuthScreen(),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) =>
-              FadeTransition(opacity: animation, child: child),
-          transitionDuration: const Duration(milliseconds: 200),
-        ),
-      );
+      if (context.mounted) context.go('/auth');
     }
   }
 
   @override
   void dispose() {
-    _authTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }

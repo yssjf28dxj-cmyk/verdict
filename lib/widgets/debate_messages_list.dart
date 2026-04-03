@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:audioplayers/audioplayers.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -14,6 +12,9 @@ class DebateMessagesList extends StatefulWidget {
   final String fighter1Id;
   final bool showWaitingTurn;
   final String waitingText;
+  /// When non-null, shows a local "uploading" placeholder bubble at the
+  /// bottom of the chat (index 0 in the reversed list).
+  final String? uploadingMediaType;
 
   const DebateMessagesList({
     super.key,
@@ -21,6 +22,7 @@ class DebateMessagesList extends StatefulWidget {
     required this.fighter1Id,
     this.showWaitingTurn = false,
     this.waitingText = '',
+    this.uploadingMediaType,
   });
 
   @override
@@ -30,6 +32,43 @@ class DebateMessagesList extends StatefulWidget {
 class _DebateMessagesListState extends State<DebateMessagesList> {
   // Track which messages have already played their entrance animation.
   final Set<String> _animatedIds = <String>{};
+
+  // ScrollController for programmatic auto-scroll to newest message.
+  final ScrollController _scrollController = ScrollController();
+  int _lastDocCount = 0;
+  bool _autoScrollScheduled = false;
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  // Animates to position 0 (= bottom in a reversed list) when new messages
+  // arrive, but ONLY when the user is already near the bottom (< 80px away),
+  // so manual scrolling up is never interrupted.
+  void _scheduleAutoScrollIfNeeded(int currentCount) {
+    if (currentCount <= _lastDocCount) {
+      _lastDocCount = currentCount;
+      return;
+    }
+    _lastDocCount = currentCount;
+    if (_autoScrollScheduled) return;
+    _autoScrollScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _autoScrollScheduled = false;
+      if (!mounted || !_scrollController.hasClients) return;
+      final pos = _scrollController.position;
+      // In a reversed list offset 0 = bottom. Only scroll if user is close.
+      if (pos.pixels < 80) {
+        _scrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
 
   String _formatTime(Timestamp? ts) {
     if (ts == null) return '';
@@ -63,6 +102,7 @@ class _DebateMessagesListState extends State<DebateMessagesList> {
     required Map<String, dynamic> data,
     required bool isMine,
     required AppLocalizations l10n,
+    required double bottomPadding,
   }) {
     final senderName = firstNonEmptyName(
       [data['senderName'], data['sender']],
@@ -79,26 +119,8 @@ class _DebateMessagesListState extends State<DebateMessagesList> {
         : null;
 
     // ── Bubble colour tokens ─────────────────────────────────
-    final bubbleGradient = isMine
-        ? const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0x663A77FF), Color(0x33224488)],
-          )
-        : const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0x332A2D35), Color(0x221B1E26)],
-          );
-    final bubbleBorderColor = isMine
-        ? const Color(0xAA67A2FF)
-        : Colors.white.withValues(alpha: 0.22);
-    // Tail colours — approximate the bubble gradient endpoint
-    final tailFill =
-        isMine ? const Color(0x44224488) : const Color(0x22222830);
-    final tailStroke = isMine
-        ? const Color(0x8867A2FF)
-        : Colors.white.withValues(alpha: 0.20);
+    // ── Bubble colour tokens ─────────────────────────────────
+    final bubbleColor = isMine ? const Color(0xFFFFD700) : const Color(0xFF2A2A2A);
 
     // ── Inner content ────────────────────────────────────────
     final content = Column(
@@ -117,10 +139,10 @@ class _DebateMessagesListState extends State<DebateMessagesList> {
         else
           Text(
             text,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 15.5,
               height: 1.28,
-              color: Colors.white,
+              color: isMine ? Colors.black : Colors.white,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -130,7 +152,7 @@ class _DebateMessagesListState extends State<DebateMessagesList> {
             text,
             style: TextStyle(
               fontSize: 13,
-              color: Colors.white.withValues(alpha: 0.7),
+              color: isMine ? Colors.black87 : Colors.white70,
             ),
           ),
         ],
@@ -140,69 +162,33 @@ class _DebateMessagesListState extends State<DebateMessagesList> {
           _formatTime(createdAt),
           style: TextStyle(
             fontSize: 10,
-            color: Colors.white.withValues(alpha: 0.42),
+            color: isMine ? Colors.black54 : Colors.white.withValues(alpha: 0.42),
             fontWeight: FontWeight.w500,
           ),
         ),
       ],
     );
 
-    // ── Glass bubble ─────────────────────────────────────────
-    final glassBubble = ClipRRect(
-      borderRadius: BorderRadius.only(
-        topLeft: const Radius.circular(20),
-        topRight: const Radius.circular(20),
-        bottomLeft: Radius.circular(isMine ? 20 : 4),
-        bottomRight: Radius.circular(isMine ? 4 : 20),
-      ),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 290),
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-          decoration: BoxDecoration(
-            gradient: bubbleGradient,
-            border: Border.all(color: bubbleBorderColor, width: 1.1),
-            boxShadow: [
-              BoxShadow(
-                color: isMine
-                    ? const Color(0x553A77FF)
-                    : const Color(0x3310141C),
-                blurRadius: 14,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          child: content,
+    final glassBubble = Container(
+      constraints: const BoxConstraints(maxWidth: 290),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: bubbleColor,
+        borderRadius: BorderRadius.only(
+          topLeft: const Radius.circular(18),
+          topRight: const Radius.circular(18),
+          bottomLeft: Radius.circular(isMine ? 18 : 4),
+          bottomRight: Radius.circular(isMine ? 4 : 18),
         ),
-      ),
-    );
-
-    // ── Bubble + tail ────────────────────────────────────────
-    // The tail is a small triangle that appears outside the ClipRRect,
-    // positioned at the sharp corner (bottom-right for mine, bottom-left
-    // for other). This gives the classic chat-bubble arrow effect.
-    final bubbleWithTail = Stack(
-      clipBehavior: Clip.none,
-      children: [
-        glassBubble,
-        Positioned(
-          bottom: 0,
-          right: isMine ? 0 : null,
-          left: isMine ? null : 0,
-          child: Transform.translate(
-            offset: Offset(isMine ? 7.0 : -7.0, 0),
-            child: CustomPaint(
-              painter: _BubbleTailPainter(
-                isMine: isMine,
-                fillColor: tailFill,
-                strokeColor: tailStroke,
-              ),
-              size: const Size(8, 12),
-            ),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 4,
+            offset: Offset(0, 2),
           ),
-        ),
-      ],
+        ],
+      ),
+      child: content,
     );
 
     // ── Row layout: avatar + [name + bubble] ─────────────────
@@ -238,7 +224,7 @@ class _DebateMessagesListState extends State<DebateMessagesList> {
                   ),
                 ),
               ),
-              bubbleWithTail,
+              glassBubble,
             ],
           ),
         ),
@@ -253,7 +239,7 @@ class _DebateMessagesListState extends State<DebateMessagesList> {
     final alreadyAnimated = _animatedIds.contains(messageId);
     if (alreadyAnimated) {
       return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 5),
+        padding: EdgeInsets.only(bottom: bottomPadding),
         child: rowContent,
       );
     }
@@ -261,24 +247,24 @@ class _DebateMessagesListState extends State<DebateMessagesList> {
     return TweenAnimationBuilder<double>(
       key: ValueKey<String>('msg-anim-$messageId'),
       tween: Tween<double>(begin: 0, end: 1),
-      duration: const Duration(milliseconds: 480),
-      curve: Curves.elasticOut,
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOutCubic,
       onEnd: () {
-        if (!mounted) return;
-        setState(() => _animatedIds.add(messageId));
+        // Use a microtask so we don't trigger setState mid-build.
+        Future.microtask(() {
+          if (!mounted) return;
+          setState(() => _animatedIds.add(messageId));
+        });
       },
-      builder: (_, value, child) {
-        final clamped = value.clamp(0.0, 1.0);
-        return Opacity(
-          opacity: clamped,
-          child: Transform.translate(
-            offset: Offset(0, (1 - clamped) * 34),
-            child: child,
-          ),
-        );
-      },
+      builder: (_, value, child) => Opacity(
+        opacity: value,
+        child: Transform.translate(
+          offset: Offset(0, (1 - value) * 14),
+          child: child,
+        ),
+      ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 5),
+        padding: EdgeInsets.only(bottom: bottomPadding),
         child: rowContent,
       ),
     );
@@ -298,15 +284,21 @@ class _DebateMessagesListState extends State<DebateMessagesList> {
         final currentUid =
             FirebaseAuth.instance.currentUser?.uid ?? '';
 
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        // Only show spinner on the very first load (no data yet).
+        // On reconnects the previous snapshot is reused — no flash.
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
           return const Center(
             child: CircularProgressIndicator(color: Color(0xFFFFA500)),
           );
         }
 
         final docs = snapshot.data?.docs ?? [];
+        _scheduleAutoScrollIfNeeded(docs.length);
+        final hasUpload = widget.uploadingMediaType != null;
+        final extraCount = hasUpload ? 1 : 0;
 
-        final list = docs.isEmpty
+        final list = docs.isEmpty && !hasUpload
             ? Center(
                 child: Text(
                   l10n.noMessagesYet,
@@ -316,26 +308,49 @@ class _DebateMessagesListState extends State<DebateMessagesList> {
               )
             : ListView.builder(
                 key: const PageStorageKey<String>('messages-list'),
+                controller: _scrollController,
                 reverse: true,
-                physics: const AlwaysScrollableScrollPhysics(
-                  parent: BouncingScrollPhysics(),
+                addAutomaticKeepAlives: false,
+                addRepaintBoundaries: true,
+                cacheExtent: 400,
+                physics: const BouncingScrollPhysics(
+                  decelerationRate: ScrollDecelerationRate.fast,
                 ),
                 padding:
                     const EdgeInsets.fromLTRB(12, 10, 12, 10),
-                itemCount: docs.length,
+                itemCount: docs.length + extraCount,
                 itemBuilder: (_, index) {
-                  final doc = docs[index];
+                  // Index 0 in reversed list = newest = bottom of screen.
+                  if (hasUpload && index == 0) {
+                    return _UploadingPlaceholder(
+                      mediaType: widget.uploadingMediaType!,
+                    );
+                  }
+                  final docIndex = hasUpload ? index - 1 : index;
+                  final doc = docs[docIndex];
                   final data =
                       doc.data() as Map<String, dynamic>? ?? {};
                   final senderId =
                       (data['senderId'] ?? '').toString();
                   final isMine =
                       currentUid.isNotEmpty && senderId == currentUid;
+                  
+                  double bottomPad = 12.0;
+                  if (docIndex > 0) {
+                    final nextDoc = docs[docIndex - 1];
+                    final nextData = nextDoc.data() as Map<String, dynamic>? ?? {};
+                    final nextSenderId = (nextData['senderId'] ?? '').toString();
+                    if (nextSenderId == senderId) {
+                      bottomPad = 4.0;
+                    }
+                  }
+
                   return _messageBubble(
                     messageId: doc.id,
                     data: data,
                     isMine: isMine,
                     l10n: l10n,
+                    bottomPadding: bottomPad,
                   );
                 },
               );
@@ -369,6 +384,77 @@ class _DebateMessagesListState extends State<DebateMessagesList> {
 }
 
 // ─────────────────────────────────────────────────────────────
+// UPLOAD PLACEHOLDER — shown at list bottom while media uploads
+// ─────────────────────────────────────────────────────────────
+
+class _UploadingPlaceholder extends StatelessWidget {
+  final String mediaType;
+
+  const _UploadingPlaceholder({required this.mediaType});
+
+  @override
+  Widget build(BuildContext context) {
+    final label = mediaType == 'voice' ? 'Отправка голосового...' : 'Загрузка...';
+    final icon = mediaType == 'voice' ? Icons.mic_rounded : Icons.image_outlined;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          Container(
+            constraints: const BoxConstraints(maxWidth: 220),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: const BoxDecoration(
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(18),
+                topRight: Radius.circular(18),
+                bottomLeft: Radius.circular(18),
+                bottomRight: Radius.circular(4),
+              ),
+              color: const Color(0xFFFFD700),
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.black12,
+                  blurRadius: 4,
+                  offset: Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 16, color: Colors.black54),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Colors.black54,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 1.8,
+                    color: Colors.black87,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
 // VOICE MESSAGE PLAYER
 //
 // Architecture: zero setState calls during playback.
@@ -396,7 +482,8 @@ class _VoiceMessageContent extends StatefulWidget {
       _VoiceMessageContentState();
 }
 
-class _VoiceMessageContentState extends State<_VoiceMessageContent> {
+class _VoiceMessageContentState extends State<_VoiceMessageContent>
+    with SingleTickerProviderStateMixin {
   final AudioPlayer _player = AudioPlayer();
 
   // ValueNotifiers — no setState needed during playback
@@ -404,11 +491,18 @@ class _VoiceMessageContentState extends State<_VoiceMessageContent> {
   final ValueNotifier<double> _progressVN = ValueNotifier(0.0);
   final ValueNotifier<int> _positionVN = ValueNotifier(0);
 
+  // Idle pulse — subtle breathing animation when not playing.
+  late final AnimationController _idlePulseCtrl;
+
   bool _isDragging = false;
 
   @override
   void initState() {
     super.initState();
+    _idlePulseCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..repeat(reverse: true);
 
     _player.onPlayerComplete.listen((_) {
       if (!mounted) return;
@@ -429,6 +523,7 @@ class _VoiceMessageContentState extends State<_VoiceMessageContent> {
 
   @override
   void dispose() {
+    _idlePulseCtrl.dispose();
     _isPlayingVN.dispose();
     _progressVN.dispose();
     _positionVN.dispose();
@@ -469,7 +564,7 @@ class _VoiceMessageContentState extends State<_VoiceMessageContent> {
   @override
   Widget build(BuildContext context) {
     final neonColor = widget.isMine
-        ? const Color(0xFF4E8BFF)
+        ? Colors.black87
         : const Color(0xFFFFA500);
 
     return Row(
@@ -539,43 +634,77 @@ class _VoiceMessageContentState extends State<_VoiceMessageContent> {
                   // Waveform bars rebuilt ONLY when _progressVN changes.
                   child: ValueListenableBuilder<double>(
                     valueListenable: _progressVN,
-                    builder: (_, progress, __) => SizedBox(
-                      height: 28,
-                      width: constraints.maxWidth,
-                      child: Row(
-                        mainAxisAlignment:
-                            MainAxisAlignment.spaceEvenly,
-                        crossAxisAlignment:
-                            CrossAxisAlignment.end,
-                        children: List.generate(24, (i) {
-                          final active = (i / 24) <= progress;
-                          final h = 6.0 +
-                              ((i * 7 + 3) % 16).toDouble();
-                          return AnimatedContainer(
-                            duration:
-                                const Duration(milliseconds: 60),
-                            width: 3,
-                            height: h,
-                            decoration: BoxDecoration(
-                              borderRadius:
-                                  BorderRadius.circular(2),
-                              color: active
-                                  ? neonColor
-                                  : neonColor.withValues(
-                                      alpha: 0.16),
-                              boxShadow: active
-                                  ? [
-                                      BoxShadow(
-                                        color: neonColor.withValues(
-                                            alpha: 0.35),
-                                        blurRadius: 5,
-                                      ),
-                                    ]
-                                  : null,
-                            ),
-                          );
-                        }),
-                      ),
+                    builder: (_, progress, __) =>
+                        AnimatedBuilder(
+                      animation: _idlePulseCtrl,
+                      builder: (_, __) {
+                        final isPlaying = _isPlayingVN.value;
+                        final pulse = isPlaying
+                            ? 0.0
+                            : _idlePulseCtrl.value;
+                        return SizedBox(
+                          height: 28,
+                          width: constraints.maxWidth,
+                          child: Row(
+                            mainAxisAlignment:
+                                MainAxisAlignment.spaceEvenly,
+                            crossAxisAlignment:
+                                CrossAxisAlignment.end,
+                            children: List.generate(24, (i) {
+                              final active =
+                                  (i / 24) <= progress;
+                              final baseH = 6.0 +
+                                  ((i * 7 + 3) % 16)
+                                      .toDouble();
+                              // Idle pulse: bars breathe ±3px
+                              // with a phase offset per bar.
+                              final phase =
+                                  (i / 24) * 3.14159;
+                              final pulseOffset = active
+                                  ? 0.0
+                                  : (pulse *
+                                      3.0 *
+                                      (0.5 +
+                                          0.5 *
+                                              ((phase +
+                                                          pulse *
+                                                              3.14159)
+                                                      .remainder(
+                                                          3.14159) /
+                                                  3.14159)));
+                              final h =
+                                  baseH + pulseOffset;
+                              return AnimatedContainer(
+                                duration: const Duration(
+                                    milliseconds: 60),
+                                width: 3,
+                                height: h,
+                                decoration: BoxDecoration(
+                                  borderRadius:
+                                      BorderRadius.circular(
+                                          2),
+                                  color: active
+                                      ? neonColor
+                                      : neonColor.withValues(
+                                          alpha: 0.16 +
+                                              pulse * 0.08),
+                                  boxShadow: active
+                                      ? [
+                                          BoxShadow(
+                                            color: neonColor
+                                                .withValues(
+                                                    alpha:
+                                                        0.35),
+                                            blurRadius: 5,
+                                          ),
+                                        ]
+                                      : null,
+                                ),
+                              );
+                            }),
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ),
@@ -603,7 +732,7 @@ class _VoiceMessageContentState extends State<_VoiceMessageContent> {
                       ' / ${_fmt(widget.duration, widget.duration)}',
                       style: TextStyle(
                         fontSize: 10,
-                        color: Colors.white.withValues(alpha: 0.38),
+                        color: widget.isMine ? Colors.black54 : Colors.white.withValues(alpha: 0.38),
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -644,19 +773,27 @@ class _ImageMessageContent extends StatelessWidget {
           constraints:
               const BoxConstraints(maxWidth: 240, maxHeight: 240),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-                color: neonColor.withValues(alpha: 0.45), width: 1.5),
-            boxShadow: [
+            borderRadius: BorderRadius.only(
+              topLeft: const Radius.circular(18),
+              topRight: const Radius.circular(18),
+              bottomLeft: Radius.circular(isMine ? 18 : 4),
+              bottomRight: Radius.circular(isMine ? 4 : 18),
+            ),
+            boxShadow: const [
               BoxShadow(
-                color: neonColor.withValues(alpha: 0.18),
-                blurRadius: 14,
-                spreadRadius: 1,
+                color: Colors.black12,
+                blurRadius: 4,
+                offset: Offset(0, 2),
               ),
             ],
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(14.5),
+            borderRadius: BorderRadius.only(
+              topLeft: const Radius.circular(18),
+              topRight: const Radius.circular(18),
+              bottomLeft: Radius.circular(isMine ? 18 : 4),
+              bottomRight: Radius.circular(isMine ? 4 : 18),
+            ),
             child: Image.network(
               mediaUrl,
               fit: BoxFit.cover,
@@ -780,53 +917,3 @@ class _ImageMessageContent extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// BUBBLE TAIL PAINTER
-//
-// Draws a small triangle that extends from the sharp corner of
-// the glass bubble, creating the classic chat-message arrow.
-// Positioned outside the ClipRRect via Stack(clipBehavior: none).
-// ─────────────────────────────────────────────────────────────
-
-class _BubbleTailPainter extends CustomPainter {
-  final bool isMine;
-  final Color fillColor;
-  final Color strokeColor;
-
-  const _BubbleTailPainter({
-    required this.isMine,
-    required this.fillColor,
-    required this.strokeColor,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final fill = Paint()
-      ..color = fillColor
-      ..style = PaintingStyle.fill;
-    final stroke = Paint()
-      ..color = strokeColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0
-      ..strokeJoin = StrokeJoin.round;
-
-    final path = isMine
-        ? (Path()
-          ..moveTo(0, 0) // top-left  (touching the bubble corner)
-          ..lineTo(size.width, 0) // top-right (tip)
-          ..lineTo(0, size.height) // bottom-left
-          ..close())
-        : (Path()
-          ..moveTo(size.width, 0) // top-right (touching bubble corner)
-          ..lineTo(0, 0) // top-left  (tip)
-          ..lineTo(size.width, size.height) // bottom-right
-          ..close());
-
-    canvas.drawPath(path, fill);
-    canvas.drawPath(path, stroke);
-  }
-
-  @override
-  bool shouldRepaint(_BubbleTailPainter old) =>
-      old.isMine != isMine || old.fillColor != fillColor;
-}

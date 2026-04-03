@@ -11,6 +11,7 @@ import '../services/app_locale_controller.dart';
 import '../services/sound_service.dart';
 import '../utils/debate_error_mapper.dart';
 import '../utils/style_utils.dart';
+import 'package:go_router/go_router.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -122,11 +123,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           content: Text(l10n.migrationConfirmBody),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
+              onPressed: () => context.pop(false),
               child: Text(l10n.close),
             ),
             FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
+              onPressed: () => context.pop(true),
               child: Text(l10n.applyMigration),
             ),
           ],
@@ -250,7 +251,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () => context.pop(),
               child: Text(l10n.close),
             ),
           ],
@@ -640,6 +641,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Widget _buildTutorialCard(AppLocalizations l10n) {
+    return GestureDetector(
+      onTap: () {
+        context.push('/rules');
+      },
+      child: GlassCard(
+        child: Row(
+          children: [
+            const Icon(Icons.help_outline_rounded, color: Colors.white70, size: 22),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                l10n.settingsTitle.contains('Settings')
+                    ? 'How it works'
+                    : 'Как это работает',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                ),
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white54, size: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildLanguageCard(AppLocalizations l10n) {
     return GlassCard(
       child: Column(
@@ -741,6 +771,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    _buildTutorialCard(l10n),
+                    const SizedBox(height: 14),
                     _buildLanguageCard(l10n),
                     const SizedBox(height: 14),
                     _buildSoundCard(l10n),

@@ -21,7 +21,7 @@ import '../utils/name_utils.dart';
 import '../utils/style_utils.dart';
 import '../l10n/app_localizations.dart';
 
-import 'result_screen.dart';
+import 'package:go_router/go_router.dart';
 
 class DebateRoomScreen extends StatefulWidget {
   final String debateId;
@@ -321,7 +321,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(l10n.accessRestricted)),
     );
-    Navigator.of(context).maybePop();
+    if (context.canPop()) context.pop();
   }
 
   @override
@@ -424,6 +424,11 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
             },
           );
         }
+        // Optimistic lock — disable input instantly when time expires.
+        // Must come AFTER scheduling advance (which checks isRoundActive).
+        if (isRoundActive) {
+          setState(() => isRoundActive = false);
+        }
         return;
       }
 
@@ -524,7 +529,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(AppLocalizations.of(context)!.accessRestricted)),
       );
-      Navigator.of(context).maybePop();
+      if (context.canPop()) context.pop();
       return;
     }
 
@@ -776,17 +781,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
 
       if (newStatus == 'finished' && !movedToResult) {
         movedToResult = true;
-        Navigator.pushReplacement(
-          context,
-          PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) =>
-                ResultScreen(debateId: widget.debateId),
-            transitionsBuilder:
-                (context, animation, secondaryAnimation, child) =>
-                    FadeTransition(opacity: animation, child: child),
-            transitionDuration: const Duration(milliseconds: 200),
-          ),
-        );
+        context.replace('/result/${widget.debateId}');
       }
     }, onError: (_) {
       _handleAccessDeniedAndExit();
@@ -1696,7 +1691,10 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
       setState(() => _isUploadingMedia = false);
     }
 
-    setState(() => _isYieldingTurn = true);
+    setState(() {
+      _isYieldingTurn = true;
+      isRoundActive = false; // Optimistic lock — disable input instantly.
+    });
     try {
       await _functions
           .httpsCallable('yieldTurn')
@@ -1987,6 +1985,9 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
                                     status != 'finished' &&
                                     !isMyTurn,
                                 waitingText: l10n.waitingYourTurn,
+                                uploadingMediaType: _isUploadingMedia
+                                    ? (_isRecording ? 'voice' : 'media')
+                                    : null,
                               ),
                             ),
                           ),

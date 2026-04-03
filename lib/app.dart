@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'l10n/app_localizations.dart';
 
-import 'screens/splash_screen.dart';
+import 'utils/router.dart';
 import 'services/app_locale_controller.dart';
 
 class VerdictApp extends StatelessWidget {
@@ -20,7 +20,7 @@ class VerdictApp extends StatelessWidget {
     return AnimatedBuilder(
       animation: localeController,
       builder: (context, _) {
-        return MaterialApp(
+        return MaterialApp.router(
           title: 'VERDICT',
           debugShowCheckedModeBanner: false,
           theme: theme,
@@ -32,7 +32,7 @@ class VerdictApp extends StatelessWidget {
             GlobalCupertinoLocalizations.delegate,
             GlobalWidgetsLocalizations.delegate,
           ],
-          home: const SplashScreen(),
+          routerConfig: appRouter,
         );
       },
     );

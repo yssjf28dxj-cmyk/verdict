@@ -2,21 +2,36 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Flutter (Current Device, Terminal)",
+      "name": "Flutter (iPhone 16e Simulator)",
       "request": "launch",
       "type": "dart",
       "program": "lib/main.dart",
       "flutterMode": "debug",
-      "console": "terminal"
+      "deviceId": "D0680844-32FF-4EC7-BA09-E7508527AE73"
     },
     {
-      "name": "Flutter (Wireless Android, Terminal)",
+      "name": "Flutter (Chrome)",
       "request": "launch",
       "type": "dart",
       "program": "lib/main.dart",
       "flutterMode": "debug",
-      "deviceId": "adb-ac7a31cd-TtkJX7._adb-tls-connect._tcp",
-      "console": "terminal"
+      "deviceId": "chrome"
+    },
+    {
+      "name": "Flutter (macOS)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "flutterMode": "debug",
+      "deviceId": "macos"
+    },
+    {
+      "name": "Flutter (Wireless iPhone)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "flutterMode": "debug",
+      "deviceId": "00008140-00026CD82EC0801C"
     }
   ]
 }

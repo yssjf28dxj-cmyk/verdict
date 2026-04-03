@@ -7,7 +7,7 @@ import '../utils/name_utils.dart';
 import '../utils/rank_utils.dart';
 import '../utils/style_utils.dart';
 import '../l10n/app_localizations.dart';
-import 'public_profile_screen.dart';
+import 'package:go_router/go_router.dart';
 
 class WorldChatScreen extends StatefulWidget {
   const WorldChatScreen({super.key});
@@ -147,18 +147,13 @@ class _WorldChatScreenState extends State<WorldChatScreen>
     final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
     if (senderId == currentUid) return; // Don't open own profile from chat
 
-    Navigator.of(context).push(
-      PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            PublicProfileScreen(
-          uid: senderId,
-          publicId: '',
-          name: senderName,
-        ),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) =>
-            FadeTransition(opacity: animation, child: child),
-        transitionDuration: const Duration(milliseconds: 200),
-      ),
+    context.push(
+      '/public-profile',
+      extra: {
+        'uid': senderId,
+        'publicId': '',
+        'name': senderName,
+      },
     );
   }
 
@@ -245,96 +240,120 @@ class _WorldChatScreenState extends State<WorldChatScreen>
                                   ? (data['senderRating'] as num).toDouble()
                                   : 0;
 
-                          return Align(
-                            alignment: isMe
-                                ? Alignment.centerRight
-                                : Alignment.centerLeft,
-                            child: Container(
-                              margin: const EdgeInsets.symmetric(vertical: 4),
-                              constraints: BoxConstraints(
-                                maxWidth:
-                                    MediaQuery.of(context).size.width * 0.82,
-                              ),
-                              child: GlassCard(
-                                enableBlur: false,
-                                borderRadius: BorderRadius.circular(20),
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 14, vertical: 10),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    // Message text
-                                    Text(
-                                      (data['text'] ?? '').toString(),
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 15,
+                          double bottomPadding = 12.0;
+                          if (i < docs.length - 1) {
+                            final nextData = docs[i + 1].data() as Map<String, dynamic>;
+                            final nextSenderId = (nextData['senderId'] ?? '').toString();
+                            if (nextSenderId == senderId) {
+                                bottomPadding = 4.0;
+                            }
+                          }
+
+                          final bubbleColor = isMe ? const Color(0xFFFFD700) : const Color(0xFF2A2A2A);
+
+                          final senderRow = InkWell(
+                            onTap: isMe
+                                ? null
+                                : () => _openUserProfile(senderId, senderName),
+                            borderRadius: BorderRadius.circular(8),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  senderName,
+                                  style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.52),
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 0.3,
+                                  ),
+                                ),
+                                if (!isMe) ...[
+                                  const SizedBox(width: 2),
+                                  Icon(
+                                    Icons.arrow_forward_ios_rounded,
+                                    size: 8,
+                                    color: Colors.white.withValues(alpha: 0.3),
+                                  ),
+                                ],
+                                if (senderRating > 0) ...[
+                                  const SizedBox(width: 6),
+                                  RankBadge(
+                                    rating: senderRating,
+                                    showLabel: false,
+                                    iconSize: 10,
+                                  ),
+                                ],
+                              ],
+                            ),
+                          );
+
+                          return Padding(
+                            padding: EdgeInsets.only(bottom: bottomPadding),
+                            child: Row(
+                              mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Flexible(
+                                  child: Column(
+                                    crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Padding(
+                                        padding: const EdgeInsets.only(bottom: 3, left: 2, right: 2),
+                                        child: senderRow,
                                       ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    // Sender row: name + rank badge + time
-                                    Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        // Clickable name
-                                        InkWell(
-                                          onTap: isMe
-                                              ? null
-                                              : () => _openUserProfile(
-                                                    senderId, senderName),
-                                          borderRadius:
-                                              BorderRadius.circular(8),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
+                                      Container(
+                                        constraints: BoxConstraints(
+                                          maxWidth: MediaQuery.of(context).size.width * 0.82,
+                                        ),
+                                        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                                        decoration: BoxDecoration(
+                                          color: bubbleColor,
+                                          borderRadius: BorderRadius.only(
+                                            topLeft: const Radius.circular(18),
+                                            topRight: const Radius.circular(18),
+                                            bottomLeft: Radius.circular(isMe ? 18 : 4),
+                                            bottomRight: Radius.circular(isMe ? 4 : 18),
+                                          ),
+                                          boxShadow: const [
+                                            BoxShadow(
+                                              color: Colors.black12,
+                                              blurRadius: 4,
+                                              offset: Offset(0, 2),
+                                            ),
+                                          ],
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              (data['text'] ?? '').toString(),
+                                              style: TextStyle(
+                                                color: isMe ? Colors.black : Colors.white,
+                                                fontSize: 15.5,
+                                                height: 1.28,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 5),
+                                            if (data['timestamp'] != null)
                                               Text(
-                                                senderName,
+                                                _formatTime(data['timestamp']),
                                                 style: TextStyle(
-                                                  color: isMe
-                                                      ? VerdictStyle.fighterBlue
-                                                      : VerdictStyle.accentGold
-                                                          .withValues(
-                                                              alpha: 0.8),
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w700,
+                                                  color: isMe ? Colors.black54 : Colors.white.withValues(alpha: 0.42),
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.w500,
                                                 ),
                                               ),
-                                              if (!isMe) ...[
-                                                const SizedBox(width: 2),
-                                                Icon(
-                                                  Icons
-                                                      .arrow_forward_ios_rounded,
-                                                  size: 9,
-                                                  color: Colors.white
-                                                      .withValues(alpha: 0.3),
-                                                ),
-                                              ],
-                                            ],
-                                          ),
+                                          ],
                                         ),
-                                        const SizedBox(width: 6),
-                                        // Rank badge
-                                        if (senderRating > 0)
-                                          RankBadge(
-                                            rating: senderRating,
-                                            showLabel: false,
-                                            iconSize: 11,
-                                          ),
-                                        const SizedBox(width: 6),
-                                        if (data['timestamp'] != null)
-                                          Text(
-                                            _formatTime(data['timestamp']),
-                                            style: TextStyle(
-                                              color: Colors.white
-                                                  .withValues(alpha: 0.35),
-                                              fontSize: 10,
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  ],
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
+                              ],
                             ),
                           );
                         },

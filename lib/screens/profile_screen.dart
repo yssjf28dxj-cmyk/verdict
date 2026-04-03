@@ -6,14 +6,10 @@ import 'package:flutter/services.dart';
 import '../l10n/app_localizations.dart';
 import '../models/debate_history_item.dart';
 import '../utils/rank_utils.dart';
-import 'auth_screen.dart';
-import 'lobby_screen.dart';
-import 'public_profile_screen.dart';
+import 'package:go_router/go_router.dart';
 import '../painters/chat_pattern_painter.dart';
 import '../utils/debate_error_mapper.dart';
 import '../utils/style_utils.dart';
-import 'profile_history_screen.dart';
-import 'settings_screen.dart';
 
 class _PublicUserPreview {
   const _PublicUserPreview({
@@ -87,6 +83,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   bool _disposed = false;
 
+  void _applyUserData(Map<String, dynamic> data, String uid) {
+    var publicId = (data['publicId'] ?? '').toString().trim();
+    if (publicId.isEmpty) publicId = _generatePublicId(uid);
+    setState(() {
+      _publicId = publicId;
+      _wins = _asInt(data['wins']);
+      _losses = _asInt(data['losses']);
+      _draws = _asInt(data['draws']);
+      _rating = _asDouble(data['rating']);
+      _reputation = _asDouble(data['reputation']);
+      _viewerScore = _asDouble(data['viewerScore']);
+      _debateStyle = (data['debateStyle'] ?? 'Balanced').toString();
+      _totalDebates = _asInt(data['totalDebates']);
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -109,6 +121,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _displayName =
         displayName != null && displayName.isNotEmpty ? displayName : null;
     final uid = user.uid;
+
+    // Try cache first for instant render — no spinner on repeat visits.
+    try {
+      final cached = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get(const GetOptions(source: Source.cache));
+      if (cached.exists && cached.data() != null && mounted && !_disposed) {
+        _applyUserData(cached.data()!, uid);
+        setState(() => _isLoading = false);
+      }
+    } catch (_) {
+      // No cache — keep spinner for network fetch.
+    }
+
     try {
       final doc =
           await FirebaseFirestore.instance.collection('users').doc(uid).get();
@@ -147,17 +174,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             'publicId': publicId,
           }, SetOptions(merge: true));
         }
-        setState(() {
-          _publicId = publicId;
-          _wins = _asInt(data?['wins']);
-          _losses = _asInt(data?['losses']);
-          _draws = _asInt(data?['draws']);
-          _rating = _asDouble(data?['rating']);
-          _reputation = _asDouble(data?['reputation']);
-          _viewerScore = _asDouble(data?['viewerScore']);
-          _debateStyle = (data?['debateStyle'] ?? 'Balanced').toString();
-          _totalDebates = _asInt(data?['totalDebates']);
-        });
+        _applyUserData(data, uid);
       }
 
       final debateSnapshots = await Future.wait([
@@ -260,11 +277,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _openFullHistory() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ProfileHistoryScreen(items: _allDebates),
-      ),
-    );
+    context.push('/profile-history', extra: _allDebates);
   }
 
   String _effectiveDebateLanguageCode() {
@@ -318,11 +331,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     if (!mounted) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => LobbyScreen(debateId: debateId),
-      ),
-    );
+    context.push('/lobby/$debateId');
   }
 
   Future<void> _createDirectInviteByPublicId({
@@ -686,14 +695,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (!mounted || action == null) return;
 
     if (action == 'view') {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => PublicProfileScreen(
-            uid: selected.uid,
-            publicId: selected.publicId,
-            name: selected.name,
-          ),
-        ),
+      context.push(
+        '/public-profile',
+        extra: {
+          'uid': selected.uid,
+          'publicId': selected.publicId,
+          'name': selected.name,
+        },
       );
       return;
     }
@@ -769,16 +777,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _signOut() async {
     await FirebaseAuth.instance.signOut();
     if (!mounted) return;
-    Navigator.of(context).pushAndRemoveUntil(
-      PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            const AuthScreen(),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) =>
-            FadeTransition(opacity: animation, child: child),
-        transitionDuration: const Duration(milliseconds: 200),
-      ),
-      (route) => false,
-    );
+    context.go('/auth');
   }
 
   // ─── BUILD ──────────────────────────────────────────────────
@@ -810,9 +809,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         actions: [
           IconButton(
             onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const SettingsScreen()),
-              );
+              context.push('/settings');
             },
             icon: const Icon(Icons.settings_outlined),
           ),
@@ -861,6 +858,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                       // ── RECENT DEBATES ─────────────────────
                       _buildRecentDebates(l10n),
+                      const SizedBox(height: 16),
+
+                      // ── TUTORIAL ───────────────────────────
+                      _buildTutorial(l10n),
                       const SizedBox(height: 16),
 
                       // ── SIGN OUT ───────────────────────────
@@ -1554,6 +1555,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  // ── TUTORIAL ──────────────────────────────────────────────
+
+  Widget _buildTutorial(AppLocalizations l10n) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          context.push('/rules');
+        },
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: VerdictStyle.accentGold.withValues(alpha: 0.25),
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.help_outline, size: 18, color: VerdictStyle.accentGold),
+              const SizedBox(width: 8),
+              Text(
+                Localizations.localeOf(context).languageCode == 'ru' ? 'Как это работает' : 'How it works',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

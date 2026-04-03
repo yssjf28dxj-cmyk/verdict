@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
-import 'home_screen.dart';
+import 'package:go_router/go_router.dart';
 import '../painters/chat_pattern_painter.dart';
 import '../utils/style_utils.dart';
 import '../l10n/app_localizations.dart';
@@ -30,16 +30,7 @@ class _AuthScreenState extends State<AuthScreen> {
     });
 
     if (result != null) {
-      Navigator.pushReplacement(
-        context,
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) =>
-              const HomeScreen(),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) =>
-              FadeTransition(opacity: animation, child: child),
-          transitionDuration: const Duration(milliseconds: 200),
-        ),
-      );
+      context.go('/');
     } else {
       final l10n = AppLocalizations.of(context)!;
       final reason = _authService.lastErrorCode;
@@ -65,16 +56,7 @@ class _AuthScreenState extends State<AuthScreen> {
     });
 
     if (result != null) {
-      Navigator.pushReplacement(
-        context,
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) =>
-              const HomeScreen(),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) =>
-              FadeTransition(opacity: animation, child: child),
-          transitionDuration: const Duration(milliseconds: 200),
-        ),
-      );
+      context.go('/');
     } else {
       final l10n = AppLocalizations.of(context)!;
       final reason = _authService.lastErrorCode;

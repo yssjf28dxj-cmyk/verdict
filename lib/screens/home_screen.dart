@@ -3,17 +3,13 @@ import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
-import 'create_debate_screen.dart';
-import 'debate_room_screen.dart';
-import 'leaderboard_screen.dart';
-import 'profile_screen.dart';
-import 'world_chat_screen.dart';
 import '../painters/chat_pattern_painter.dart';
 import '../utils/debate_error_mapper.dart';
 import '../utils/name_utils.dart';
 import '../utils/rank_utils.dart';
 import '../utils/style_utils.dart';
 import '../l10n/app_localizations.dart';
+import 'package:go_router/go_router.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -115,27 +111,18 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
-    Widget? target;
+    String targetRoute = '';
     if (idx == 1) {
-      target = const LeaderboardScreen();
+      targetRoute = '/leaderboard';
     } else if (idx == 2) {
-      target = const WorldChatScreen();
+      targetRoute = '/world-chat';
     } else if (idx == 3) {
-      target = const ProfileScreen();
+      targetRoute = '/profile';
     }
-    if (target == null) return;
+    if (targetRoute.isEmpty) return;
 
     setState(() => _selectedIndex = idx);
-    Navigator.of(context)
-        .push(
-      PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) => target!,
-        transitionsBuilder: (context, animation, secondaryAnimation, child) =>
-            FadeTransition(opacity: animation, child: child),
-        transitionDuration: const Duration(milliseconds: 200),
-      ),
-    )
-        .then((_) {
+    context.push(targetRoute).then((_) {
       if (mounted) setState(() => _selectedIndex = 0);
     });
   }
@@ -343,16 +330,7 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.person),
-            onPressed: () => Navigator.of(context).push(
-              PageRouteBuilder(
-                pageBuilder: (context, animation, secondaryAnimation) =>
-                    const ProfileScreen(),
-                transitionsBuilder:
-                    (context, animation, secondaryAnimation, child) =>
-                        FadeTransition(opacity: animation, child: child),
-                transitionDuration: const Duration(milliseconds: 200),
-              ),
-            ),
+            onPressed: () => context.push('/profile'),
           ),
         ],
       ),
@@ -372,16 +350,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => Navigator.of(context).push(
-          PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) =>
-                const CreateDebateScreen(),
-            transitionsBuilder:
-                (context, animation, secondaryAnimation, child) =>
-                    FadeTransition(opacity: animation, child: child),
-            transitionDuration: const Duration(milliseconds: 200),
-          ),
-        ),
+        onPressed: () => context.push('/create-debate'),
         icon: const Icon(Icons.add),
         label: Text(l10n.createDebates),
         backgroundColor: Theme.of(context).colorScheme.primary,
@@ -400,7 +369,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const BottomNavigationBarItem(
             icon: Icon(Icons.leaderboard),
-            label: 'Top',
+            label: 'Leaderboard',
           ),
           BottomNavigationBarItem(
             icon: const Icon(Icons.forum_outlined),
@@ -746,15 +715,7 @@ class _DebateCardState extends State<_DebateCard> {
   }
 
   void _navigateToDebate(BuildContext context) {
-    Navigator.of(context).push(
-      PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            DebateRoomScreen(debateId: doc.id),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) =>
-            FadeTransition(opacity: animation, child: child),
-        transitionDuration: const Duration(milliseconds: 200),
-      ),
-    );
+    context.push('/debate/${doc.id}');
   }
 
   /// One-click join: calls acceptDebateInvite, then navigates to room
