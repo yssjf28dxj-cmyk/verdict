@@ -1,8 +1,12 @@
-import 'package:audioplayers/audioplayers.dart';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:audio_waveforms/audio_waveforms.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
+import 'package:http/http.dart' as http;
 
 import '../l10n/app_localizations.dart';
 import '../utils/name_utils.dart';
@@ -426,8 +430,8 @@ class _UploadingPlaceholder extends StatelessWidget {
                 bottomLeft: Radius.circular(18),
                 bottomRight: Radius.circular(4),
               ),
-              color: const Color(0xFFFFD700),
-              boxShadow: const [
+              color: Color(0xFFFFD700),
+              boxShadow: [
                 BoxShadow(
                   color: Colors.black12,
                   blurRadius: 4,
@@ -492,47 +496,80 @@ class _VoiceMessageContent extends StatefulWidget {
   });
 
   @override
-  State<_VoiceMessageContent> createState() =>
-      _VoiceMessageContentState();
+  State<_VoiceMessageContent> createState() => _VoiceMessageContentState();
 }
 
 class _VoiceMessageContentState extends State<_VoiceMessageContent>
     with SingleTickerProviderStateMixin {
-  final AudioPlayer _player = AudioPlayer();
-
-  // ValueNotifiers — no setState needed during playback
+  late final PlayerController _playerController;
+  final ValueNotifier<bool> _isInitializedVN = ValueNotifier(false);
   final ValueNotifier<bool> _isPlayingVN = ValueNotifier(false);
   final ValueNotifier<double> _progressVN = ValueNotifier(0.0);
   final ValueNotifier<int> _positionVN = ValueNotifier(0);
 
-  // Idle pulse — subtle breathing animation when not playing.
   late final AnimationController _idlePulseCtrl;
-
   bool _isDragging = false;
 
   @override
   void initState() {
     super.initState();
+    _playerController = PlayerController();
     _idlePulseCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1400),
     )..repeat(reverse: true);
 
-    _player.onPlayerComplete.listen((_) {
+    _playerController.onPlayerStateChanged.listen((state) {
+      if (!mounted) return;
+      _isPlayingVN.value = state.isPlaying;
+      if (state == PlayerState.stopped) {
+        _progressVN.value = 0.0;
+        _positionVN.value = 0;
+      }
+    });
+
+    _playerController.onCurrentDurationChanged.listen((dur) {
+      if (!mounted || _isDragging) return;
+      final totalMs = widget.duration * 1000;
+      if (totalMs <= 0) return;
+      _progressVN.value = (dur / totalMs).clamp(0.0, 1.0);
+      _positionVN.value = (dur / 1000).round();
+    });
+
+    _playerController.onCompletion.listen((_) {
       if (!mounted) return;
       _isPlayingVN.value = false;
       _progressVN.value = 0.0;
       _positionVN.value = 0;
     });
 
-    _player.onPositionChanged.listen((pos) {
-      if (!mounted || _isDragging) return;
-      final totalMs = widget.duration * 1000;
-      if (totalMs <= 0) return;
-      _progressVN.value =
-          (pos.inMilliseconds / totalMs).clamp(0.0, 1.0);
-      _positionVN.value = pos.inSeconds;
-    });
+    _preparePlayer();
+  }
+
+  Future<void> _preparePlayer() async {
+    try {
+      final dir = await getTemporaryDirectory();
+      final hash = widget.mediaUrl.hashCode.toString();
+      final file = File('${dir.path}/verdict_audio_$hash.m4a');
+
+      if (!await file.exists()) {
+        final resp = await http.get(Uri.parse(widget.mediaUrl));
+        if (resp.statusCode == 200) {
+          await file.writeAsBytes(resp.bodyBytes);
+        } else {
+          throw Exception('Failed to download audio');
+        }
+      }
+
+      await _playerController.preparePlayer(
+        path: file.path,
+        shouldExtractWaveform: true,
+        noOfSamples: 40,
+      );
+      if (mounted) _isInitializedVN.value = true;
+    } catch (e) {
+      debugPrint('[VoicePlayer] Init error: $e');
+    }
   }
 
   @override
@@ -541,19 +578,19 @@ class _VoiceMessageContentState extends State<_VoiceMessageContent>
     _isPlayingVN.dispose();
     _progressVN.dispose();
     _positionVN.dispose();
-    _player.dispose();
+    _isInitializedVN.dispose();
+    _playerController.dispose();
     super.dispose();
   }
 
   Future<void> _togglePlay() async {
+    if (!_isInitializedVN.value) return;
     HapticFeedback.selectionClick();
     try {
       if (_isPlayingVN.value) {
-        await _player.pause();
-        _isPlayingVN.value = false;
+        await _playerController.pausePlayer();
       } else {
-        await _player.play(UrlSource(widget.mediaUrl));
-        _isPlayingVN.value = true;
+        await _playerController.startPlayer();
       }
     } catch (e) {
       debugPrint('[VoicePlayer] $e');
@@ -561,11 +598,10 @@ class _VoiceMessageContentState extends State<_VoiceMessageContent>
   }
 
   Future<void> _seekTo(double ratio) async {
+    if (!_isInitializedVN.value) return;
     final r = ratio.clamp(0.0, 1.0);
     final ms = (r * widget.duration * 1000).round();
-    _progressVN.value = r;
-    _positionVN.value = (ms / 1000).round();
-    await _player.seek(Duration(milliseconds: ms));
+    await _playerController.seekTo(ms);
   }
 
   static String _fmt(int s, int total) {
@@ -577,15 +613,11 @@ class _VoiceMessageContentState extends State<_VoiceMessageContent>
 
   @override
   Widget build(BuildContext context) {
-    final neonColor = widget.isMine
-        ? Colors.black87
-        : const Color(0xFFFFD700);
+    final neonColor = widget.isMine ? Colors.black87 : const Color(0xFFFFD700);
 
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // ── Play / Pause button ───────────────────────────────
-        // Rebuilt ONLY when _isPlayingVN changes (rare).
         ValueListenableBuilder<bool>(
           valueListenable: _isPlayingVN,
           builder: (_, isPlaying, __) => GestureDetector(
@@ -596,8 +628,7 @@ class _VoiceMessageContentState extends State<_VoiceMessageContent>
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: neonColor.withValues(alpha: 0.16),
-                border: Border.all(
-                    color: neonColor.withValues(alpha: 0.55)),
+                border: Border.all(color: neonColor.withValues(alpha: 0.55)),
                 boxShadow: [
                   BoxShadow(
                     color: neonColor.withValues(alpha: 0.22),
@@ -606,9 +637,7 @@ class _VoiceMessageContentState extends State<_VoiceMessageContent>
                 ],
               ),
               child: Icon(
-                isPlaying
-                    ? Icons.pause_rounded
-                    : Icons.play_arrow_rounded,
+                isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
                 color: neonColor,
                 size: 20,
               ),
@@ -616,117 +645,60 @@ class _VoiceMessageContentState extends State<_VoiceMessageContent>
           ),
         ),
         const SizedBox(width: 10),
-
-        // ── Seekable waveform + time label ───────────────────
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Waveform: GestureDetector wraps LayoutBuilder so we
-              // know maxWidth for seek ratio calculation.
               LayoutBuilder(
                 builder: (ctx, constraints) => GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  // Tap → instant seek
-                  onTapUp: (d) => _seekTo(
-                      d.localPosition.dx / constraints.maxWidth),
-                  // Drag → live scrub
+                  onTapUp: (d) => _seekTo(d.localPosition.dx / constraints.maxWidth),
                   onHorizontalDragStart: (_) => _isDragging = true,
                   onHorizontalDragUpdate: (d) {
-                    final r = (d.localPosition.dx /
-                            constraints.maxWidth)
-                        .clamp(0.0, 1.0);
+                    final r = (d.localPosition.dx / constraints.maxWidth).clamp(0.0, 1.0);
                     _progressVN.value = r;
-                    _positionVN.value =
-                        (r * widget.duration).round();
+                    _positionVN.value = (r * widget.duration).round();
                   },
                   onHorizontalDragEnd: (_) {
                     _isDragging = false;
                     _seekTo(_progressVN.value);
                   },
-                  // Waveform bars rebuilt ONLY when _progressVN changes.
-                  child: ValueListenableBuilder<double>(
-                    valueListenable: _progressVN,
-                    builder: (_, progress, __) =>
-                        AnimatedBuilder(
-                      animation: _idlePulseCtrl,
-                      builder: (_, __) {
-                        final isPlaying = _isPlayingVN.value;
-                        final pulse = isPlaying
-                            ? 0.0
-                            : _idlePulseCtrl.value;
+                  child: ValueListenableBuilder<bool>(
+                    valueListenable: _isInitializedVN,
+                    builder: (_, initialized, __) {
+                      if (!initialized) {
                         return SizedBox(
                           height: 28,
                           width: constraints.maxWidth,
-                          child: Row(
-                            mainAxisAlignment:
-                                MainAxisAlignment.spaceEvenly,
-                            crossAxisAlignment:
-                                CrossAxisAlignment.end,
-                            children: List.generate(24, (i) {
-                              final active =
-                                  (i / 24) <= progress;
-                              final baseH = 6.0 +
-                                  ((i * 7 + 3) % 16)
-                                      .toDouble();
-                              // Idle pulse: bars breathe ±3px
-                              // with a phase offset per bar.
-                              final phase =
-                                  (i / 24) * 3.14159;
-                              final pulseOffset = active
-                                  ? 0.0
-                                  : (pulse *
-                                      3.0 *
-                                      (0.5 +
-                                          0.5 *
-                                              ((phase +
-                                                          pulse *
-                                                              3.14159)
-                                                      .remainder(
-                                                          3.14159) /
-                                                  3.14159)));
-                              final h =
-                                  baseH + pulseOffset;
-                              return AnimatedContainer(
-                                duration: const Duration(
-                                    milliseconds: 60),
-                                width: 3,
-                                height: h,
-                                decoration: BoxDecoration(
-                                  borderRadius:
-                                      BorderRadius.circular(
-                                          2),
-                                  color: active
-                                      ? neonColor
-                                      : neonColor.withValues(
-                                          alpha: 0.16 +
-                                              pulse * 0.08),
-                                  boxShadow: active
-                                      ? [
-                                          BoxShadow(
-                                            color: neonColor
-                                                .withValues(
-                                                    alpha:
-                                                        0.35),
-                                            blurRadius: 5,
-                                          ),
-                                        ]
-                                      : null,
-                                ),
-                              );
-                            }),
+                          child: Center(
+                            child: SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 1.5,
+                                color: neonColor.withValues(alpha: 0.5),
+                              ),
+                            ),
                           ),
                         );
-                      },
-                    ),
+                      }
+                      return AudioFileWaveforms(
+                        size: Size(constraints.maxWidth, 28),
+                        playerController: _playerController,
+                        playerWaveStyle: PlayerWaveStyle(
+                          fixedWaveColor: widget.isMine ? Colors.black12 : Colors.white12,
+                          liveWaveColor: neonColor,
+                          waveCap: StrokeCap.round,
+                          spacing: 4,
+                          waveThickness: 2.5,
+                        ),
+                      );
+                    },
                   ),
                 ),
               ),
-
               const SizedBox(height: 4),
-
-              // Time: rebuilt ONLY when _positionVN changes.
               ValueListenableBuilder<int>(
                 valueListenable: _positionVN,
                 builder: (_, pos, __) => Row(
@@ -737,9 +709,7 @@ class _VoiceMessageContentState extends State<_VoiceMessageContent>
                         fontSize: 10,
                         color: neonColor.withValues(alpha: 0.85),
                         fontWeight: FontWeight.w700,
-                        fontFeatures: const [
-                          FontFeature.tabularFigures()
-                        ],
+                        fontFeatures: const [FontFeature.tabularFigures()],
                       ),
                     ),
                     Text(

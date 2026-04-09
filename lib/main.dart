@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
@@ -94,24 +95,80 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  
-  if (!kIsWeb) {
-    // Перехват всех ошибок Flutter:
-    FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
 
-    // Перехват асинхронных ошибок (события из изолятов, таймеров и т.д.):
+  // ── Firestore offline persistence ──────────────────────────────
+  // On mobile: keeps all data cached locally when network drops.
+  // On Web: relies on IndexedDB cache which is enabled by default.
+  try {
+    if (!kIsWeb) {
+      FirebaseFirestore.instance.settings = const Settings(
+        persistenceEnabled: true,
+        cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+      );
+    }
+  } catch (_) {
+    // Persistence already configured — safe to ignore
+  }
+
+  if (!kIsWeb) {
+    // ── Mobile: send Flutter errors to Crashlytics ──────────────
+    FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
     PlatformDispatcher.instance.onError = (error, stack) {
       FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
       return true;
     };
+  } else {
+    // ── Web: log errors to console in debug, silent in release ──
+    FlutterError.onError = (details) {
+      if (kDebugMode) FlutterError.presentError(details);
+    };
   }
 
-  // Эмулятор отключён — все вызовы идут в продакшн.
-  // if (kDebugMode) {
-  //   FirebaseFunctions.instance.useFunctionsEmulator('localhost', 5001);
-  // }
+  // ── Global widget error boundary ───────────────────────────────
+  // Shows a branded error screen instead of the red crash overlay.
+  ErrorWidget.builder = (FlutterErrorDetails details) {
+    // Re-report to crashlytics in release on mobile
+    if (!kIsWeb && !kDebugMode) {
+      FirebaseCrashlytics.instance.recordFlutterError(details);
+    } else {
+      debugPrint('[ErrorWidget] ${details.exceptionAsString()}');
+    }
+    return Material(
+      color: const Color(0xFF0D1117),
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.warning_amber_rounded,
+                  color: Color(0xFFFFD700), size: 56),
+              const SizedBox(height: 20),
+              const Text(
+                'Что-то пошло не так',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                kDebugMode ? details.exceptionAsString() : 'Перезапустите приложение',
+                style: const TextStyle(color: Colors.white38, fontSize: 13),
+                textAlign: TextAlign.center,
+                maxLines: 4,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  };
+
   await _enableHighRefreshRate();
-  // Инициализация Dependency Injection
   setupDI();
 
   runApp(

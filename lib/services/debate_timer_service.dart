@@ -2,13 +2,20 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+/// Manages the round countdown timer for a debate.
+///
+/// REFACTORED: No longer opens its own Firestore stream.
+/// Instead, the caller feeds Firestore snapshots via [onDebateData].
+/// This eliminates the duplicate stream that existed alongside
+/// the one in DebateRoomScreen, saving Firestore read costs
+/// and preventing desync on slow networks.
 class DebateTimerService {
   final String debateId;
   final int initialSeconds;
   final VoidCallback onTimerEnd;
   final ValueNotifier<int> timeLeftNotifier;
-  StreamSubscription<DocumentSnapshot>? _debateSub;
-  Timer? _timer;
+
+  Timer? _ticker;
   bool _isTimerRunning = false;
   DateTime? _roundEndsAt;
   bool _didFireTimerEnd = false;
@@ -21,9 +28,31 @@ class DebateTimerService {
     required this.timeLeftNotifier,
   });
 
-  void start() {
+  /// Call this each time the parent stream emits new debate data.
+  /// Replaces the internal Firestore subscription.
+  void onDebateData(Map<String, dynamic> data) {
+    final roundIndex = _readRoundIndex(data);
+    if (roundIndex != _activeRoundIndex) {
+      _activeRoundIndex = roundIndex;
+      _didFireTimerEnd = false;
+    }
+
+    _isTimerRunning = data['isTimerRunning'] == true;
+    if (_isTimerRunning) {
+      _syncTimer(data);
+    } else {
+      _pauseTicker();
+    }
+  }
+
+  /// Legacy entry point — still supported for callers that need
+  /// the service to manage its own subscription (e.g. isolated widgets).
+  StreamSubscription<DocumentSnapshot>? _debateSub;
+
+  /// Opens its own stream — use only when you can't feed data externally.
+  void startWithOwnStream() {
     _debateSub?.cancel();
-    _timer?.cancel();
+    _ticker?.cancel();
     _debateSub = FirebaseFirestore.instance
         .collection('debates')
         .doc(debateId)
@@ -31,22 +60,10 @@ class DebateTimerService {
         .listen((doc) {
       final data = doc.data();
       if (data == null) return;
-
-      final roundIndex = _readRoundIndex(data);
-      if (roundIndex != _activeRoundIndex) {
-        _activeRoundIndex = roundIndex;
-        _didFireTimerEnd = false;
-      }
-
-      _isTimerRunning = data['isTimerRunning'] ?? false;
-      if (_isTimerRunning) {
-        _syncTimer(data);
-      } else {
-        _stopTimer();
-      }
+      onDebateData(data);
     }, onError: (Object error) {
       debugPrint('DebateTimerService stream error: $error');
-      _stopTimer();
+      _pauseTicker();
       timeLeftNotifier.value = 0;
     });
   }
@@ -64,8 +81,8 @@ class DebateTimerService {
         data['durationSec'];
     if (raw is int) return raw > 0 ? raw : initialSeconds;
     if (raw is num) {
-      final normalized = raw.toInt();
-      return normalized > 0 ? normalized : initialSeconds;
+      final n = raw.toInt();
+      return n > 0 ? n : initialSeconds;
     }
     return initialSeconds;
   }
@@ -95,7 +112,7 @@ class DebateTimerService {
   }
 
   void _syncTimer(Map<String, dynamic> data) {
-    _timer?.cancel();
+    _ticker?.cancel();
 
     _roundEndsAt = _readRoundEnd(data);
     final fallbackSeconds = _readDurationSeconds(data);
@@ -111,7 +128,7 @@ class DebateTimerService {
       return;
     }
 
-    _timer = Timer.periodic(const Duration(seconds: 1), (t) {
+    _ticker = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!_isTimerRunning) {
         t.cancel();
         return;
@@ -133,15 +150,16 @@ class DebateTimerService {
     });
   }
 
-  void _stopTimer() {
-    _timer?.cancel();
+  void _pauseTicker() {
+    _ticker?.cancel();
     _roundEndsAt = null;
     _didFireTimerEnd = false;
   }
 
   void dispose() {
-    _stopTimer();
-    _timer?.cancel();
+    _ticker?.cancel();
     _debateSub?.cancel();
+    _ticker = null;
+    _debateSub = null;
   }
 }

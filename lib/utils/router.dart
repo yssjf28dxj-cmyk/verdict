@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../screens/splash_screen.dart';
 import '../screens/auth_screen.dart';
@@ -17,6 +18,38 @@ import '../screens/welcome_screen.dart';
 
 final appRouter = GoRouter(
   initialLocation: '/',
+  debugLogDiagnostics: false,
+  errorBuilder: (context, state) => Scaffold(
+    backgroundColor: const Color(0xFF0D1117),
+    body: Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.error_outline, color: Color(0xFFFFD700), size: 48),
+          const SizedBox(height: 16),
+          const Text(
+            'Page not found',
+            style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            state.error?.message ?? state.uri.toString(),
+            style: const TextStyle(color: Colors.white38, fontSize: 13),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFFD700),
+              foregroundColor: Colors.black,
+            ),
+            onPressed: () => context.go('/home'),
+            child: const Text('Go Home'),
+          ),
+        ],
+      ),
+    ),
+  ),
   routes: [
     GoRoute(
       path: '/',

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
+import 'package:audio_waveforms/audio_waveforms.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DebateInputBar — fully self-contained input bar for the Debate Room.
@@ -23,6 +24,7 @@ class DebateInputBar extends StatelessWidget {
   final bool isRecording;
   final bool isRoundActive;
   final bool isYielding;
+  final RecorderController recorderController;
   final DateTime? recordingStartTime;
   final TextEditingController textController;
   final VoidCallback onSend;
@@ -34,6 +36,8 @@ class DebateInputBar extends StatelessWidget {
   /// Called when the user confirms yielding (either Flow A or Flow B).
   /// Null when yield is not available (not speaker's turn, round inactive).
   final VoidCallback? onYield;
+  /// Called on text input change for activity indicator publishing.
+  final ValueChanged<String>? onTypingChanged;
 
   const DebateInputBar({
     super.key,
@@ -43,6 +47,7 @@ class DebateInputBar extends StatelessWidget {
     required this.isRecording,
     required this.isRoundActive,
     required this.isYielding,
+    required this.recorderController,
     required this.recordingStartTime,
     required this.textController,
     required this.onSend,
@@ -52,6 +57,7 @@ class DebateInputBar extends StatelessWidget {
     required this.onCancelRecording,
     required this.onSendRecording,
     this.onYield,
+    this.onTypingChanged,
   });
 
   bool get _yieldAvailable => isMyTurn && isRoundActive && !isYielding;
@@ -60,6 +66,7 @@ class DebateInputBar extends StatelessWidget {
   Widget build(BuildContext context) {
     if (isRecording) {
       return _RecordingBar(
+        recorderController: recorderController,
         recordingStartTime: recordingStartTime,
         onCancel: onCancelRecording,
         onSend: onSendRecording,
@@ -79,6 +86,7 @@ class DebateInputBar extends StatelessWidget {
       onMicLongPressEnd: onMicLongPressEnd,
       onPickImage: onPickImage,
       onYield: onYield,
+      onTypingChanged: onTypingChanged,
     );
   }
 }
@@ -96,6 +104,7 @@ class _NormalInputBar extends StatefulWidget {
   final void Function(LongPressEndDetails) onMicLongPressEnd;
   final VoidCallback onPickImage;
   final VoidCallback? onYield;
+  final ValueChanged<String>? onTypingChanged;
 
   const _NormalInputBar({
     required this.isMyTurn,
@@ -108,6 +117,7 @@ class _NormalInputBar extends StatefulWidget {
     required this.onMicLongPressEnd,
     required this.onPickImage,
     this.onYield,
+    this.onTypingChanged,
   });
 
   @override
@@ -120,6 +130,7 @@ class _NormalInputBarState extends State<_NormalInputBar> {
   void _onTextChanged() {
     _isTypingNotifier.value =
         widget.textController.text.trim().isNotEmpty;
+    widget.onTypingChanged?.call(widget.textController.text);
   }
 
   @override
@@ -274,11 +285,13 @@ class _NormalInputBarState extends State<_NormalInputBar> {
 // ─── RECORDING STATE ─────────────────────────────────────────
 
 class _RecordingBar extends StatelessWidget {
+  final RecorderController recorderController;
   final DateTime? recordingStartTime;
   final VoidCallback onCancel;
   final VoidCallback onSend;
 
   const _RecordingBar({
+    required this.recorderController,
     required this.recordingStartTime,
     required this.onCancel,
     required this.onSend,
@@ -335,7 +348,21 @@ class _RecordingBar extends StatelessWidget {
           const SizedBox(width: 12),
 
           // Animated waveform
-          const Expanded(child: _RecordingWaveform()),
+          Expanded(
+            child: AudioWaveforms(
+              size: const Size(double.infinity, 30),
+              recorderController: recorderController,
+              enableGesture: false,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              waveStyle: const WaveStyle(
+                waveColor: Color(0xFFFF4B4B),
+                showMiddleLine: false,
+                extendWaveform: true,
+                spacing: 4,
+                scaleFactor: 120, // Sensitive peaks
+              ),
+            ),
+          ),
           const SizedBox(width: 12),
 
           // Cancel

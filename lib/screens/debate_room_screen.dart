@@ -1,5 +1,9 @@
 import 'dart:async';
-import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
+// dart:io is only available on mobile/desktop, not Web.
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:io' if (dart.library.html) 'dart:html' as io_shim;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,10 +12,12 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
+import 'package:audio_waveforms/audio_waveforms.dart';
 import '../models/debate.dart';
 import '../painters/chat_pattern_painter.dart';
 import '../widgets/debate_messages_list.dart';
 import '../widgets/debate_input_bar.dart';
+import '../widgets/opponent_activity_indicator.dart';
 import '../services/media_upload_service.dart';
 import '../services/referee_service.dart';
 import '../services/debate_alert_service.dart';
@@ -63,6 +69,8 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
 
   final TextEditingController _messageController = TextEditingController();
   final FirebaseFunctions _functions = FirebaseFunctions.instance;
+  Timer? _typingDebouncer;
+  Timer? _activityClearTimer;
 
   Debate? _debate;
 
@@ -127,11 +135,14 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
   bool _isRecording = false;
   bool _isUploadingMedia = false;
   final AudioRecorder _audioRecorder = AudioRecorder();
+  late final RecorderController _recorderController;
   String? _recordingPath;
   DateTime? _recordingStartTime;
 
   Timer? _roundCountdownTicker;
-  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? debateSub;
+  StreamSubscription<DocumentSnapshot>? _debateSub;
+  StreamSubscription<DocumentSnapshot>? _activitySub;
+  String _activeSpeakerActivity = ''; // 'typing', 'recording', 'image', ''
   DateTime? _roundEndsAtLocal;
 
   String currentUserId = '';
@@ -319,7 +330,14 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
     WidgetsBinding.instance.addObserver(this);
     _timeLeftNotifier = ValueNotifier<int>(60);
     _dangerZoneNotifier = ValueNotifier<bool>(false);
-    _dangerPulseNotifier = ValueNotifier<bool>(false);
+    _dangerPulseNotifier = ValueNotifier(false);
+
+    _recorderController = RecorderController()
+      ..androidEncoder = AndroidEncoder.aac
+      ..androidOutputFormat = AndroidOutputFormat.mpeg4
+      ..iosEncoder = IosEncoder.kAudioFormatMPEG4AAC
+      ..sampleRate = 44100;
+
     _bootstrapCurrentUserIdentity();
     _startRoundCountdownTicker();
     _loadDebate();
@@ -564,7 +582,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
       await _attemptAdvanceRoundOrFinish();
     }
 
-    debateSub = ref.snapshots().listen((doc) {
+    _debateSub = ref.snapshots().listen((doc) {
       final liveData = doc.data() ?? {};
       final previousRound = roundIndex;
       final previousStatus = status;
@@ -580,8 +598,36 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
           fallback: status == 'finished' ? 'finished' : 'waiting');
       _syncRoundCountdownFromData(liveData, newStatus);
 
+      // Listener for active speaker's activity
+      final currentActiveSpeaker = (liveData['activeSpeakerId'] ?? '').toString();
+      if (currentActiveSpeaker != activeSpeakerId && currentActiveSpeaker.isNotEmpty) {
+        _activitySub?.cancel();
+        _activitySub = FirebaseFirestore.instance
+            .collection('debates')
+            .doc(widget.debateId)
+            .collection('activity')
+            .doc(currentActiveSpeaker)
+            .snapshots()
+            .listen((actSnap) {
+          if (!mounted) return;
+          final actData = actSnap.data();
+          if (actData != null) {
+            final st = (actData['status'] ?? '').toString();
+            final updated = actData['updatedAt'] as Timestamp?;
+            if (updated != null && DateTime.now().difference(updated.toDate()).inSeconds < 10) {
+              setState(() => _activeSpeakerActivity = st);
+            } else {
+              setState(() => _activeSpeakerActivity = '');
+            }
+          } else {
+            setState(() => _activeSpeakerActivity = '');
+          }
+        });
+      }
+
       _debate = Debate.fromMap(widget.debateId, liveData);
       setState(() {
+        _isRoundActiveMutated = false; // Reset optimistic lock
         final pending = liveData['pendingPenalty'];
         if (pending is Map && currentUserId.isNotEmpty) {
           final raw = pending[currentUserId];
@@ -1267,6 +1313,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
       if (!mounted) return;
       currentUserName = senderName;
       _messageController.clear();
+      _clearMyActivity();
     } on FirebaseFunctionsException catch (e) {
       final retryableCodes = {
         'internal',
@@ -1320,6 +1367,13 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
   // ─── VOICE RECORDING ──────────────────────────────────────
 
   Future<void> _startRecording() async {
+    if (kIsWeb) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Голосовые сообщения недоступны в Web-версии')),
+      );
+      return;
+    }
     if (_isRecording || _isUploadingMedia) return;
     if (!isFighter || !isMyTurn || status == 'finished') return;
 
@@ -1327,20 +1381,14 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
       if (!await _audioRecorder.hasPermission()) return;
 
       final dir = await getTemporaryDirectory();
-      final path = '${dir.path}/verdict_voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      final path =
+          '${dir.path}/verdict_voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
 
-      await _audioRecorder.start(
-        const RecordConfig(
-          encoder: AudioEncoder.aacLc,
-          bitRate: 128000,
-          sampleRate: 44100,
-          numChannels: 1, // mono — eliminates stereo phase artifacts & crackling
-        ),
-        path: path,
-      );
+      await _recorderController.record(path: path);
 
       if (!mounted) return;
       HapticFeedback.mediumImpact();
+      _publishActivity('recording');
       setState(() {
         _isRecording = true;
         _recordingPath = path;
@@ -1355,7 +1403,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
     if (!_isRecording) return;
 
     try {
-      final path = await _audioRecorder.stop();
+      final path = await _recorderController.stop();
       if (!mounted) return;
 
       final duration = _recordingStartTime != null
@@ -1367,11 +1415,14 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
         _recordingPath = null;
         _recordingStartTime = null;
       });
+      _clearMyActivity();
 
       if (path == null || path.isEmpty) return;
       if (duration < 1) {
         // Too short — delete and ignore
-        try { File(path).deleteSync(); } catch (_) {}
+        if (!kIsWeb) {
+          try { io_shim.File(path).deleteSync(); } catch (_) {}
+        }
         return;
       }
 
@@ -1390,9 +1441,11 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
   Future<void> _cancelRecording() async {
     if (!_isRecording) return;
     try {
-      await _audioRecorder.stop();
+      await _recorderController.stop();
       if (_recordingPath != null) {
-        try { File(_recordingPath!).deleteSync(); } catch (_) {}
+        if (!kIsWeb) {
+          try { io_shim.File(_recordingPath!).deleteSync(); } catch (_) {}
+        }
       }
     } catch (_) {}
     if (mounted) {
@@ -1402,6 +1455,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
         _recordingStartTime = null;
       });
     }
+    _clearMyActivity();
   }
 
   // ─── IMAGE PICKING ────────────────────────────────────────
@@ -1421,6 +1475,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
       if (picked == null || !mounted) return;
 
       HapticFeedback.lightImpact();
+      _publishActivity('image');
       await _sendMediaMessage(
         filePath: picked.path,
         messageType: 'image',
@@ -1540,9 +1595,17 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
     try {
       await _functions
           .httpsCallable('yieldTurn')
-          .call({'debateId': widget.debateId});
+          .call({'debateId': widget.debateId})
+          .timeout(const Duration(seconds: 10));
+    } on TimeoutException {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${l10n.errorPrefix}: Превышено время ожидания.')),
+      );
+      setState(() => isRoundActive = true); // Rollback optimistic lock!
     } on FirebaseFunctionsException catch (e) {
       if (!mounted) return;
+      setState(() => isRoundActive = true); // Rollback optimistic lock!
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -1552,6 +1615,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
       );
     } catch (_) {
       if (!mounted) return;
+      setState(() => isRoundActive = true); // Rollback optimistic lock!
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('${l10n.errorPrefix}: не удалось уступить слово.')),
       );
@@ -1676,7 +1740,9 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
       if (mounted) setState(() => _isUploadingMedia = false);
       // Only delete temp file on success — keep it for retry on failure.
       if (succeeded) {
-        try { File(filePath).deleteSync(); } catch (_) {}
+        if (!kIsWeb) {
+          try { io_shim.File(filePath).deleteSync(); } catch (_) {}
+        }
       }
     }
   }
@@ -1685,7 +1751,11 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _roundCountdownTicker?.cancel();
-    debateSub?.cancel();
+    _typingDebouncer?.cancel();
+    _activityClearTimer?.cancel();
+    _debateSub?.cancel();
+    _activitySub?.cancel();
+    _clearMyActivity();
     _advanceAttemptToken++;
     _advancePending = false;
     _messageController.dispose();
@@ -1693,7 +1763,58 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
     _dangerZoneNotifier.dispose();
     _dangerPulseNotifier.dispose();
     _audioRecorder.dispose();
+    _recorderController.dispose();
     super.dispose();
+  }
+
+  // ─── ACTIVITY PUBLISHING ─────────────────────────────────
+
+  /// Publish current user activity to Firestore subcollection.
+  void _publishActivity(String activityStatus) {
+    if (currentUserId.isEmpty) return;
+    FirebaseFirestore.instance
+        .collection('debates')
+        .doc(widget.debateId)
+        .collection('activity')
+        .doc(currentUserId)
+        .set({
+      'status': activityStatus,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    // Auto-clear after 8 seconds of inactivity
+    _activityClearTimer?.cancel();
+    if (activityStatus.isNotEmpty) {
+      _activityClearTimer = Timer(const Duration(seconds: 8), () {
+        _clearMyActivity();
+      });
+    }
+  }
+
+  void _clearMyActivity() {
+    if (currentUserId.isEmpty) return;
+    FirebaseFirestore.instance
+        .collection('debates')
+        .doc(widget.debateId)
+        .collection('activity')
+        .doc(currentUserId)
+        .set({
+      'status': '',
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  /// Call from text input onChange — debounced at 500ms.
+  void _onTypingChanged(String text) {
+    _typingDebouncer?.cancel();
+    if (text.trim().isNotEmpty) {
+      _publishActivity('typing');
+      _typingDebouncer = Timer(const Duration(milliseconds: 2000), () {
+        _clearMyActivity();
+      });
+    } else {
+      _clearMyActivity();
+    }
   }
 
   @override
@@ -1836,7 +1957,15 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
                         ],
                       ),
                     ),
-                    if (isFighter && status != 'finished')
+                    if (isFighter && status != 'finished') ...[
+                      // ── Opponent Activity Indicator ──
+                      if (_activeSpeakerActivity.isNotEmpty && !isMyTurn)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+                          child: OpponentActivityIndicator(
+                            activity: _activeSpeakerActivity,
+                          ),
+                        ),
                       SafeArea(
                         top: false,
                         child: Padding(
@@ -1848,6 +1977,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
                             isRecording: _isRecording,
                             isRoundActive: isRoundActive,
                             isYielding: _isYieldingTurn,
+                            recorderController: _recorderController,
                             recordingStartTime: _recordingStartTime,
                             textController: _messageController,
                             onSend: sendMessage,
@@ -1859,9 +1989,11 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
                             onYield: isMyTurn && isRoundActive
                                 ? _onYieldPressed
                                 : null,
+                            onTypingChanged: _onTypingChanged,
                           ),
                         ),
                       ),
+                    ],
                     if (status == 'finished')
                       Container(
                         width: double.infinity,

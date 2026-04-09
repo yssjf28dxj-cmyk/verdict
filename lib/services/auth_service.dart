@@ -140,15 +140,30 @@ class AuthService {
     required String email,
   }) async {
     final userRef = _firestore.collection('users').doc(uid);
-    final userSnap = await userRef.get();
 
-    if (!userSnap.exists) {
-      await userRef.set({
-        'name': name,
-        'email': email,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-    }
+    // Устраняем Race Condition:
+    // Используем `merge: true` вместо предварительного чтения (`get()`).
+    // Если пользователь не существует, он будет создан с name/email и createdAt.
+    // Если он существует, но `createdAt` или имя уже есть, они не перезапишутся пустыми
+    // благодаря логике Firestore: мы обновим только те поля, которые мы передаем, добавляя новые.
+    // Если name пустой, возможно, стоит не перезаписывать его, если он не пустой.
+    // Firestore не предоставляет встроенной условной вставки, кроме транзакций.
+    // Но так как `name` передается, мы можем просто обновить его.
+
+    await _firestore.runTransaction((transaction) async {
+      final snap = await transaction.get(userRef);
+
+      if (!snap.exists) {
+        transaction.set(userRef, {
+          'name': name,
+          'email': email,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      } else if (name.isNotEmpty &&
+          (snap.data()?['name'] ?? '').toString().trim().isEmpty) {
+        transaction.update(userRef, {'name': name});
+      }
+    });
   }
 
   Future<void> signOut() async {

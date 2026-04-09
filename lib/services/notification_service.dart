@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:go_router/go_router.dart';
 
 class NotificationService {
   static void showVerdictSnackBar({
@@ -107,7 +108,7 @@ class NotificationService {
                     backgroundColor: Colors.orangeAccent,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(15))),
-                onPressed: () => Navigator.pop(context),
+                onPressed: () => context.pop(),
                 child: const Text('ПРИНЯТЬ',
                     style: TextStyle(
                         color: Colors.black, fontWeight: FontWeight.bold)),

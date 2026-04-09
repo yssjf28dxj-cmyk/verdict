@@ -16,20 +16,17 @@ class WorldChatScreen extends StatefulWidget {
   State<WorldChatScreen> createState() => _WorldChatScreenState();
 }
 
-class _WorldChatScreenState extends State<WorldChatScreen>
-    with WidgetsBindingObserver {
+class _WorldChatScreenState extends State<WorldChatScreen> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   bool _sending = false;
   late final Stream<QuerySnapshot> _chatStream;
-  double _keyboardInset = 0;
   int _lastMessageCount = 0;
   bool _autoScrollScheduled = false;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     _chatStream = FirebaseFirestore.instance
         .collection('world_messages')
         .orderBy('timestamp')
@@ -39,32 +36,11 @@ class _WorldChatScreenState extends State<WorldChatScreen>
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
     _controller.dispose();
     _scrollController.dispose();
     super.dispose();
   }
 
-  @override
-  void didChangeMetrics() {
-    final view = WidgetsBinding.instance.platformDispatcher.views.first;
-    final newInset = view.viewInsets.bottom / view.devicePixelRatio;
-    if (newInset != _keyboardInset) {
-      setState(() {
-        _keyboardInset = newInset;
-      });
-      if (_scrollController.hasClients) {
-        Future.delayed(const Duration(milliseconds: 100), () {
-          if (!mounted || !_scrollController.hasClients) return;
-          _scrollController.animateTo(
-            _scrollController.position.maxScrollExtent,
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeOut,
-          );
-        });
-      }
-    }
-  }
 
   Future<void> _sendMessage() async {
     final user = FirebaseAuth.instance.currentUser;
@@ -188,12 +164,8 @@ class _WorldChatScreenState extends State<WorldChatScreen>
               painter: ChatPatternPainter(color: Color(0x0AFFFFFF)),
             ),
           ),
-          AnimatedPadding(
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeOut,
-            padding: EdgeInsets.only(bottom: _keyboardInset),
-            child: Column(
-              children: [
+          Column(
+            children: [
                 Expanded(
                   child: StreamBuilder<QuerySnapshot>(
                     stream: _chatStream,
@@ -432,9 +404,8 @@ class _WorldChatScreenState extends State<WorldChatScreen>
                 ),
               ],
             ),
-          ),
-        ],
-      ),
-    );
-  }
+          ],
+        ),
+      );
+    }
 }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import '../painters/chat_pattern_painter.dart';
+import '../services/pending_debate_service.dart';
 import '../utils/debate_error_mapper.dart';
 import '../utils/style_utils.dart';
 import '../l10n/app_localizations.dart';
@@ -36,6 +37,19 @@ class _LobbyScreenState extends State<LobbyScreen> {
   int? _proposedDurationSeconds;
   int? _proposedTotalRounds;
   final FirebaseFunctions _functions = FirebaseFunctions.instance;
+
+  @override
+  void initState() {
+    super.initState();
+    // Register this debate with the background watcher so
+    // the user can minimize and still get auto-redirected.
+    PendingDebateService.instance.startWatching(widget.debateId);
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+  }
 
   int _sanitizeDuration(dynamic value, int fallback) {
     final candidate = value is int ? value : fallback;
@@ -172,10 +186,15 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
   Future<void> _cancelDebate() async {
     final l10n = AppLocalizations.of(context)!;
+    // BUG FIX: was calling context.pop() BEFORE the actual API call.
+    // Now we properly call the backend first, then navigate out.
     final callable = _functions.httpsCallable('cancelDebateChallenge');
     final payload = {'debateId': widget.debateId};
     setState(() => _isCancelling = true);
     try {
+      await callable.call(payload);
+      // Stop background watching since we cancelled
+      PendingDebateService.instance.stopWatching();
       if (!mounted) return;
       context.pop();
     } on FirebaseFunctionsException catch (e) {
@@ -202,6 +221,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
       try {
         await Future.delayed(const Duration(milliseconds: 900));
         await callable.call(payload);
+        PendingDebateService.instance.stopWatching();
         if (!mounted) return;
         context.pop();
       } on FirebaseFunctionsException catch (retryError) {
@@ -302,6 +322,16 @@ class _LobbyScreenState extends State<LobbyScreen> {
     }
   }
 
+  void _minimizeLobby() {
+    // Keep the PendingDebateService watching in the background,
+    // and just go back to the previous screen (home feed).
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/home');
+    }
+  }
+
   void _triggerStartSequenceIfNeeded() {
     if (_navigated || _showStartedBanner) return;
     setState(() {
@@ -310,6 +340,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
     Future.delayed(const Duration(milliseconds: 1200), () {
       if (!mounted || _navigated) return;
       _navigated = true;
+      // Stop background service since we are navigating directly
+      PendingDebateService.instance.stopWatching();
       context.replace('/debate/${widget.debateId}');
     });
   }
@@ -326,6 +358,11 @@ class _LobbyScreenState extends State<LobbyScreen> {
         foregroundColor: Colors.white,
         elevation: 0,
         scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 28),
+          tooltip: 'Minimize — keep waiting in background',
+          onPressed: _minimizeLobby,
+        ),
         title: Text(
           l10n.lobbyWaitingTitle,
           style: const TextStyle(
@@ -357,6 +394,10 @@ class _LobbyScreenState extends State<LobbyScreen> {
               final data = snapshot.data!.data() ?? {};
               final status = data['status'] ?? 'waiting';
               final topic = data['topic'] ?? l10n.loadingTopic;
+
+              // Update topic in background service so the pill/overlay shows it
+              PendingDebateService.instance.updateTopic(widget.debateId, topic.toString());
+
               final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
               final invitedUserId = (data['invitedUserId'] ?? '').toString();
               final fighter1 = (data['fighter1'] ?? '').toString();

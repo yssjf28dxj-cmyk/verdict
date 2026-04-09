@@ -4,6 +4,7 @@ import 'l10n/app_localizations.dart';
 
 import 'utils/router.dart';
 import 'services/app_locale_controller.dart';
+import 'widgets/pending_debate_banner.dart';
 
 class VerdictApp extends StatelessWidget {
   final ThemeData theme;
@@ -33,6 +34,11 @@ class VerdictApp extends StatelessWidget {
             GlobalWidgetsLocalizations.delegate,
           ],
           routerConfig: appRouter,
+          // PendingDebateBanner must be INSIDE MaterialApp so it
+          // inherits Directionality, MediaQuery, and GoRouter context.
+          builder: (context, child) => PendingDebateBanner(
+            child: child ?? const SizedBox.shrink(),
+          ),
         );
       },
     );
