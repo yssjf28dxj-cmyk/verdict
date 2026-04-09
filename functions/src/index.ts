@@ -2419,3 +2419,112 @@ export const migrateLegacyNamePlaceholders = onCall({ invoker: 'public' }, async
   }
 });
 
+// ─── DELETE DEBATE MESSAGES ──────────────────────────────────────────────────
+// Deletes one or more of the caller's own messages from a debate, including
+// the associated Firebase Storage file (image / voice) when present.
+//
+// Params: { debateId: string, messageIds: string[] }  (max 50 per call)
+// Returns: { deleted: number }
+//
+// Security: server validates senderId == uid for every message before deleting.
+// Firestore rules keep allow delete: if false — all deletes go through here.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Extract the storage object path from a Firebase Storage download URL. */
+function extractStoragePath(url: string): string | null {
+  try {
+    // Download URL format:
+    //   https://firebasestorage.googleapis.com/v0/b/{bucket}/o/{encoded-path}?...
+    const parts = url.split('/o/');
+    if (parts.length < 2) return null;
+    return decodeURIComponent(parts[1].split('?')[0]);
+  } catch {
+    return null;
+  }
+}
+
+export const deleteDebateMessages = onCall({ invoker: 'public' }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) {
+    throw new HttpsError('unauthenticated', 'Требуется авторизация.', {
+      reason: 'DELETE_AUTH_REQUIRED',
+    });
+  }
+
+  const data = request.data as { debateId?: unknown; messageIds?: unknown };
+  const debateId = typeof data.debateId === 'string' ? data.debateId.trim() : '';
+  const messageIds = Array.isArray(data.messageIds) ? data.messageIds as unknown[] : [];
+
+  if (!debateId) {
+    throw new HttpsError('invalid-argument', 'debateId обязателен.', {
+      reason: 'DELETE_MISSING_DEBATE_ID',
+    });
+  }
+  if (messageIds.length === 0) {
+    throw new HttpsError('invalid-argument', 'messageIds не может быть пустым.', {
+      reason: 'DELETE_EMPTY_IDS',
+    });
+  }
+  if (messageIds.length > 50) {
+    throw new HttpsError('invalid-argument', 'Максимум 50 сообщений за один запрос.', {
+      reason: 'DELETE_TOO_MANY_IDS',
+    });
+  }
+
+  const validIds = messageIds.filter((id): id is string => typeof id === 'string' && id.trim().length > 0);
+  if (validIds.length === 0) {
+    throw new HttpsError('invalid-argument', 'Нет корректных messageIds.', {
+      reason: 'DELETE_INVALID_IDS',
+    });
+  }
+
+  const messagesRef = db.collection('debates').doc(debateId).collection('messages');
+
+  // Fetch all requested message snapshots in parallel.
+  const snaps = await Promise.all(validIds.map(id => messagesRef.doc(id).get()));
+
+  const batch = db.batch();
+  const storagePathsToDelete: string[] = [];
+  let deletedCount = 0;
+
+  for (const snap of snaps) {
+    if (!snap.exists) continue; // Already deleted — skip silently.
+
+    const msgData = snap.data() ?? {};
+
+    // Security enforcement: only the original sender can delete their message.
+    if (msgData['senderId'] !== uid) {
+      throw new HttpsError('permission-denied', 'Нельзя удалять чужие сообщения.', {
+        reason: 'DELETE_NOT_OWNER',
+      });
+    }
+
+    batch.delete(snap.ref);
+    deletedCount += 1;
+
+    // Collect Storage path for cleanup.
+    const mediaUrl = typeof msgData['mediaUrl'] === 'string' ? msgData['mediaUrl'] : '';
+    if (mediaUrl) {
+      const path = extractStoragePath(mediaUrl);
+      if (path) storagePathsToDelete.push(path);
+    }
+  }
+
+  // Commit all Firestore deletes atomically.
+  await batch.commit();
+
+  // Delete Storage files best-effort — never fail the whole call over this.
+  if (storagePathsToDelete.length > 0) {
+    const bucket = admin.storage().bucket();
+    await Promise.allSettled(
+      storagePathsToDelete.map(path =>
+        bucket.file(path).delete().catch(err =>
+          console.warn(`[deleteDebateMessages] Storage delete failed for ${path}: ${err}`),
+        ),
+      ),
+    );
+  }
+
+  return { deleted: deletedCount };
+});
+

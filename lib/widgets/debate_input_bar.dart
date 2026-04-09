@@ -38,6 +38,8 @@ class DebateInputBar extends StatelessWidget {
   final VoidCallback? onYield;
   /// Called on text input change for activity indicator publishing.
   final ValueChanged<String>? onTypingChanged;
+  /// Current batch upload progress label, e.g. "3/10". Null for single uploads.
+  final String? uploadProgress;
 
   const DebateInputBar({
     super.key,
@@ -58,6 +60,7 @@ class DebateInputBar extends StatelessWidget {
     required this.onSendRecording,
     this.onYield,
     this.onTypingChanged,
+    this.uploadProgress,
   });
 
   bool get _yieldAvailable => isMyTurn && isRoundActive && !isYielding;
@@ -87,6 +90,7 @@ class DebateInputBar extends StatelessWidget {
       onPickImage: onPickImage,
       onYield: onYield,
       onTypingChanged: onTypingChanged,
+      uploadProgress: uploadProgress,
     );
   }
 }
@@ -105,6 +109,7 @@ class _NormalInputBar extends StatefulWidget {
   final VoidCallback onPickImage;
   final VoidCallback? onYield;
   final ValueChanged<String>? onTypingChanged;
+  final String? uploadProgress;
 
   const _NormalInputBar({
     required this.isMyTurn,
@@ -118,6 +123,7 @@ class _NormalInputBar extends StatefulWidget {
     required this.onPickImage,
     this.onYield,
     this.onTypingChanged,
+    this.uploadProgress,
   });
 
   @override
@@ -250,18 +256,43 @@ class _NormalInputBarState extends State<_NormalInputBar> {
 
         // ── Send / Upload spinner ──
         if (widget.isUploading)
-          const SizedBox(
-            width: 42,
+          SizedBox(
+            width: widget.uploadProgress != null ? 56 : 42,
             height: 42,
             child: Center(
-              child: SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.2,
-                  color: Color(0xFFFFA500),
-                ),
-              ),
+              child: widget.uploadProgress != null
+                  // Batch mode: counter + spinner side by side.
+                  ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          widget.uploadProgress!,
+                          style: const TextStyle(
+                            color: Color(0xFFFFA500),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                        const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.0,
+                            color: Color(0xFFFFA500),
+                          ),
+                        ),
+                      ],
+                    )
+                  // Single upload: plain spinner.
+                  : const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.2,
+                        color: Color(0xFFFFA500),
+                      ),
+                    ),
             ),
           )
         else

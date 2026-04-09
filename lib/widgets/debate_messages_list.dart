@@ -1,5 +1,6 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -19,6 +20,8 @@ class DebateMessagesList extends StatefulWidget {
   /// When non-null, shows a local "uploading" placeholder bubble at the
   /// bottom of the chat (index 0 in the reversed list).
   final String? uploadingMediaType;
+  /// Current round index — used to scope "Clear My Round" deletes.
+  final int currentRoundIndex;
 
   const DebateMessagesList({
     super.key,
@@ -27,6 +30,7 @@ class DebateMessagesList extends StatefulWidget {
     this.showWaitingTurn = false,
     this.waitingText = '',
     this.uploadingMediaType,
+    this.currentRoundIndex = 1,
   });
 
   @override
@@ -36,6 +40,9 @@ class DebateMessagesList extends StatefulWidget {
 class _DebateMessagesListState extends State<DebateMessagesList> {
   // Track which messages have already played their entrance animation.
   final Set<String> _animatedIds = <String>{};
+
+  // IDs currently playing their exit (delete) animation.
+  final Set<String> _deletingIds = <String>{};
 
   // ScrollController for programmatic auto-scroll to newest message.
   final ScrollController _scrollController = ScrollController();
@@ -82,6 +89,147 @@ class _DebateMessagesListState extends State<DebateMessagesList> {
     return '$hh:$mm';
   }
 
+  // ─── DELETE LOGIC ─────────────────────────────────────────
+
+  /// Starts exit animation then calls the CF to delete one or more messages.
+  /// On CF failure, reverts the animation and shows an error snackbar.
+  Future<void> _deleteMessages(
+    BuildContext ctx,
+    List<String> ids,
+  ) async {
+    if (ids.isEmpty || !mounted) return;
+
+    setState(() {
+      for (final id in ids) { _deletingIds.add(id); }
+    });
+
+    try {
+      final callable = FirebaseFunctions.instance.httpsCallable(
+        'deleteDebateMessages',
+        options: HttpsCallableOptions(timeout: const Duration(seconds: 20)),
+      );
+      await callable.call({
+        'debateId': widget.debateId,
+        'messageIds': ids,
+      });
+    } catch (_) {
+      // Revert animation on failure.
+      if (mounted) {
+        setState(() {
+          for (final id in ids) { _deletingIds.remove(id); }
+        });
+        if (ctx.mounted) {
+          ScaffoldMessenger.of(ctx).showSnackBar(
+            const SnackBar(
+              content: Text('Не удалось удалить сообщение. Попробуйте ещё раз.'),
+              behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  /// Shows the bottom-sheet delete menu for an own message.
+  void _showDeleteMenu({
+    required BuildContext ctx,
+    required String messageId,
+    required List<QueryDocumentSnapshot> allDocs,
+    required String currentUid,
+  }) {
+    HapticFeedback.mediumImpact();
+    showModalBottomSheet<void>(
+      context: ctx,
+      backgroundColor: const Color(0xFF1A2236),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetCtx) {
+        // IDs of the user's own messages in the current round — computed once.
+        final myRoundIds = allDocs
+            .where((d) {
+              final data = d.data() as Map<String, dynamic>? ?? {};
+              final sid = (data['senderId'] ?? '').toString();
+              final ri = data['roundIndex'];
+              final roundIdx = ri is num ? ri.toInt() : 0;
+              return sid == currentUid && roundIdx == widget.currentRoundIndex;
+            })
+            .map((d) => d.id)
+            .toList();
+
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Drag handle
+              Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              // Delete this message
+              ListTile(
+                leading: const Icon(
+                  Icons.delete_outline_rounded,
+                  color: Color(0xFFFF4B4B),
+                ),
+                title: const Text(
+                  'Удалить сообщение',
+                  style: TextStyle(color: Colors.white, fontSize: 15),
+                ),
+                onTap: () {
+                  Navigator.pop(sheetCtx);
+                  _deleteMessages(ctx, [messageId]);
+                },
+              ),
+              // Clear my round (shown only when there are messages to clear)
+              if (myRoundIds.isNotEmpty)
+                ListTile(
+                  leading: const Icon(
+                    Icons.delete_sweep_rounded,
+                    color: Color(0xFFFF8C00),
+                  ),
+                  title: Text(
+                    'Удалить мои ${myRoundIds.length} '
+                    'сообщ${_msgSuffix(myRoundIds.length)} за этот раунд',
+                    style: const TextStyle(color: Colors.white, fontSize: 15),
+                  ),
+                  onTap: () {
+                    Navigator.pop(sheetCtx);
+                    _deleteMessages(ctx, myRoundIds);
+                  },
+                ),
+              const Divider(height: 1, color: Colors.white10),
+              ListTile(
+                title: const Text(
+                  'Отмена',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white54, fontSize: 15),
+                ),
+                onTap: () => Navigator.pop(sheetCtx),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// Russian plural suffix helper: "сообщение / сообщения / сообщений"
+  String _msgSuffix(int n) {
+    final mod10 = n % 10;
+    final mod100 = n % 100;
+    if (mod100 >= 11 && mod100 <= 14) return 'ений';
+    if (mod10 == 1) return 'ение';
+    if (mod10 >= 2 && mod10 <= 4) return 'ения';
+    return 'ений';
+  }
+
   Widget _buildAvatar({required String name, required bool isMine}) {
     final safe = name.trim().isEmpty ? '?' : name.trim();
     final initial = safe.substring(0, 1).toUpperCase();
@@ -107,6 +255,8 @@ class _DebateMessagesListState extends State<DebateMessagesList> {
     required bool isMine,
     required AppLocalizations l10n,
     required double bottomPadding,
+    required List<QueryDocumentSnapshot> allDocs,
+    required String currentUid,
   }) {
     final senderName = firstNonEmptyName(
       [data['senderName'], data['sender']],
@@ -209,6 +359,19 @@ class _DebateMessagesListState extends State<DebateMessagesList> {
       child: content,
     );
 
+    // ── Long-press to delete (own messages only) ────────────
+    final tappableBubble = isMine
+        ? GestureDetector(
+            onLongPress: () => _showDeleteMenu(
+              ctx: context,
+              messageId: messageId,
+              allDocs: allDocs,
+              currentUid: currentUid,
+            ),
+            child: glassBubble,
+          )
+        : glassBubble;
+
     // ── Row layout: avatar + [name + bubble] ─────────────────
     final rowContent = Row(
       mainAxisAlignment:
@@ -242,7 +405,7 @@ class _DebateMessagesListState extends State<DebateMessagesList> {
                   ),
                 ),
               ),
-              glassBubble,
+              tappableBubble,
             ],
           ),
         ),
@@ -253,14 +416,37 @@ class _DebateMessagesListState extends State<DebateMessagesList> {
       ],
     );
 
-    // ── Entrance animation (elasticOut slide-up + fade) ──────
-    final alreadyAnimated = _animatedIds.contains(messageId);
-    if (alreadyAnimated) {
-      return Padding(
-        padding: EdgeInsets.only(bottom: bottomPadding),
-        child: rowContent,
+    final paddedRow = Padding(
+      padding: EdgeInsets.only(bottom: bottomPadding),
+      child: rowContent,
+    );
+
+    // ── Exit animation: shrink + fade when deleting ──────────
+    if (_deletingIds.contains(messageId)) {
+      return TweenAnimationBuilder<double>(
+        key: ValueKey<String>('del-$messageId'),
+        tween: Tween<double>(begin: 1.0, end: 0.0),
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.easeIn,
+        onEnd: () {
+          Future.microtask(() {
+            if (mounted) setState(() => _deletingIds.remove(messageId));
+          });
+        },
+        builder: (_, t, child) => ClipRect(
+          child: Align(
+            alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
+            heightFactor: t,
+            child: Opacity(opacity: t, child: child),
+          ),
+        ),
+        child: paddedRow,
       );
     }
+
+    // ── Entrance animation (slide-up + fade) ──────────────────
+    final alreadyAnimated = _animatedIds.contains(messageId);
+    if (alreadyAnimated) return paddedRow;
 
     return TweenAnimationBuilder<double>(
       key: ValueKey<String>('msg-anim-$messageId'),
@@ -268,7 +454,6 @@ class _DebateMessagesListState extends State<DebateMessagesList> {
       duration: const Duration(milliseconds: 200),
       curve: Curves.easeOutCubic,
       onEnd: () {
-        // Use a microtask so we don't trigger setState mid-build.
         Future.microtask(() {
           if (!mounted) return;
           setState(() => _animatedIds.add(messageId));
@@ -281,10 +466,7 @@ class _DebateMessagesListState extends State<DebateMessagesList> {
           child: child,
         ),
       ),
-      child: Padding(
-        padding: EdgeInsets.only(bottom: bottomPadding),
-        child: rowContent,
-      ),
+      child: paddedRow,
     );
   }
 
@@ -299,8 +481,7 @@ class _DebateMessagesListState extends State<DebateMessagesList> {
           .snapshots(),
       builder: (context, snapshot) {
         final l10n = AppLocalizations.of(context)!;
-        final currentUid =
-            FirebaseAuth.instance.currentUser?.uid ?? '';
+        final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
 
         // Only show spinner on the very first load (no data yet).
         // On reconnects the previous snapshot is reused — no flash.
@@ -369,6 +550,8 @@ class _DebateMessagesListState extends State<DebateMessagesList> {
                     isMine: isMine,
                     l10n: l10n,
                     bottomPadding: bottomPad,
+                    allDocs: docs,
+                    currentUid: currentUid,
                   );
                 },
               );
@@ -541,6 +724,11 @@ class _VoiceMessageContentState extends State<_VoiceMessageContent>
       _isPlayingVN.value = false;
       _progressVN.value = 0.0;
       _positionVN.value = 0;
+      // Seek back to the beginning so the user can replay without
+      // re-initialising the controller. audio_waveforms leaves the
+      // internal position at EOF after completion, making startPlayer()
+      // a no-op on the next tap.
+      _playerController.seekTo(0).ignore();
     });
 
     _preparePlayer();

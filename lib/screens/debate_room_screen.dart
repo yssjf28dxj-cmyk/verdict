@@ -42,7 +42,7 @@ class DebateRoomScreen extends StatefulWidget {
 }
 
 class _DebateRoomScreenState extends State<DebateRoomScreen>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, TickerProviderStateMixin {
   static const List<int> _durationOptions = <int>[
     30,
     60,
@@ -134,6 +134,8 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
   // ─── MEDIA STATE ──────────────────────────────────────────
   bool _isRecording = false;
   bool _isUploadingMedia = false;
+  // Non-null only during a multi-photo batch upload. Format: "current/total".
+  String? _batchUploadLabel;
   final AudioRecorder _audioRecorder = AudioRecorder();
   late final RecorderController _recorderController;
   String? _recordingPath;
@@ -165,6 +167,16 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
   String _lastBellCueKey = '';
   bool _headerCollapsed = false;
   // _isTyping removed — now owned by DebateInputBar._NormalInputBar
+
+  // ─── ROUND TRANSITION OVERLAY ────────────────────────────
+  late final AnimationController _overlayCtrl;
+  Timer? _overlayTimer;
+  String? _roundOverlayMessage;
+  // Suppresses overlay on the very first Firestore snapshot (initial load).
+  bool _debateSubFirstEvent = true;
+  // True from timer-zero until Firestore confirms the new round/speaker.
+  // Shows a "Transitioning..." banner so the user isn't staring at a frozen 0:00.
+  bool _isTransitioning = false;
   String _lastHydratedFighter1Uid = '';
   String _lastHydratedFighter2Uid = '';
 
@@ -336,7 +348,13 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
       ..androidEncoder = AndroidEncoder.aac
       ..androidOutputFormat = AndroidOutputFormat.mpeg4
       ..iosEncoder = IosEncoder.kAudioFormatMPEG4AAC
-      ..sampleRate = 44100;
+      ..sampleRate = 44100
+      ..bitRate = 128000; // 128 kbps AAC — crystal-clear voice quality
+
+    _overlayCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 380),
+    );
 
     _bootstrapCurrentUserIdentity();
     _startRoundCountdownTicker();
@@ -434,7 +452,10 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
         // Optimistic lock — disable input instantly when time expires.
         // Must come AFTER scheduling advance (which checks isRoundActive).
         if (isRoundActive) {
-          setState(() => isRoundActive = false);
+          setState(() {
+            isRoundActive = false;
+            _isTransitioning = true; // Show banner while waiting for Firestore
+          });
         }
         return;
       }
@@ -444,9 +465,12 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
         _dangerPulseNotifier.value = !_dangerPulseNotifier.value;
         if (_lastDangerHapticSecond != remaining) {
           _lastDangerHapticSecond = remaining;
-          HapticFeedback.lightImpact();
+          // Last 5s: heavy tick-tock impact. 6–10s: gentle pulse.
           if (remaining <= 5) {
+            HapticFeedback.heavyImpact();
             SoundService.instance.play(SFX.tick);
+          } else {
+            HapticFeedback.lightImpact();
           }
         }
       } else {
@@ -586,6 +610,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
       final liveData = doc.data() ?? {};
       final previousRound = roundIndex;
       final previousStatus = status;
+      final previousSpeaker = activeSpeakerId;
 
       if (!mounted) return;
 
@@ -641,6 +666,30 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
       if (_voteStatusRoundIndex != roundIndex && newStatus != 'finished') {
         if (isViewer) _refreshMyVoteStatus();
       }
+
+      // Clear transitioning banner — Firestore has confirmed the new state.
+      if (_isTransitioning) {
+        _isTransitioning = false;
+        // No extra setState needed: the surrounding setState already covers it.
+      }
+
+      // ── Round transition overlay (fighters only, not on first event) ──
+      if (isFighter && !_debateSubFirstEvent) {
+        if (newStatus == 'active' && previousStatus != 'active') {
+          // Debate just started.
+          _showRoundOverlay('БОЙ НАЧАЛСЯ!');
+        } else if (newStatus == 'active' && roundIndex > previousRound) {
+          // New round started (covers round N → round N+1).
+          _showRoundOverlay('РАУНД $roundIndex');
+        } else if (newStatus == 'active' &&
+            activeSpeakerId.isNotEmpty &&
+            activeSpeakerId == currentUserId &&
+            previousSpeaker != currentUserId) {
+          // Turn passed to me within the same round.
+          _showRoundOverlay('ВАШ ХОД!');
+        }
+      }
+      _debateSubFirstEvent = false;
 
       _cancelPendingAdvanceIfNeeded(
         previousRound: previousRound,
@@ -920,8 +969,8 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
   }
 
   Color _timerColor(int timeLeft) {
-    if (timeLeft <= 5) return const Color(0xFFFF3B30);
-    if (timeLeft <= 10) return const Color(0xFFFF6B6B);
+    if (timeLeft <= 5) return const Color(0xFFFF2222);
+    if (timeLeft <= 10) return const Color(0xFFFF4444);
     return Colors.white;
   }
 
@@ -989,12 +1038,17 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
                               ),
                             ),
                           ),
-                          Text(
-                            timerText,
-                            style: TextStyle(
-                              fontSize: _headerCollapsed ? 13 : 14,
-                              fontWeight: FontWeight.w900,
-                              color: _timerColor(timeLeft),
+                          AnimatedScale(
+                            scale: isDanger && pulse ? 1.10 : 1.0,
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeInOut,
+                            child: Text(
+                              timerText,
+                              style: TextStyle(
+                                fontSize: _headerCollapsed ? 13 : 14,
+                                fontWeight: FontWeight.w900,
+                                color: _timerColor(timeLeft),
+                              ),
                             ),
                           ),
                         ],
@@ -1060,6 +1114,10 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
     return ValueListenableBuilder<int>(
       valueListenable: _timeLeftNotifier,
       builder: (context, timeLeft, _) {
+        // Read danger/pulse values inline — the timeLeft notifier fires every
+        // second at the same rate, so these values are always current.
+        final isDanger = _dangerZoneNotifier.value;
+        final pulse = _dangerPulseNotifier.value;
         final timerText =
             status == 'active' ? _formatTimeLeft(timeLeft) : '--:--';
         return Column(
@@ -1076,12 +1134,17 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
                   ),
                 ),
                 const Spacer(),
-                Text(
-                  timerText,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w900,
-                    color: _timerColor(timeLeft),
+                AnimatedScale(
+                  scale: isDanger && pulse ? 1.10 : 1.0,
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                  child: Text(
+                    timerText,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                      color: _timerColor(timeLeft),
+                    ),
                   ),
                 ),
               ],
@@ -1464,24 +1527,126 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
     if (_isUploadingMedia || _isRecording) return;
     if (!isFighter || !isMyTurn || status == 'finished') return;
 
+    // Pick up to 10 photos at once.
+    List<XFile> files;
     try {
-      final picker = ImagePicker();
-      final picked = await picker.pickImage(
-        source: ImageSource.gallery,
+      files = await ImagePicker().pickMultiImage(
         maxWidth: 1280,
         maxHeight: 1280,
         imageQuality: 80,
       );
-      if (picked == null || !mounted) return;
-
-      HapticFeedback.lightImpact();
-      _publishActivity('image');
-      await _sendMediaMessage(
-        filePath: picked.path,
-        messageType: 'image',
-      );
     } catch (e) {
       debugPrint('[Image] Pick error: $e');
+      return;
+    }
+    if (files.isEmpty || !mounted) return;
+    if (files.length > 10) files = files.sublist(0, 10);
+
+    HapticFeedback.lightImpact();
+    _publishActivity('image');
+
+    _bootstrapCurrentUserIdentity();
+    final senderName =
+        _bestEffortName(FirebaseAuth.instance.currentUser).trim();
+    if (senderName.isEmpty) return;
+
+    final l10n = AppLocalizations.of(context)!;
+    final total = files.length;
+
+    setState(() {
+      _isUploadingMedia = true;
+      // Only show a counter badge when sending more than one photo.
+      _batchUploadLabel = total > 1 ? '1/$total' : null;
+    });
+
+    for (int i = 0; i < total; i++) {
+      // Stop if the widget was unmounted or the turn changed mid-batch.
+      if (!mounted || !isMyTurn) break;
+
+      if (total > 1) {
+        setState(() => _batchUploadLabel = '${i + 1}/$total');
+      }
+
+      bool stopBatch = false;
+      try {
+        // 1. Upload file to Firebase Storage.
+        final downloadUrl = await MediaUploadService.instance.uploadImage(
+          debateId: widget.debateId,
+          uid: currentUserId,
+          filePath: files[i].path,
+        );
+        if (downloadUrl == null) throw Exception('Upload returned null URL');
+        if (!mounted) break;
+
+        // 2. Persist message via Cloud Function.
+        final callable = _functions.httpsCallable(
+          'sendDebateMessage',
+          options: HttpsCallableOptions(timeout: const Duration(seconds: 30)),
+        );
+        await callable.call({
+          'debateId': widget.debateId,
+          'text': '',
+          'senderName': senderName,
+          'messageType': 'image',
+          'mediaUrl': downloadUrl,
+        });
+
+        SoundService.instance.play(SFX.whoosh);
+        HapticFeedback.selectionClick();
+
+        // Delete the temporary file after a successful send.
+        if (!kIsWeb) {
+          try {
+            io_shim.File(files[i].path).deleteSync();
+          } catch (_) {}
+        }
+      } on FirebaseFunctionsException catch (e) {
+        if (!mounted) break;
+        final reason =
+            (e.details is Map ? e.details['reason'] : null)?.toString() ?? '';
+        const turnExpiryCodes = {
+          'TURN_NOT_ACTIVE_SPEAKER',
+          'TURN_TIME_EXPIRED',
+          'ROUND_NOT_ACTIVE',
+        };
+        if (turnExpiryCodes.contains(reason)) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              duration: Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+              content: Text('Время истекло — загрузка остановлена.'),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              duration: const Duration(seconds: 6),
+              content: Text(mapDebateCallableError(l10n, e,
+                  fallbackMessage: l10n.errorPrefix)),
+            ),
+          );
+        }
+        stopBatch = true;
+      } catch (e) {
+        if (!mounted) break;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            duration: const Duration(seconds: 6),
+            content: Text('${l10n.errorPrefix}: Upload failed. Check connection.'),
+          ),
+        );
+        stopBatch = true;
+      }
+
+      if (stopBatch) break;
+    }
+
+    if (mounted) {
+      setState(() {
+        _isUploadingMedia = false;
+        _batchUploadLabel = null;
+      });
+      _clearMyActivity();
     }
   }
 
@@ -1747,12 +1912,31 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
     }
   }
 
+  /// Shows a brief full-screen overlay (e.g. "РАУНД 2", "ВАШ ХОД!").
+  /// Animates in over 380ms, holds for 1.2s, then animates out.
+  void _showRoundOverlay(String message) {
+    if (!mounted) return;
+    _overlayTimer?.cancel();
+    _overlayCtrl.stop();
+    setState(() => _roundOverlayMessage = message);
+    _overlayCtrl.forward(from: 0.0).then((_) {
+      if (!mounted) return;
+      _overlayTimer = Timer(const Duration(milliseconds: 1200), () {
+        if (!mounted) return;
+        _overlayCtrl.reverse().then((_) {
+          if (mounted) setState(() => _roundOverlayMessage = null);
+        });
+      });
+    });
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _roundCountdownTicker?.cancel();
     _typingDebouncer?.cancel();
     _activityClearTimer?.cancel();
+    _overlayTimer?.cancel();
     _debateSub?.cancel();
     _activitySub?.cancel();
     _clearMyActivity();
@@ -1762,6 +1946,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
     _timeLeftNotifier.dispose();
     _dangerZoneNotifier.dispose();
     _dangerPulseNotifier.dispose();
+    _overlayCtrl.dispose();
     _audioRecorder.dispose();
     _recorderController.dispose();
     super.dispose();
@@ -1951,6 +2136,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
                                 uploadingMediaType: _isUploadingMedia
                                     ? (_isRecording ? 'voice' : 'media')
                                     : null,
+                                currentRoundIndex: roundIndex,
                               ),
                             ),
                           ),
@@ -1958,15 +2144,67 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
                       ),
                     ),
                     if (isFighter && status != 'finished') ...[
-                      // ── Opponent Activity Indicator ──
-                      if (_activeSpeakerActivity.isNotEmpty && !isMyTurn)
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
-                          child: OpponentActivityIndicator(
-                            activity: _activeSpeakerActivity,
+                      // ── Opponent Activity Indicator (animated slide-in) ──
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 240),
+                        transitionBuilder: (child, anim) => FadeTransition(
+                          opacity: anim,
+                          child: SlideTransition(
+                            position: Tween<Offset>(
+                              begin: const Offset(0, 0.6),
+                              end: Offset.zero,
+                            ).animate(CurvedAnimation(
+                              parent: anim,
+                              curve: Curves.easeOut,
+                            )),
+                            child: child,
                           ),
                         ),
-                      SafeArea(
+                        child: (_activeSpeakerActivity.isNotEmpty && !isMyTurn)
+                            ? Padding(
+                                key: ValueKey(_activeSpeakerActivity),
+                                padding:
+                                    const EdgeInsets.fromLTRB(20, 4, 20, 0),
+                                child: OpponentActivityIndicator(
+                                  activity: _activeSpeakerActivity,
+                                ),
+                              )
+                            : const SizedBox.shrink(key: ValueKey('activity-hidden')),
+                      ),
+                      // ── Transitioning banner (shown at timer zero) ──
+                      if (_isTransitioning)
+                        Padding(
+                          padding:
+                              const EdgeInsets.fromLTRB(20, 2, 20, 0),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const SizedBox(
+                                width: 11,
+                                height: 11,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 1.4,
+                                  color: Colors.white38,
+                                ),
+                              ),
+                              const SizedBox(width: 7),
+                              Text(
+                                'Смена раунда...',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.white.withValues(alpha: 0.38),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      // ── Input Bar (dimmed when waiting for opponent) ──
+                      AnimatedOpacity(
+                        opacity: isMyTurn ? 1.0 : 0.52,
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeInOut,
+                        child: SafeArea(
                         top: false,
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
@@ -1990,7 +2228,9 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
                                 ? _onYieldPressed
                                 : null,
                             onTypingChanged: _onTypingChanged,
+                            uploadProgress: _batchUploadLabel,
                           ),
+                        ),
                         ),
                       ),
                     ],
@@ -2018,6 +2258,61 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
               );
             },
           ),
+
+          // ── Round Transition Overlay ───────────────────────
+          if (_roundOverlayMessage != null)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: Center(
+                  child: FadeTransition(
+                    opacity: CurvedAnimation(
+                      parent: _overlayCtrl,
+                      curve: Curves.easeOut,
+                      reverseCurve: Curves.easeIn,
+                    ),
+                    child: ScaleTransition(
+                      scale: Tween<double>(begin: 0.72, end: 1.0).animate(
+                        CurvedAnimation(
+                          parent: _overlayCtrl,
+                          curve: Curves.easeOutBack,
+                          reverseCurve: Curves.easeIn,
+                        ),
+                      ),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 36,
+                          vertical: 18,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xF00D111B),
+                          borderRadius: BorderRadius.circular(22),
+                          border: Border.all(
+                            color: const Color(0xFFFFA500).withValues(alpha: 0.55),
+                            width: 1.5,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFFFA500).withValues(alpha: 0.18),
+                              blurRadius: 48,
+                              spreadRadius: 4,
+                            ),
+                          ],
+                        ),
+                        child: Text(
+                          _roundOverlayMessage!,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 26,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 3.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     ); // end Scaffold

@@ -14,7 +14,10 @@
       "Bash(sips -g pixelWidth -g pixelHeight assets/logo.png)",
       "Bash(identify assets/logo.png)",
       "Bash(flutter clean:*)",
-      "Bash(pod install:*)"
+      "Bash(pod install:*)",
+      "Bash(xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -configuration Debug -destination 'generic/platform=iOS' clean build)",
+      "Bash(xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -configuration Debug -destination 'generic/platform=iOS')",
+      "Bash(grep -E \"^.*error:.*$\")"
     ]
   }
 }
