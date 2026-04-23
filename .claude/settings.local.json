@@ -17,7 +17,8 @@
       "Bash(pod install:*)",
       "Bash(xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -configuration Debug -destination 'generic/platform=iOS' clean build)",
       "Bash(xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -configuration Debug -destination 'generic/platform=iOS')",
-      "Bash(grep -E \"^.*error:.*$\")"
+      "Bash(grep -E \"^.*error:.*$\")",
+      "Bash(flutter build:*)"
     ]
   }
 }
