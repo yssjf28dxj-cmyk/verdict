@@ -1,3 +1,4 @@
+import 'package:verdict/firestore_database.dart';
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -34,7 +35,7 @@ class PendingDebateService extends ChangeNotifier {
     _watchedTopic = topic;
     _activated = false;
 
-    _sub = FirebaseFirestore.instance
+    _sub = appFirestore
         .collection('debates')
         .doc(debateId)
         .snapshots()

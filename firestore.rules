@@ -10,16 +10,17 @@ service cloud.firestore {
     function isDebateParticipantByData(data) {
       return isSignedIn()
         && (
-          request.auth.uid == data.fighter1
-          || request.auth.uid == data.fighter2
-          || request.auth.uid == data.creatorId
-          || request.auth.uid == data.invitedUserId
-          || (data.invitedUserIds is list && data.invitedUserIds.hasAny([request.auth.uid]))
+          request.auth.uid == data.get('fighter1', '')
+          || request.auth.uid == data.get('fighter2', '')
+          || request.auth.uid == data.get('creatorId', '')
+          || request.auth.uid == data.get('invitedUserId', '')
+          || data.get('invitedUserIds', []).hasAny([request.auth.uid])
         );
     }
 
     function isPublicDebateByData(data) {
-      return !(data.visibilityMode is string) || data.visibilityMode == 'public';
+      return !(data.get('visibilityMode', 'public') is string)
+        || data.get('visibilityMode', 'public') == 'public';
     }
 
     function canReadDebateByData(data) {
@@ -28,8 +29,17 @@ service cloud.firestore {
         || isDebateParticipantByData(data);
     }
 
+    function canReadDebateMessagesByData(data) {
+      return isPublicDebateByData(data)
+        || isDebateParticipantByData(data)
+        || (data.visibilityMode == 'request_only'
+          && isSignedIn()
+          && data.get('accessApprovedUserIds', []) is list
+          && data.get('accessApprovedUserIds', []).hasAny([request.auth.uid]));
+    }
+
     function onlyChangedKeys(allowedKeys) {
-      return request.resource.data.diff(resource.data).changedKeys().hasOnly(allowedKeys);
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowedKeys);
     }
 
     function onlyFields(allowedKeys) {
@@ -119,7 +129,9 @@ service cloud.firestore {
     // ─── DEBATES ────────────────────────────────────────────
     match /debates/{debateId} {
       allow get: if canReadDebateByData(resource.data);
-      allow list: if isSignedIn();
+      allow list: if isSignedIn()
+        && (isDebateParticipantByData(resource.data)
+          || resource.data.get('visibilityMode', '') in ['public', 'request_only']);
 
       // Strict client-side creation with full schema validation
       allow create: if isSignedIn()
@@ -188,7 +200,7 @@ service cloud.firestore {
 
       // Messages: only via Cloud Functions
       match /messages/{messageId} {
-        allow read: if canReadDebateByData(
+        allow read: if canReadDebateMessagesByData(
           get(/databases/$(database)/documents/debates/$(debateId)).data);
         allow create: if false;
         allow update: if false;

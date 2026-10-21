@@ -1,3 +1,4 @@
+import 'package:verdict/firestore_database.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
 // dart:io is only available on mobile/desktop, not Web.
@@ -266,7 +267,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
 
     if (shouldHydrateF1) {
       try {
-        final snap = await FirebaseFirestore.instance
+        final snap = await appFirestore
             .collection('users')
             .doc(f1Uid)
             .get();
@@ -284,7 +285,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
 
     if (shouldHydrateF2) {
       try {
-        final snap = await FirebaseFirestore.instance
+        final snap = await appFirestore
             .collection('users')
             .doc(f2Uid)
             .get();
@@ -395,7 +396,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
     if (currentUserId.isEmpty) return;
 
     try {
-      final userSnap = await FirebaseFirestore.instance
+      final userSnap = await appFirestore
           .collection('users')
           .doc(currentUserId)
           .get();
@@ -544,7 +545,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
 
   Future<void> _loadDebate() async {
     final ref =
-        FirebaseFirestore.instance.collection('debates').doc(widget.debateId);
+        appFirestore.collection('debates').doc(widget.debateId);
     _bootstrapCurrentUserIdentity();
     DocumentSnapshot<Map<String, dynamic>> snap;
     Map<String, dynamic>? data;
@@ -627,7 +628,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
       final currentActiveSpeaker = (liveData['activeSpeakerId'] ?? '').toString();
       if (currentActiveSpeaker != activeSpeakerId && currentActiveSpeaker.isNotEmpty) {
         _activitySub?.cancel();
-        _activitySub = FirebaseFirestore.instance
+        _activitySub = appFirestore
             .collection('debates')
             .doc(widget.debateId)
             .collection('activity')
@@ -1570,12 +1571,12 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
       bool stopBatch = false;
       try {
         // 1. Upload file to Firebase Storage.
-        final downloadUrl = await MediaUploadService.instance.uploadImage(
+        final mediaPath = await MediaUploadService.instance.uploadImage(
           debateId: widget.debateId,
           uid: currentUserId,
           filePath: files[i].path,
         );
-        if (downloadUrl == null) throw Exception('Upload returned null URL');
+        if (mediaPath == null) throw Exception('Upload returned no object path');
         if (!mounted) break;
 
         // 2. Persist message via Cloud Function.
@@ -1588,7 +1589,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
           'text': '',
           'senderName': senderName,
           'messageType': 'image',
-          'mediaUrl': downloadUrl,
+          'mediaPath': mediaPath,
         });
 
         SoundService.instance.play(SFX.whoosh);
@@ -1809,23 +1810,23 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
 
     try {
       // 1. Upload to Firebase Storage
-      String? downloadUrl;
+      String? mediaPath;
       if (messageType == 'voice') {
-        downloadUrl = await MediaUploadService.instance.uploadVoice(
+        mediaPath = await MediaUploadService.instance.uploadVoice(
           debateId: widget.debateId,
           uid: currentUserId,
           filePath: filePath,
         );
       } else {
-        downloadUrl = await MediaUploadService.instance.uploadImage(
+        mediaPath = await MediaUploadService.instance.uploadImage(
           debateId: widget.debateId,
           uid: currentUserId,
           filePath: filePath,
         );
       }
 
-      if (downloadUrl == null) {
-        throw Exception('Upload returned null URL');
+      if (mediaPath == null) {
+        throw Exception('Upload returned no object path');
       }
       if (!mounted) return;
 
@@ -1839,7 +1840,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
         'text': '',
         'senderName': senderName,
         'messageType': messageType,
-        'mediaUrl': downloadUrl,
+        'mediaPath': mediaPath,
         if (mediaDuration > 0) 'mediaDuration': mediaDuration,
       });
 
@@ -1957,7 +1958,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
   /// Publish current user activity to Firestore subcollection.
   void _publishActivity(String activityStatus) {
     if (currentUserId.isEmpty) return;
-    FirebaseFirestore.instance
+    appFirestore
         .collection('debates')
         .doc(widget.debateId)
         .collection('activity')
@@ -1978,7 +1979,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
 
   void _clearMyActivity() {
     if (currentUserId.isEmpty) return;
-    FirebaseFirestore.instance
+    appFirestore
         .collection('debates')
         .doc(widget.debateId)
         .collection('activity')

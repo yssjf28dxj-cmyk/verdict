@@ -1,3 +1,4 @@
+import 'package:verdict/firestore_database.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -10,6 +11,7 @@ import '../painters/chat_pattern_painter.dart';
 import '../utils/rank_utils.dart';
 import '../utils/style_utils.dart';
 import '../utils/debate_error_mapper.dart';
+import '../utils/debate_query_access.dart';
 import 'package:go_router/go_router.dart';
 
 class PublicProfileScreen extends StatefulWidget {
@@ -57,21 +59,24 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
 
   Future<void> _load() async {
     try {
-      final userDoc = await FirebaseFirestore.instance
+      final userDoc = await appFirestore
           .collection('users')
           .doc(widget.uid)
           .get();
       final userData = userDoc.data() ?? {};
+      final viewerUid = FirebaseAuth.instance.currentUser?.uid ?? '';
 
       final debateSnapshots = await Future.wait([
-        FirebaseFirestore.instance
+        appFirestore
             .collection('debates')
             .where('fighter1', isEqualTo: widget.uid)
+            .where(debateCardAccessFilter(viewerUid))
             .limit(20)
             .get(),
-        FirebaseFirestore.instance
+        appFirestore
             .collection('debates')
             .where('fighter2', isEqualTo: widget.uid)
+            .where(debateCardAccessFilter(viewerUid))
             .limit(20)
             .get(),
       ]);

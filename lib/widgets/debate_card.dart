@@ -1,3 +1,4 @@
+import 'package:verdict/firestore_database.dart';
 // ignore_for_file: use_build_context_synchronously
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -68,7 +69,7 @@ class _DebateCardState extends State<DebateCard> {
     if (approve) {
       patch['accessApprovedUserIds'] = FieldValue.arrayUnion([targetUid]);
     }
-    await FirebaseFirestore.instance
+    await appFirestore
         .collection('debates')
         .doc(debateId)
         .update(patch);
@@ -249,7 +250,7 @@ class _DebateCardState extends State<DebateCard> {
         return;
       }
       try {
-        await FirebaseFirestore.instance
+        await appFirestore
             .collection('debates')
             .doc(debateId)
             .update({'accessRequests': FieldValue.arrayUnion([currentUid])});

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "13619679443",
+    "project_id": "verdict-test-1471f",
+    "storage_bucket": "verdict-test-1471f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:13619679443:android:07a63abacb80ef9fb00426",
+        "android_client_info": {
+          "package_name": "com.example.verdict.test"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAX5k1N9m4WUQY_cP6G9xWuJsi6MujoX60"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

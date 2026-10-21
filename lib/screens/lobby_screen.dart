@@ -1,3 +1,4 @@
+import 'package:verdict/firestore_database.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -380,7 +381,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
             ),
           ),
           StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-            stream: FirebaseFirestore.instance
+            stream: appFirestore
                 .collection('debates')
                 .doc(widget.debateId)
                 .snapshots(),

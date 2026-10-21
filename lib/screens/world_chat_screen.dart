@@ -1,3 +1,4 @@
+import 'package:verdict/firestore_database.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
@@ -27,7 +28,7 @@ class _WorldChatScreenState extends State<WorldChatScreen> {
   @override
   void initState() {
     super.initState();
-    _chatStream = FirebaseFirestore.instance
+    _chatStream = appFirestore
         .collection('world_messages')
         .orderBy('timestamp')
         .limitToLast(100)

@@ -1,10 +1,11 @@
+import 'package:verdict/firestore_database.dart';
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 
 class LobbyService {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseFirestore _db = appFirestore;
   final FirebaseFunctions _functions = FirebaseFunctions.instance;
   final Map<String, Future<String?>> _startInFlight = {};
 

@@ -1,3 +1,4 @@
+import 'package:verdict/firestore_database.dart';
 import 'dart:ui';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -5,7 +6,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_displaymode/flutter_displaymode.dart';
-import 'firebase_options.dart';
+import 'firebase_environment.dart';
 import 'app.dart';
 import 'utils/style_utils.dart';
 import 'services/app_locale_controller.dart';
@@ -93,7 +94,7 @@ Future<void> _enableHighRefreshRate() async {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
+    options: currentFirebaseOptions(),
   );
 
   // ── Firestore offline persistence ──────────────────────────────
@@ -101,7 +102,7 @@ void main() async {
   // On Web: relies on IndexedDB cache which is enabled by default.
   try {
     if (!kIsWeb) {
-      FirebaseFirestore.instance.settings = const Settings(
+      appFirestore.settings = const Settings(
         persistenceEnabled: true,
         cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
       );

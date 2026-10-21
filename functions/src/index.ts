@@ -1,4 +1,8 @@
 import * as admin from 'firebase-admin';
+import { getFirestore } from 'firebase-admin/firestore';
+import { setGlobalOptions } from 'firebase-functions/v2';
+import { firestoreDatabaseId } from './firestore_database';
+import { resolveDebateMediaPath, readableDebateMediaPath } from './domain/debate/media';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { onDocumentCreated, onDocumentUpdated } from 'firebase-functions/v2/firestore';
@@ -18,7 +22,11 @@ import {
 
 admin.initializeApp();
 
-const db = admin.firestore();
+const databaseId = firestoreDatabaseId(admin.app().options.projectId || process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT);
+if (databaseId === 'default') {
+  setGlobalOptions({ maxInstances: 2, minInstances: 0 });
+}
+const db = getFirestore(databaseId);
 const LEGACY_NAME_PLACEHOLDERS = new Set([
   'guest',
   'google user',
@@ -1039,7 +1047,7 @@ export const moderateAccessRequest = onCall({ invoker: 'public' }, async (reques
   return { ok: true };
 });
 
-export const sendDebateMessage = onCall({ invoker: 'public' }, async (request) => {
+export const sendDebateMessage = onCall({ invoker: 'public', memory: '512MiB', concurrency: 4 }, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError('unauthenticated', 'Требуется авторизация.', {
@@ -1053,6 +1061,9 @@ export const sendDebateMessage = onCall({ invoker: 'public' }, async (request) =
   const rawText = asString(request.data?.text);
   const messageType = asString(request.data?.messageType) || 'text';
   const mediaUrl = asString(request.data?.mediaUrl) || '';
+  const requestedMediaPath = asString(request.data?.mediaPath);
+  let mediaPath = '';
+  let stagedMediaPath = '';
   const mediaDuration = typeof request.data?.mediaDuration === 'number'
     ? Math.min(Math.max(0, request.data.mediaDuration), 300)
     : 0;
@@ -1067,20 +1078,6 @@ export const sendDebateMessage = onCall({ invoker: 'public' }, async (request) =
 
   // For text messages, validate text content
   const text = messageType === 'text' ? validateMessageText(rawText) : (rawText || '').trim();
-
-  // For media messages, mediaUrl is required
-  if ((messageType === 'voice' || messageType === 'image') && !mediaUrl) {
-    throw new HttpsError('invalid-argument', 'mediaUrl обязателен для медиа-сообщений.', {
-      reason: 'MESSAGE_MEDIA_URL_REQUIRED',
-    });
-  }
-
-  // Validate mediaUrl format (must be Firebase Storage URL)
-  if (mediaUrl && !mediaUrl.startsWith('https://firebasestorage.googleapis.com/')) {
-    throw new HttpsError('invalid-argument', 'Некорректный mediaUrl.', {
-      reason: 'MESSAGE_INVALID_MEDIA_URL',
-    });
-  }
 
   // Resolve sender name from Firestore, not from client
   const userDoc = await db.collection('users').doc(uid).get();
@@ -1105,47 +1102,127 @@ export const sendDebateMessage = onCall({ invoker: 'public' }, async (request) =
   const debateRef = db.collection('debates').doc(debateId);
   const messageRef = debateRef.collection('messages').doc();
 
-  await db.runTransaction(async (tx) => {
-    const snap = await tx.get(debateRef);
-    if (!snap.exists) {
-      throw new HttpsError('not-found', 'Дебат не найден.', {
-        reason: 'MESSAGE_NOT_FOUND',
+  if (messageType !== 'text') {
+    const bucket = admin.storage().bucket();
+    mediaPath = resolveDebateMediaPath({
+      debateId, uid, bucket: bucket.name, mediaPath: requestedMediaPath, mediaUrl,
+    });
+    // Authorize before touching Storage; the transaction below rechecks the turn.
+    const preflight = await debateRef.get();
+    if (!preflight.exists) throw new HttpsError('not-found', 'Дебат не найден.');
+    const debate = preflight.data() ?? {};
+    const status = normalizeDebateStatus(debate.status, 'active');
+    assertCanSendMessage({
+      uid, debate, status, hasReadAccess: canUserReadDebate(uid, debate),
+      isPlayableStatus: isDebatePlayableStatus(status), uploadGraceMs: UPLOAD_GRACE_MS,
+    });
+    const file = bucket.file(mediaPath);
+    const [metadata] = await file.getMetadata();
+    const contentType = metadata.contentType || '';
+    if (!Number.isFinite(Number(metadata.size)) || Number(metadata.size) >= 10 * 1024 * 1024
+        || !(messageType === 'image' ? contentType.startsWith('image/') : contentType.startsWith('audio/'))) {
+      throw new HttpsError('invalid-argument', 'Неверный тип или размер медиа.', {
+        reason: 'MESSAGE_INVALID_MEDIA_FILE',
       });
     }
+    if (requestedMediaPath) {
+      // Firebase client uploads can mint bearer tokens. Publish a NEW Admin-only
+      // object instead; never copy the staging object's token metadata.
+      const [bytes] = await file.download();
+      if (bytes.length >= 10 * 1024 * 1024) {
+        throw new HttpsError('invalid-argument', 'Медиа слишком большое.');
+      }
+      stagedMediaPath = mediaPath;
+      const extension = mediaPath.slice(mediaPath.lastIndexOf('.') + 1);
+      mediaPath = `debates/${debateId}/secured/${messageRef.id}.${extension}`;
+      await bucket.file(mediaPath).save(bytes, {
+        resumable: false,
+        metadata: { contentType, cacheControl: 'private, no-store' },
+      });
+    }
+  }
 
-    const debate = snap.data() ?? {};
-    const status = normalizeDebateStatus(debate.status, 'active');
-    const guard = assertCanSendMessage({
-      uid,
-      debate: debate as Record<string, unknown>,
-      hasReadAccess: canUserReadDebate(uid, debate),
-      status,
-      isPlayableStatus: isDebatePlayableStatus(status),
-      uploadGraceMs: UPLOAD_GRACE_MS,
+  if (stagedMediaPath) {
+    try {
+      // Do not publish until the new staging object's bearer link is gone.
+      await admin.storage().bucket().file(stagedMediaPath).delete();
+    } catch (error) {
+      await admin.storage().bucket().file(mediaPath).delete().catch(() => undefined);
+      throw error;
+    }
+  }
+
+  try {
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(debateRef);
+      if (!snap.exists) {
+        throw new HttpsError('not-found', 'Дебат не найден.', {
+          reason: 'MESSAGE_NOT_FOUND',
+        });
+      }
+
+      const debate = snap.data() ?? {};
+      const status = normalizeDebateStatus(debate.status, 'active');
+      const guard = assertCanSendMessage({
+        uid,
+        debate: debate as Record<string, unknown>,
+        hasReadAccess: canUserReadDebate(uid, debate),
+        status,
+        isPlayableStatus: isDebatePlayableStatus(status),
+        uploadGraceMs: UPLOAD_GRACE_MS,
+      });
+      const roundIndex = guard.roundIndex;
+
+      // Build message document based on type
+      const messageData: Record<string, unknown> = {
+        text: text || '',
+        messageType,
+        senderId: uid,
+        senderName,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        roundIndex,
+      };
+
+      if (mediaPath) {
+        messageData.mediaPath = mediaPath;
+        // Preserve rendering for old URL-based senders during coordinated rollout.
+        if (mediaUrl && !requestedMediaPath) messageData.mediaUrl = mediaUrl;
+      }
+      if (messageType === 'voice' && mediaDuration > 0) {
+        messageData.mediaDuration = mediaDuration;
+      }
+
+      tx.set(messageRef, messageData);
     });
-    const roundIndex = guard.roundIndex;
-
-    // Build message document based on type
-    const messageData: Record<string, unknown> = {
-      text: text || '',
-      messageType,
-      senderId: uid,
-      senderName,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      roundIndex,
-    };
-
-    if (mediaUrl) {
-      messageData.mediaUrl = mediaUrl;
+  } catch (error) {
+    if (stagedMediaPath) {
+      await admin.storage().bucket().file(mediaPath).delete().catch(() => undefined);
     }
-    if (messageType === 'voice' && mediaDuration > 0) {
-      messageData.mediaDuration = mediaDuration;
-    }
-
-    tx.set(messageRef, messageData);
-  });
+    throw error;
+  }
 
   return { ok: true, messageId: messageRef.id };
+});
+
+// Bounded MVP download proxy. No signed URL, no permanent bearer token.
+export const getDebateMedia = onCall({ invoker: 'public', memory: '512MiB', concurrency: 4 }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Требуется авторизация.');
+  const debateId = asString(request.data?.debateId);
+  const path = readableDebateMediaPath(debateId, asString(request.data?.mediaPath));
+  const snap = await db.collection('debates').doc(debateId).get();
+  const debate = snap.data();
+  if (!debate || !canUserReadDebate(uid, debate)) {
+    throw new HttpsError('permission-denied', 'Нет доступа к медиа дебата.');
+  }
+  const file = admin.storage().bucket().file(path);
+  const [metadata] = await file.getMetadata();
+  if (!Number.isFinite(Number(metadata.size)) || Number(metadata.size) >= 10 * 1024 * 1024) {
+    throw new HttpsError('resource-exhausted', 'Медиа слишком большое.');
+  }
+  const [bytes] = await file.download();
+  if (bytes.length >= 10 * 1024 * 1024) throw new HttpsError('resource-exhausted', 'Медиа слишком большое.');
+  return { base64: bytes.toString('base64') };
 });
 
 // ─── AI JUDGE ────────────────────────────────────────────────────────────────
@@ -1306,7 +1383,7 @@ ${lines.join('\n')}
   // Increment wins for the AI-determined winner (skip on draw).
   const winnerId = aiResult['winnerId'] as string;
   if (winnerId && winnerId !== 'draw') {
-    await admin.firestore().collection('users').doc(winnerId).update({
+    await db.collection('users').doc(winnerId).update({
       wins: admin.firestore.FieldValue.increment(1),
     });
   }
@@ -1877,7 +1954,7 @@ export const advanceRoundOrFinish = onCall({ invoker: 'public' }, async (request
 
 // 1) Инициализация дебата: выставляем roundEndsAt сразу на сервере.
 export const initDebateOnCreate = onDocumentCreated(
-  'debates/{debateId}',
+  { document: 'debates/{debateId}', database: databaseId },
   async (event) => {
     const snap = event.data;
     if (!snap) return;
@@ -2041,7 +2118,7 @@ export const autoAdvanceLiveDebates = onSchedule(
 );
 
 export const applyDebateResultToProfiles = onDocumentUpdated(
-  'debates/{debateId}',
+  { document: 'debates/{debateId}', database: databaseId },
   async (event) => {
     const before = event.data?.before.data() ?? {};
     const after = event.data?.after.data() ?? {};
@@ -2504,9 +2581,9 @@ export const deleteDebateMessages = onCall({ invoker: 'public' }, async (request
 
     // Collect Storage path for cleanup.
     const mediaUrl = typeof msgData['mediaUrl'] === 'string' ? msgData['mediaUrl'] : '';
-    if (mediaUrl) {
-      const path = extractStoragePath(mediaUrl);
-      if (path) storagePathsToDelete.push(path);
+    const storedPath = asString(msgData['mediaPath']) || (mediaUrl ? extractStoragePath(mediaUrl) : null);
+    if (storedPath) {
+      try { storagePathsToDelete.push(readableDebateMediaPath(debateId, storedPath)); } catch (_) { /* Skip invalid legacy paths. */ }
     }
   }
 

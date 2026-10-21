@@ -1,3 +1,4 @@
+import 'package:verdict/firestore_database.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -124,7 +125,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     // Try cache first for instant render — no spinner on repeat visits.
     try {
-      final cached = await FirebaseFirestore.instance
+      final cached = await appFirestore
           .collection('users')
           .doc(uid)
           .get(const GetOptions(source: Source.cache));
@@ -138,11 +139,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     try {
       final doc =
-          await FirebaseFirestore.instance.collection('users').doc(uid).get();
+          await appFirestore.collection('users').doc(uid).get();
       Map<String, dynamic>? data = doc.data();
       if (!doc.exists) {
         final generatedId = _generatePublicId(uid);
-        await FirebaseFirestore.instance.collection('users').doc(uid).set({
+        await appFirestore.collection('users').doc(uid).set({
           'publicId': generatedId,
           'wins': 0,
           'losses': 0,
@@ -170,7 +171,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         var publicId = (data['publicId'] ?? '').toString().trim();
         if (publicId.isEmpty) {
           publicId = _generatePublicId(uid);
-          await FirebaseFirestore.instance.collection('users').doc(uid).set({
+          await appFirestore.collection('users').doc(uid).set({
             'publicId': publicId,
           }, SetOptions(merge: true));
         }
@@ -178,12 +179,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
 
       final debateSnapshots = await Future.wait([
-        FirebaseFirestore.instance
+        appFirestore
             .collection('debates')
             .where('fighter1', isEqualTo: uid)
             .limit(20)
             .get(),
-        FirebaseFirestore.instance
+        appFirestore
             .collection('debates')
             .where('fighter2', isEqualTo: uid)
             .limit(20)
@@ -367,7 +368,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
 
     try {
-      final targetSnap = await FirebaseFirestore.instance
+      final targetSnap = await appFirestore
           .collection('users')
           .where('publicId', isEqualTo: publicId)
           .limit(1)
@@ -513,12 +514,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Query<Map<String, dynamic>> buildQuery() {
           final normalized = query.trim().toUpperCase();
           if (normalized.isEmpty) {
-            return FirebaseFirestore.instance
+            return appFirestore
                 .collection('users')
                 .orderBy('publicId')
                 .limit(12);
           }
-          return FirebaseFirestore.instance
+          return appFirestore
               .collection('users')
               .orderBy('publicId')
               .startAt([normalized]).endAt(['$normalized\uf8ff']).limit(20);

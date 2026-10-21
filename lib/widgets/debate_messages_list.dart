@@ -1,3 +1,4 @@
+import 'package:verdict/firestore_database.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
@@ -7,7 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:audio_waveforms/audio_waveforms.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
-import 'package:http/http.dart' as http;
+import '../services/media_download_service.dart';
 
 import '../l10n/app_localizations.dart';
 import '../utils/name_utils.dart';
@@ -264,7 +265,7 @@ class _DebateMessagesListState extends State<DebateMessagesList> {
     );
     final text = (data['text'] ?? '').toString();
     final messageType = (data['messageType'] ?? 'text').toString();
-    final mediaUrl = (data['mediaUrl'] ?? '').toString();
+    final mediaUrl = (data['mediaPath'] ?? data['mediaUrl'] ?? '').toString();
     final mediaDuration = (data['mediaDuration'] is num)
         ? (data['mediaDuration'] as num).toInt()
         : 0;
@@ -286,11 +287,12 @@ class _DebateMessagesListState extends State<DebateMessagesList> {
         if (messageType == 'voice' && mediaUrl.isNotEmpty)
           _VoiceMessageContent(
             mediaUrl: mediaUrl,
+            debateId: widget.debateId,
             duration: mediaDuration,
             isMine: isMine,
           )
         else if (hasImage)
-          _ImageMessageContent(mediaUrl: mediaUrl, isMine: isMine)
+          _ImageMessageContent(mediaUrl: mediaUrl, debateId: widget.debateId, isMine: isMine)
         else
           Text(
             text,
@@ -473,7 +475,7 @@ class _DebateMessagesListState extends State<DebateMessagesList> {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
+      stream: appFirestore
           .collection('debates')
           .doc(widget.debateId)
           .collection('messages')
@@ -669,11 +671,13 @@ class _UploadingPlaceholder extends StatelessWidget {
 
 class _VoiceMessageContent extends StatefulWidget {
   final String mediaUrl;
+  final String debateId;
   final int duration;
   final bool isMine;
 
   const _VoiceMessageContent({
     required this.mediaUrl,
+    required this.debateId,
     required this.duration,
     required this.isMine,
   });
@@ -692,6 +696,17 @@ class _VoiceMessageContentState extends State<_VoiceMessageContent>
 
   late final AnimationController _idlePulseCtrl;
   bool _isDragging = false;
+  File? _audioFile;
+
+  Future<void> _deleteAudioFile() async {
+    final file = _audioFile;
+    _audioFile = null;
+    try {
+      if (file != null && await file.exists()) await file.delete();
+    } catch (_) {
+      // Best effort cleanup if the platform is still releasing the audio file.
+    }
+  }
 
   @override
   void initState() {
@@ -736,18 +751,16 @@ class _VoiceMessageContentState extends State<_VoiceMessageContent>
 
   Future<void> _preparePlayer() async {
     try {
+      final bytes = await MediaDownloadService.instance.read(widget.debateId, widget.mediaUrl);
+      if (!mounted) return;
       final dir = await getTemporaryDirectory();
-      final hash = widget.mediaUrl.hashCode.toString();
-      final file = File('${dir.path}/verdict_audio_$hash.m4a');
-
-      if (!await file.exists()) {
-        final resp = await http.get(Uri.parse(widget.mediaUrl));
-        if (resp.statusCode == 200) {
-          await file.writeAsBytes(resp.bodyBytes);
-        } else {
-          throw Exception('Failed to download audio');
-        }
+      final file = File('${dir.path}/verdict_audio_${DateTime.now().microsecondsSinceEpoch}.m4a');
+      await file.writeAsBytes(bytes, flush: true);
+      if (!mounted) {
+        if (await file.exists()) await file.delete();
+        return;
       }
+      _audioFile = file;
 
       await _playerController.preparePlayer(
         path: file.path,
@@ -768,6 +781,7 @@ class _VoiceMessageContentState extends State<_VoiceMessageContent>
     _positionVN.dispose();
     _isInitializedVN.dispose();
     _playerController.dispose();
+    _deleteAudioFile();
     super.dispose();
   }
 
@@ -923,56 +937,65 @@ class _VoiceMessageContentState extends State<_VoiceMessageContent>
 // IMAGE MESSAGE — premium rounded thumbnail + fullscreen viewer
 // ─────────────────────────────────────────────────────────────
 
-class _ImageMessageContent extends StatelessWidget {
+class _ImageMessageContent extends StatefulWidget {
   final String mediaUrl;
+  final String debateId;
   final bool isMine;
 
   const _ImageMessageContent({
     required this.mediaUrl,
+    required this.debateId,
     required this.isMine,
   });
 
   @override
-  Widget build(BuildContext context) {
-    final neonColor =
-        isMine ? Colors.black87 : const Color(0xFFFFD700);
+  State<_ImageMessageContent> createState() => _ImageMessageContentState();
+}
 
+class _ImageMessageContentState extends State<_ImageMessageContent> {
+  late Future<Uint8List> _bytes;
+  String get mediaUrl => widget.mediaUrl;
+  bool get isMine => widget.isMine;
+
+  @override
+  void initState() {
+    super.initState();
+    _bytes = MediaDownloadService.instance.read(widget.debateId, mediaUrl);
+  }
+
+  @override
+  void didUpdateWidget(covariant _ImageMessageContent oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.mediaUrl != mediaUrl || oldWidget.debateId != widget.debateId) {
+      _bytes = MediaDownloadService.instance.read(widget.debateId, mediaUrl);
+    }
+  }
+
+  Widget _image({required BoxFit fit, double? width, double? height}) {
+    return FutureBuilder<Uint8List>(
+      future: _bytes,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return SizedBox(width: width, height: height,
+            child: const Center(child: Icon(Icons.broken_image_rounded, color: Colors.white38)));
+        }
+        if (!snapshot.hasData) {
+          return SizedBox(width: width, height: height,
+            child: const Center(child: CircularProgressIndicator(strokeWidth: 2)));
+        }
+        return Image.memory(snapshot.data!, fit: fit, width: width, height: height,
+          errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_rounded));
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () => _showFullImage(context),
       child: Hero(
         tag: 'img-$mediaUrl',
-        child: Image.network(
-          mediaUrl,
-          fit: BoxFit.cover,
-          width: 290, // Fills the max width of the container 
-          height: 200, 
-          loadingBuilder: (_, child, progress) {
-            if (progress == null) return child;
-            return SizedBox(
-              width: 290,
-              height: 200,
-              child: Center(
-                child: CircularProgressIndicator(
-                  value: progress.expectedTotalBytes != null
-                      ? progress.cumulativeBytesLoaded /
-                          progress.expectedTotalBytes!
-                      : null,
-                  strokeWidth: 2,
-                  color: neonColor,
-                ),
-              ),
-            );
-          },
-          errorBuilder: (_, __, ___) => Container(
-            width: 290,
-            height: 200,
-            color: Colors.black.withValues(alpha: 0.1),
-            child: const Center(
-              child: Icon(Icons.broken_image_rounded,
-                  color: Colors.white24, size: 36),
-            ),
-          ),
-        ),
+        child: _image(fit: BoxFit.cover, width: 290, height: 200),
       ),
     );
   }
@@ -1012,15 +1035,7 @@ class _ImageMessageContent extends StatelessWidget {
                     padding: const EdgeInsets.all(20),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(18),
-                      child: Image.network(
-                        mediaUrl,
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, __, ___) => const Icon(
-                          Icons.broken_image_rounded,
-                          color: Colors.white38,
-                          size: 64,
-                        ),
-                      ),
+                      child: _image(fit: BoxFit.contain),
                     ),
                   ),
                 ),

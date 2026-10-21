@@ -12,7 +12,7 @@ class MediaUploadService {
 
   final FirebaseStorage _storage = FirebaseStorage.instance;
 
-  /// Upload a file to Firebase Storage and return the download URL.
+  /// Upload a file and return its object path, never a download-token URL.
   ///
   /// Returns `null` on failure.
   Future<String?> uploadMedia({
@@ -45,9 +45,8 @@ class MediaUploadService {
       });
 
       await uploadTask;
-      final downloadUrl = await ref.getDownloadURL();
       debugPrint('[MediaUpload] Upload complete: $storagePath');
-      return downloadUrl;
+      return storagePath;
     } catch (e) {
       debugPrint('[MediaUpload] Upload failed: $e');
       return null;

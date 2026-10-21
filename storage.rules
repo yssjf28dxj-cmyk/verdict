@@ -4,7 +4,7 @@ service firebase.storage {
   match /b/{bucket}/o {
 
     // ─── HELPER ────────────────────────────────────────────────────────────
-    // Cross-service check: only active debate participants (fighter1, fighter2,
+    // Cross-service check: only debate participants (fighter1, fighter2,
     // or the creator) may upload media to a debate folder.
     // firestore.get() is available in Storage Rules v2.
     function isDebateParticipant(debateId) {
@@ -19,23 +19,46 @@ service firebase.storage {
         );
     }
 
+    function canReadDebateMedia(debateId) {
+      let debate = firestore.get(
+        /databases/(default)/documents/debates/$(debateId)
+      ).data;
+      return request.auth != null
+        && (debate.get('visibilityMode', '') == 'public'
+          || request.auth.uid == debate.get('fighter1', '')
+          || request.auth.uid == debate.get('fighter2', '')
+          || request.auth.uid == debate.get('creatorId', '')
+          || request.auth.uid == debate.get('invitedUserId', '')
+          || debate.get('invitedUserIds', []).hasAny([request.auth.uid])
+          || (debate.get('visibilityMode', '') == 'request_only'
+            && debate.get('accessApprovedUserIds', []).hasAny([request.auth.uid])));
+    }
+
     // ─── DEBATE MEDIA ───────────────────────────────────────────────────────
     // Path: debates/{debateId}/media/{fileName}
     //
-    // READ  — any authenticated user (viewers must be able to load images/audio)
+    // READ  — authenticated public viewers, participants, or approved viewers
+    // Download-token URLs are bearer links; these rules do not revoke tokens.
     // WRITE — debate participants only, ≤ 10 MB, image/* or audio/* only
     // DELETE — never (immutable evidence; deletion only via admin SDK)
     match /debates/{debateId}/media/{fileName} {
-      allow read: if request.auth != null;
+      allow read: if canReadDebateMedia(debateId);
 
-      allow write: if isDebateParticipant(debateId)
+      allow create: if resource == null && isDebateParticipant(debateId)
         && request.resource.size < 10 * 1024 * 1024   // 10 MB hard cap
         && (
           request.resource.contentType.matches('image/.*')
           || request.resource.contentType.matches('audio/.*')
         );
 
-      allow delete: if false;
+      // Prevent replacing content or restoring a revoked download token.
+      allow update, delete: if false;
+    }
+
+    // Finalized media: Admin SDK only. A callable returns bytes after checking
+    // debate access; clients cannot read metadata to mint bearer-token URLs.
+    match /debates/{debateId}/secured/{fileName} {
+      allow read, write: if false;
     }
 
     // ─── DEFAULT DENY ───────────────────────────────────────────────────────

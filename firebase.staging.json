@@ -1,0 +1,15 @@
+{
+  "firestore": {
+    "database": "default",
+    "indexes": "firestore.staging.indexes.json"
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "runtime": "nodejs22",
+      "predeploy": [
+        "npm --prefix \"$RESOURCE_DIR\" run build"
+      ]
+    }
+  ]
+}

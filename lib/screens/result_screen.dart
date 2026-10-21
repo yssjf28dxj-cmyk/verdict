@@ -1,3 +1,4 @@
+import 'package:verdict/firestore_database.dart';
 import 'dart:async';
 import 'dart:ui';
 
@@ -38,7 +39,7 @@ class _ResultScreenState extends State<ResultScreen> {
   @override
   void initState() {
     super.initState();
-    _debateFuture = FirebaseFirestore.instance
+    _debateFuture = appFirestore
         .collection('debates')
         .doc(widget.debateId)
         .get();
@@ -81,7 +82,7 @@ class _ResultScreenState extends State<ResultScreen> {
     }());
 
     // Stream on the debate doc — stops as soon as aiResult appears.
-    _aiSub = FirebaseFirestore.instance
+    _aiSub = appFirestore
         .collection('debates')
         .doc(widget.debateId)
         .snapshots()

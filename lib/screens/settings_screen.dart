@@ -1,3 +1,4 @@
+import 'package:verdict/firestore_database.dart';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -28,7 +29,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   final AdminService _adminService = AdminService();
   final FirebaseFunctions _functions = FirebaseFunctions.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseFirestore _firestore = appFirestore;
 
   @override
   void initState() {

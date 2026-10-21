@@ -1,9 +1,10 @@
+import 'package:verdict/firestore_database.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 
 class AdminService {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseFirestore _db = appFirestore;
   final FirebaseFunctions _functions = FirebaseFunctions.instance;
 
   Future<bool> hasMigrationAccess() async {

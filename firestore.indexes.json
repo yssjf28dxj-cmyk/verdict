@@ -4,32 +4,136 @@
       "collectionGroup": "debates",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        {"fieldPath": "status", "order": "ASCENDING"},
+        {"fieldPath": "createdAt", "order": "DESCENDING"}
       ]
     },
     {
       "collectionGroup": "debates",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "fighter1", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        {"fieldPath": "fighter1", "order": "ASCENDING"},
+        {"fieldPath": "createdAt", "order": "DESCENDING"}
       ]
     },
     {
       "collectionGroup": "debates",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "fighter2", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        {"fieldPath": "fighter2", "order": "ASCENDING"},
+        {"fieldPath": "createdAt", "order": "DESCENDING"}
       ]
     },
     {
       "collectionGroup": "users",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "region", "order": "ASCENDING" },
-        { "fieldPath": "rating", "order": "DESCENDING" }
+        {"fieldPath": "region", "order": "ASCENDING"},
+        {"fieldPath": "rating", "order": "DESCENDING"}
+      ]
+    },
+    {
+      "collectionGroup": "debates",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "visibilityMode", "order": "ASCENDING"},
+        {"fieldPath": "createdAt", "order": "DESCENDING"}
+      ]
+    },
+    {
+      "collectionGroup": "debates",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "creatorId", "order": "ASCENDING"},
+        {"fieldPath": "createdAt", "order": "DESCENDING"}
+      ]
+    },
+    {
+      "collectionGroup": "debates",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "invitedUserId", "order": "ASCENDING"},
+        {"fieldPath": "createdAt", "order": "DESCENDING"}
+      ]
+    },
+    {
+      "collectionGroup": "debates",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "invitedUserIds", "arrayConfig": "CONTAINS"},
+        {"fieldPath": "createdAt", "order": "DESCENDING"}
+      ]
+    },
+    {
+      "collectionGroup": "debates",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "creatorId", "order": "ASCENDING"},
+        {"fieldPath": "fighter1", "order": "ASCENDING"}
+      ]
+    },
+    {
+      "collectionGroup": "debates",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "creatorId", "order": "ASCENDING"},
+        {"fieldPath": "fighter2", "order": "ASCENDING"}
+      ]
+    },
+    {
+      "collectionGroup": "debates",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "fighter1", "order": "ASCENDING"},
+        {"fieldPath": "fighter2", "order": "ASCENDING"}
+      ]
+    },
+    {
+      "collectionGroup": "debates",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "fighter1", "order": "ASCENDING"},
+        {"fieldPath": "invitedUserId", "order": "ASCENDING"}
+      ]
+    },
+    {
+      "collectionGroup": "debates",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "fighter1", "order": "ASCENDING"},
+        {"fieldPath": "invitedUserIds", "arrayConfig": "CONTAINS"}
+      ]
+    },
+    {
+      "collectionGroup": "debates",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "fighter1", "order": "ASCENDING"},
+        {"fieldPath": "visibilityMode", "order": "ASCENDING"}
+      ]
+    },
+    {
+      "collectionGroup": "debates",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "fighter2", "order": "ASCENDING"},
+        {"fieldPath": "invitedUserId", "order": "ASCENDING"}
+      ]
+    },
+    {
+      "collectionGroup": "debates",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "fighter2", "order": "ASCENDING"},
+        {"fieldPath": "invitedUserIds", "arrayConfig": "CONTAINS"}
+      ]
+    },
+    {
+      "collectionGroup": "debates",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "fighter2", "order": "ASCENDING"},
+        {"fieldPath": "visibilityMode", "order": "ASCENDING"}
       ]
     }
   ],

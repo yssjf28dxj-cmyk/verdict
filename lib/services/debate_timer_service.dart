@@ -1,3 +1,4 @@
+import 'package:verdict/firestore_database.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -53,7 +54,7 @@ class DebateTimerService {
   void startWithOwnStream() {
     _debateSub?.cancel();
     _ticker?.cancel();
-    _debateSub = FirebaseFirestore.instance
+    _debateSub = appFirestore
         .collection('debates')
         .doc(debateId)
         .snapshots()

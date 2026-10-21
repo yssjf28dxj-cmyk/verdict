@@ -1,3 +1,4 @@
+import 'package:verdict/firestore_database.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
@@ -33,7 +34,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
 
   Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>>
       _fetchLeaders() async {
-    final snapshot = await FirebaseFirestore.instance
+    final snapshot = await appFirestore
         .collection('users')
         .orderBy('wins', descending: true)
         .limit(20)

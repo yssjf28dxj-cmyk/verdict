@@ -1,0 +1,5 @@
+node_modules/
+firestore.generated.rules
+storage.generated.rules
+*-debug.log
+*-debug.*.log
