@@ -52,6 +52,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   List<DebateHistoryItem> _allDebates = const [];
   bool _isLoading = true;
   bool _isInviting = false;
+  bool _isSigningOut = false;
   final FirebaseFunctions _functions = FirebaseFunctions.instance;
 
   String _extractDebateId(dynamic payload) {
@@ -776,9 +777,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _signOut() async {
-    await FirebaseAuth.instance.signOut();
+    if (_isSigningOut) return;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user?.isAnonymous == true) {
+      final l10n = AppLocalizations.of(context)!;
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(l10n.guestSignOutTitle),
+          content: Text(l10n.guestSignOutWarning),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(l10n.staySignedIn),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(l10n.signOut),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted || _isSigningOut) return;
+    }
     if (!mounted) return;
-    context.go('/auth');
+    setState(() => _isSigningOut = true);
+    try {
+      await FirebaseAuth.instance.signOut();
+      if (!mounted) return;
+      context.go('/auth');
+    } finally {
+      if (mounted) setState(() => _isSigningOut = false);
+    }
   }
 
   // ─── BUILD ──────────────────────────────────────────────────
@@ -1606,7 +1636,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: _signOut,
+        onTap: _isSigningOut ? null : _signOut,
         borderRadius: BorderRadius.circular(16),
         child: Container(
           width: double.infinity,

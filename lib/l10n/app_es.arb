@@ -191,5 +191,10 @@
   "watchAndVote": "VER Y VOTAR",
   "roundProgress": "Ronda {current}/{total}",
   "viewersCount": "{count} viendo",
-  "waitingForOpponent": "Esperando oponente..."
+  "waitingForOpponent": "Esperando oponente...",
+  "cancelChallengeTitle": "¿Cancelar el desafío?",
+  "cancelChallengeConfirmation": "Se eliminará el debate en espera. Aquí no se puede cancelar un debate que ya ha empezado.",
+  "guestSignOutTitle": "¿Salir de la cuenta de invitado?",
+  "guestSignOutWarning": "Volver a entrar como invitado puede crear una cuenta nueva. No podrás recuperar el control de tu participante actual mediante el acceso de invitado. Para conservar la cuenta, cierra la aplicación sin cerrar sesión.",
+  "staySignedIn": "Mantener la sesión"
 }

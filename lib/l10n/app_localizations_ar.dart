@@ -587,4 +587,19 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get waitingForOpponent => 'بانتظار الخصم...';
+
+  @override
+  String get cancelChallengeTitle => 'إلغاء التحدي؟';
+
+  @override
+  String get cancelChallengeConfirmation => 'ستتم إزالة المناظرة المنتظرة. لا يمكن إلغاء مناظرة بدأت بالفعل من هنا.';
+
+  @override
+  String get guestSignOutTitle => 'الخروج من حساب الضيف؟';
+
+  @override
+  String get guestSignOutWarning => 'قد يؤدي الدخول كضيف مرة أخرى إلى إنشاء حساب جديد. لن تتمكن من استعادة التحكم في مشاركك الحالي عبر دخول الضيف. للحفاظ على حسابك، أغلق التطبيق دون تسجيل الخروج.';
+
+  @override
+  String get staySignedIn => 'البقاء في الحساب';
 }

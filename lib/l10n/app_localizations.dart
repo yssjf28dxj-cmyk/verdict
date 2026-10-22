@@ -1256,6 +1256,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Waiting for opponent...'**
   String get waitingForOpponent;
+
+  /// No description provided for @cancelChallengeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel this challenge?'**
+  String get cancelChallengeTitle;
+
+  /// No description provided for @cancelChallengeConfirmation.
+  ///
+  /// In en, this message translates to:
+  /// **'The waiting debate will be removed. A debate that has already started cannot be cancelled here.'**
+  String get cancelChallengeConfirmation;
+
+  /// No description provided for @guestSignOutTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Leave your guest account?'**
+  String get guestSignOutTitle;
+
+  /// No description provided for @guestSignOutWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Signing in as a guest again may create a new account. You will not be able to recover control of your current fighter through guest sign-in. Close the app without signing out to keep this account.'**
+  String get guestSignOutWarning;
+
+  /// No description provided for @staySignedIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Stay signed in'**
+  String get staySignedIn;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

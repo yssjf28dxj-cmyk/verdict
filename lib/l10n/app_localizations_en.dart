@@ -587,4 +587,19 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get waitingForOpponent => 'Waiting for opponent...';
+
+  @override
+  String get cancelChallengeTitle => 'Cancel this challenge?';
+
+  @override
+  String get cancelChallengeConfirmation => 'The waiting debate will be removed. A debate that has already started cannot be cancelled here.';
+
+  @override
+  String get guestSignOutTitle => 'Leave your guest account?';
+
+  @override
+  String get guestSignOutWarning => 'Signing in as a guest again may create a new account. You will not be able to recover control of your current fighter through guest sign-in. Close the app without signing out to keep this account.';
+
+  @override
+  String get staySignedIn => 'Stay signed in';
 }

@@ -191,5 +191,10 @@
   "watchAndVote": "REGARDER ET VOTER",
   "roundProgress": "Round {current}/{total}",
   "viewersCount": "{count} spectateurs",
-  "waitingForOpponent": "En attente d'un adversaire..."
+  "waitingForOpponent": "En attente d'un adversaire...",
+  "cancelChallengeTitle": "Annuler le défi ?",
+  "cancelChallengeConfirmation": "Le débat en attente sera supprimé. Un débat déjà commencé ne peut pas être annulé ici.",
+  "guestSignOutTitle": "Quitter le compte invité ?",
+  "guestSignOutWarning": "Une nouvelle connexion en tant qu’invité peut créer un autre compte. Vous ne pourrez pas récupérer votre participant actuel avec une connexion invité. Pour conserver ce compte, fermez simplement l’application sans vous déconnecter.",
+  "staySignedIn": "Rester connecté"
 }

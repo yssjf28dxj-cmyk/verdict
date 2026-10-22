@@ -587,4 +587,19 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get waitingForOpponent => 'En attente d\'un adversaire...';
+
+  @override
+  String get cancelChallengeTitle => 'Annuler le défi ?';
+
+  @override
+  String get cancelChallengeConfirmation => 'Le débat en attente sera supprimé. Un débat déjà commencé ne peut pas être annulé ici.';
+
+  @override
+  String get guestSignOutTitle => 'Quitter le compte invité ?';
+
+  @override
+  String get guestSignOutWarning => 'Une nouvelle connexion en tant qu’invité peut créer un autre compte. Vous ne pourrez pas récupérer votre participant actuel avec une connexion invité. Pour conserver ce compte, fermez simplement l’application sans vous déconnecter.';
+
+  @override
+  String get staySignedIn => 'Rester connecté';
 }

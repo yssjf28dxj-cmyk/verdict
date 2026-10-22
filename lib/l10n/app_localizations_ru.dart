@@ -587,4 +587,19 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get waitingForOpponent => 'Ожидание оппонента...';
+
+  @override
+  String get cancelChallengeTitle => 'Отменить вызов?';
+
+  @override
+  String get cancelChallengeConfirmation => 'Ожидающий дебат будет удалён. Начавшийся бой здесь отменить нельзя.';
+
+  @override
+  String get guestSignOutTitle => 'Выйти из гостевого аккаунта?';
+
+  @override
+  String get guestSignOutWarning => 'Повторный вход гостем может создать новый аккаунт. Через гостевой вход вы не сможете вернуть управление прежним бойцом. Чтобы сохранить аккаунт, просто закройте приложение без выхода.';
+
+  @override
+  String get staySignedIn => 'Остаться в аккаунте';
 }

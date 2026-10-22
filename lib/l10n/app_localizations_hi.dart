@@ -587,4 +587,19 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get waitingForOpponent => 'प्रतिद्वंद्वी की प्रतीक्षा...';
+
+  @override
+  String get cancelChallengeTitle => 'चुनौती रद्द करें?';
+
+  @override
+  String get cancelChallengeConfirmation => 'प्रतीक्षा कर रही बहस हटा दी जाएगी। शुरू हो चुकी बहस यहाँ रद्द नहीं की जा सकती।';
+
+  @override
+  String get guestSignOutTitle => 'अतिथि खाते से बाहर निकलें?';
+
+  @override
+  String get guestSignOutWarning => 'दोबारा अतिथि के रूप में प्रवेश करने पर नया खाता बन सकता है। अतिथि प्रवेश से आप अपने वर्तमान प्रतिभागी का नियंत्रण वापस नहीं पा सकेंगे। खाता बनाए रखने के लिए साइन आउट किए बिना ऐप बंद करें।';
+
+  @override
+  String get staySignedIn => 'साइन इन रहें';
 }

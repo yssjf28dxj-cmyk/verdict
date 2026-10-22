@@ -191,5 +191,10 @@
   "watchAndVote": "观看并投票",
   "roundProgress": "第{current}/{total}回合",
   "viewersCount": "{count}人观看",
-  "waitingForOpponent": "等待对手..."
+  "waitingForOpponent": "等待对手...",
+  "cancelChallengeTitle": "取消挑战？",
+  "cancelChallengeConfirmation": "等待中的辩论将被移除。已经开始的辩论不能在此取消。",
+  "guestSignOutTitle": "退出访客账户？",
+  "guestSignOutWarning": "再次以访客身份登录可能会创建新账户。您将无法通过访客登录恢复对当前辩手的控制。若要保留账户，请直接关闭应用，不要退出登录。",
+  "staySignedIn": "保持登录"
 }

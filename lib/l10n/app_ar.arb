@@ -191,5 +191,10 @@
   "watchAndVote": "شاهد وصوّت",
   "roundProgress": "الجولة {current}/{total}",
   "viewersCount": "{count} يشاهدون",
-  "waitingForOpponent": "بانتظار الخصم..."
+  "waitingForOpponent": "بانتظار الخصم...",
+  "cancelChallengeTitle": "إلغاء التحدي؟",
+  "cancelChallengeConfirmation": "ستتم إزالة المناظرة المنتظرة. لا يمكن إلغاء مناظرة بدأت بالفعل من هنا.",
+  "guestSignOutTitle": "الخروج من حساب الضيف؟",
+  "guestSignOutWarning": "قد يؤدي الدخول كضيف مرة أخرى إلى إنشاء حساب جديد. لن تتمكن من استعادة التحكم في مشاركك الحالي عبر دخول الضيف. للحفاظ على حسابك، أغلق التطبيق دون تسجيل الخروج.",
+  "staySignedIn": "البقاء في الحساب"
 }

@@ -33,10 +33,54 @@ class DebateCard extends StatefulWidget {
 class _DebateCardState extends State<DebateCard> {
   final FirebaseFunctions _functions = FirebaseFunctions.instance;
   bool _isJoining = false;
+  bool _isCancelling = false;
 
   QueryDocumentSnapshot get doc => widget.doc;
   String get currentUid => widget.currentUid;
   bool get canEnter => widget.canEnter;
+
+  Future<void> _cancelChallenge() async {
+    if (_isCancelling) return;
+    final l10n = AppLocalizations.of(context)!;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.cancelChallengeTitle),
+        content: Text(l10n.cancelChallengeConfirmation),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(MaterialLocalizations.of(dialogContext).cancelButtonLabel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(l10n.cancelChallenge),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted || _isCancelling) return;
+    setState(() => _isCancelling = true);
+    try {
+      await _functions.httpsCallable('cancelDebateChallenge',
+        options: HttpsCallableOptions(timeout: const Duration(seconds: 20)),
+      ).call({'debateId': doc.id});
+      // The feed stream removes the cancelled card. No direct client deletion.
+    } on FirebaseFunctionsException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(mapCallableError(l10n, error,
+          fallbackMessage: l10n.cancelChallengeFailed)),
+      ));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.cancelChallengeFailed)),
+      );
+    } finally {
+      if (mounted) setState(() => _isCancelling = false);
+    }
+  }
 
   String _safeLocalizedText(String raw, String fallback) {
     final normalized = raw.trim();
@@ -772,6 +816,17 @@ class _DebateCardState extends State<DebateCard> {
                       color: VerdictStyle.accentGold,
                       onTap: () => _navigateToDebate(context),
                     ),
+                    if (isCreator) ...[
+                      const SizedBox(height: 8),
+                      TextButton.icon(
+                        onPressed: _isCancelling ? null : _cancelChallenge,
+                        icon: _isCancelling
+                            ? const SizedBox(width: 16, height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2))
+                            : const Icon(Icons.close),
+                        label: Text(l10n.cancelChallenge),
+                      ),
+                    ],
                   ] else if (isLive && isParticipant && canEnter) ...[
                     const SizedBox(height: 14),
                     _buildActionButton(

@@ -587,4 +587,19 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get waitingForOpponent => '等待对手...';
+
+  @override
+  String get cancelChallengeTitle => '取消挑战？';
+
+  @override
+  String get cancelChallengeConfirmation => '等待中的辩论将被移除。已经开始的辩论不能在此取消。';
+
+  @override
+  String get guestSignOutTitle => '退出访客账户？';
+
+  @override
+  String get guestSignOutWarning => '再次以访客身份登录可能会创建新账户。您将无法通过访客登录恢复对当前辩手的控制。若要保留账户，请直接关闭应用，不要退出登录。';
+
+  @override
+  String get staySignedIn => '保持登录';
 }

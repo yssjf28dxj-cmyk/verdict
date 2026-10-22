@@ -191,5 +191,10 @@
   "watchAndVote": "WATCH & VOTE",
   "roundProgress": "Round {current}/{total}",
   "viewersCount": "{count} watching",
-  "waitingForOpponent": "Waiting for opponent..."
+  "waitingForOpponent": "Waiting for opponent...",
+  "cancelChallengeTitle": "Cancel this challenge?",
+  "cancelChallengeConfirmation": "The waiting debate will be removed. A debate that has already started cannot be cancelled here.",
+  "guestSignOutTitle": "Leave your guest account?",
+  "guestSignOutWarning": "Signing in as a guest again may create a new account. You will not be able to recover control of your current fighter through guest sign-in. Close the app without signing out to keep this account.",
+  "staySignedIn": "Stay signed in"
 }
