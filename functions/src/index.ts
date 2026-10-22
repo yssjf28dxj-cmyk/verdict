@@ -2633,7 +2633,7 @@ export const deleteDebateMessages = onCall({ invoker: 'public' }, async (request
 
 // Cloud Tasks endpoints are private: only the server service account may invoke.
 export const advanceDebateTurnTask = onTaskDispatched({
-  region: 'us-central1', omit: !preciseDeadlinesEnabled, invoker: 'private',
+  region: 'us-central1', omit: !preciseDeadlinesEnabled,
   retryConfig: { maxAttempts: 10, minBackoffSeconds: 1, maxBackoffSeconds: 30 },
   rateLimits: { maxConcurrentDispatches: 2, maxDispatchesPerSecond: 10 },
   timeoutSeconds: 60,

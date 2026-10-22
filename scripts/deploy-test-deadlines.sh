@@ -16,6 +16,8 @@ gcloud services enable cloudtasks.googleapis.com --project="$PROJECT_ID"
 # Enqueue tasks, using only this service account as the OIDC identity.
 gcloud projects add-iam-policy-binding "$PROJECT_ID" --member="serviceAccount:$RUNTIME_SA" --role=roles/cloudtasks.enqueuer --condition=None --quiet
 gcloud iam service-accounts add-iam-policy-binding "$RUNTIME_SA" --project="$PROJECT_ID" --member="serviceAccount:$RUNTIME_SA" --role=roles/iam.serviceAccountUser --condition=None --quiet
+# Remove cached build images older than seven days, never Firestore/Storage data.
+npx --yes firebase-tools@14.27.0 functions:artifacts:setpolicy --location="$REGION" --days=7 --force --project="$PROJECT_ID" --non-interactive
 # Deploy the private task handler before enabling the Firestore scheduling trigger.
 npx --yes firebase-tools@14.27.0 deploy --only functions:advanceDebateTurnTask --project="$PROJECT_ID" --config firebase.staging.json --non-interactive
 TASK_SERVICE="$(gcloud functions describe advanceDebateTurnTask --gen2 --region="$REGION" --project="$PROJECT_ID" --format='value(serviceConfig.service)')"
