@@ -23,7 +23,7 @@ npx --yes firebase-tools@14.27.0 deploy --only functions:advanceDebateTurnTask -
 TASK_SERVICE="$(gcloud functions describe advanceDebateTurnTask --gen2 --region="$REGION" --project="$PROJECT_ID" --format='value(serviceConfig.service)')"
 [[ -n "$TASK_SERVICE" ]] || { echo 'Task service not found'; exit 1; }
 gcloud run services add-iam-policy-binding "${TASK_SERVICE##*/}" --region="$REGION" --project="$PROJECT_ID" --member="serviceAccount:$RUNTIME_SA" --role=roles/run.invoker --condition=None --quiet
-npx --yes firebase-tools@14.27.0 deploy --only functions:scheduleDebateTurnDeadline,functions:autoAdvanceLiveDebates,functions:advanceRoundOrFinish,functions:yieldTurn,functions:sendDebateMessage --project="$PROJECT_ID" --config firebase.staging.json --non-interactive
+npx --yes firebase-tools@14.27.0 deploy --only functions:scheduleDebateTurnDeadline,functions:autoAdvanceLiveDebates,functions:advanceRoundOrFinish,functions:yieldTurn,functions:sendDebateMessage --project="$PROJECT_ID" --config firebase.staging.json --non-interactive --force
 # Confirm actual identities after deployment; they can differ across generations.
 for FUNCTION_NAME in advanceDebateTurnTask scheduleDebateTurnDeadline autoAdvanceLiveDebates advanceRoundOrFinish yieldTurn; do
   ACTUAL_SA="$(gcloud functions describe "$FUNCTION_NAME" --gen2 --region="$REGION" --project="$PROJECT_ID" --format='value(serviceConfig.serviceAccountEmail)')"
