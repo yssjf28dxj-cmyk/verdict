@@ -1,11 +1,14 @@
 import * as admin from 'firebase-admin';
 import { getFirestore } from 'firebase-admin/firestore';
+import { getFunctions } from 'firebase-admin/functions';
+import { onTaskDispatched } from 'firebase-functions/v2/tasks';
+import { createDeadlineController } from './debate_deadlines';
 import { setGlobalOptions } from 'firebase-functions/v2';
 import { firestoreDatabaseId } from './firestore_database';
 import { resolveDebateMediaPath, readableDebateMediaPath } from './domain/debate/media';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
-import { onDocumentCreated, onDocumentUpdated } from 'firebase-functions/v2/firestore';
+import { onDocumentCreated, onDocumentUpdated, onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { getCoreRuntimeFlags } from './core/runtime_flags';
 import { incrementCoreMetric, logCoreEvent } from './core/telemetry';
@@ -27,6 +30,10 @@ if (databaseId === 'default') {
   setGlobalOptions({ maxInstances: 2, minInstances: 0 });
 }
 const db = getFirestore(databaseId);
+const preciseDeadlinesEnabled = databaseId === 'default';
+const deadlineController = createDeadlineController(
+  db, getFunctions().taskQueue('locations/us-central1/functions/advanceDebateTurnTask'),
+);
 const LEGACY_NAME_PLACEHOLDERS = new Set([
   'guest',
   'google user',
@@ -1114,7 +1121,7 @@ export const sendDebateMessage = onCall({ invoker: 'public', memory: '512MiB', c
     const status = normalizeDebateStatus(debate.status, 'active');
     assertCanSendMessage({
       uid, debate, status, hasReadAccess: canUserReadDebate(uid, debate),
-      isPlayableStatus: isDebatePlayableStatus(status), uploadGraceMs: UPLOAD_GRACE_MS,
+      isPlayableStatus: isDebatePlayableStatus(status), uploadGraceMs: preciseDeadlinesEnabled ? 0 : UPLOAD_GRACE_MS,
     });
     const file = bucket.file(mediaPath);
     const [metadata] = await file.getMetadata();
@@ -1169,7 +1176,7 @@ export const sendDebateMessage = onCall({ invoker: 'public', memory: '512MiB', c
         hasReadAccess: canUserReadDebate(uid, debate),
         status,
         isPlayableStatus: isDebatePlayableStatus(status),
-        uploadGraceMs: UPLOAD_GRACE_MS,
+        uploadGraceMs: preciseDeadlinesEnabled ? 0 : UPLOAD_GRACE_MS,
       });
       const roundIndex = guard.roundIndex;
 
@@ -1462,7 +1469,9 @@ export const yieldTurn = onCall({ invoker: 'public' }, async (request) => {
     // Place roundEndsAt firmly in the past — beyond the grace window — so that
     // both the client ticker and autoAdvanceLiveDebates detect expiry on the
     // very next check without waiting for UPLOAD_GRACE_MS to elapse.
-    const expiredMs = Date.now() - UPLOAD_GRACE_MS - 100;
+    const expiredMs = preciseDeadlinesEnabled
+      ? Math.min(Date.now(), debate.roundEndsAt?.toMillis?.() ?? Date.now())
+      : Date.now() - UPLOAD_GRACE_MS - 100;
 
     tx.update(debateRef, {
       roundEndsAt: admin.firestore.Timestamp.fromMillis(expiredMs),
@@ -1470,6 +1479,10 @@ export const yieldTurn = onCall({ invoker: 'public' }, async (request) => {
     });
   });
 
+  if (preciseDeadlinesEnabled) {
+    await deadlineController.advance(debateId, undefined, uid);
+    await deadlineController.schedule(debateId);
+  }
   return { ok: true };
 });
 
@@ -1810,6 +1823,12 @@ export const advanceRoundOrFinish = onCall({ invoker: 'public' }, async (request
     });
   }
 
+  if (preciseDeadlinesEnabled) {
+    await deadlineController.advance(debateId, undefined, uid);
+    await deadlineController.schedule(debateId);
+    return { ok: true };
+  }
+
   const debateRef = db.collection('debates').doc(debateId);
 
   await db.runTransaction(async (tx) => {
@@ -2003,7 +2022,7 @@ export const autoAdvanceLiveDebates = onSchedule(
     // Threshold: only pick up debates where the timer AND the grace window have
     // both fully expired. This guarantees in-flight uploads still within
     // UPLOAD_GRACE_MS of roundEndsAt are never prematurely advanced.
-    const thresholdMs = Date.now() - UPLOAD_GRACE_MS;
+    const thresholdMs = Date.now() - (preciseDeadlinesEnabled ? 0 : UPLOAD_GRACE_MS);
     const threshold = admin.firestore.Timestamp.fromMillis(thresholdMs);
 
     // Берём только активные дебаты, где roundEndsAt уже прошёл вместе с grace-окном.
@@ -2019,6 +2038,11 @@ export const autoAdvanceLiveDebates = onSchedule(
 
     // По одному, чтобы не ловить contention; функция advanceRoundOrFinish уже транзакционная.
     for (const doc of q.docs) {
+      if (preciseDeadlinesEnabled) {
+        await deadlineController.advance(doc.id);
+        await deadlineController.schedule(doc.id);
+        continue;
+      }
       await db.runTransaction(async (tx) => {
         const snap = await tx.get(doc.ref);
         const debate = snap.data() ?? {};
@@ -2605,3 +2629,23 @@ export const deleteDebateMessages = onCall({ invoker: 'public' }, async (request
   return { deleted: deletedCount };
 });
 
+
+
+// Cloud Tasks endpoints are private: only the server service account may invoke.
+export const advanceDebateTurnTask = onTaskDispatched({
+  region: 'us-central1', omit: !preciseDeadlinesEnabled, invoker: 'private',
+  retryConfig: { maxAttempts: 10, minBackoffSeconds: 1, maxBackoffSeconds: 30 },
+  rateLimits: { maxConcurrentDispatches: 2, maxDispatchesPerSecond: 10 },
+  timeoutSeconds: 60,
+}, async (request) => {
+  await deadlineController.runTask(request.data);
+});
+
+export const scheduleDebateTurnDeadline = onDocumentWritten({
+  document: 'debates/{debateId}', database: databaseId, retry: true,
+}, async (event) => {
+  if (!preciseDeadlinesEnabled) return;
+  await deadlineController.onWrite(
+    event.params.debateId, event.data?.before.data(), event.data?.after.data(),
+  );
+});
