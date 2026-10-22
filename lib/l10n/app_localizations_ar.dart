@@ -602,4 +602,15 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get staySignedIn => 'البقاء في الحساب';
+
+  @override
+  String get testProfilesTitle => 'ملفات الاختبار';
+
+  @override
+  String testProfileNumber(int number) {
+    return 'الملف $number';
+  }
+
+  @override
+  String get testProfileSwitchFailed => 'تعذر تبديل الملف. تحقق من الاتصال وحاول مجدداً.';
 }

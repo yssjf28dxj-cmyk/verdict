@@ -1,7 +1,7 @@
+import 'package:verdict/firebase_session.dart';
 import 'package:verdict/firestore_database.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import '../painters/chat_pattern_painter.dart';
 import '../services/pending_debate_service.dart';
@@ -37,7 +37,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
   bool _isAccepting = false;
   int? _proposedDurationSeconds;
   int? _proposedTotalRounds;
-  final FirebaseFunctions _functions = FirebaseFunctions.instance;
+  final FirebaseFunctions _functions = appFunctions;
 
   @override
   void initState() {
@@ -399,7 +399,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
               // Update topic in background service so the pill/overlay shows it
               PendingDebateService.instance.updateTopic(widget.debateId, topic.toString());
 
-              final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+              final currentUid = appAuth.currentUser?.uid ?? '';
               final invitedUserId = (data['invitedUserId'] ?? '').toString();
               final fighter1 = (data['fighter1'] ?? '').toString();
               final fighter2 = (data['fighter2'] ?? '').toString();

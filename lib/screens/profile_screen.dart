@@ -1,6 +1,6 @@
+import 'package:verdict/firebase_session.dart';
 import 'package:verdict/firestore_database.dart';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/services.dart';
@@ -53,7 +53,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isLoading = true;
   bool _isInviting = false;
   bool _isSigningOut = false;
-  final FirebaseFunctions _functions = FirebaseFunctions.instance;
+  final FirebaseFunctions _functions = appFunctions;
 
   String _extractDebateId(dynamic payload) {
     if (payload is Map) {
@@ -114,7 +114,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _loadProfile() async {
-    final user = FirebaseAuth.instance.currentUser;
+    final user = appAuth.currentUser;
     if (user == null) {
       setState(() => _isLoading = false);
       return;
@@ -341,7 +341,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required String rawPublicId,
     required String rawTopic,
   }) async {
-    final currentUser = FirebaseAuth.instance.currentUser;
+    final currentUser = appAuth.currentUser;
     if (currentUser == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.authRequired)),
@@ -502,7 +502,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _openUserSearchAndInvite(AppLocalizations l10n) async {
-    final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final currentUid = appAuth.currentUser?.uid ?? '';
     final searchController = TextEditingController();
 
     final selected = await showModalBottomSheet<_PublicUserPreview>(
@@ -778,7 +778,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _signOut() async {
     if (_isSigningOut) return;
-    final user = FirebaseAuth.instance.currentUser;
+    final user = appAuth.currentUser;
     if (user?.isAnonymous == true) {
       final l10n = AppLocalizations.of(context)!;
       final confirmed = await showDialog<bool>(
@@ -803,7 +803,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (!mounted) return;
     setState(() => _isSigningOut = true);
     try {
-      await FirebaseAuth.instance.signOut();
+      await appAuth.signOut();
       if (!mounted) return;
       context.go('/auth');
     } finally {

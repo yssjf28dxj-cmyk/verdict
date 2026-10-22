@@ -1,3 +1,4 @@
+import 'package:verdict/firebase_session.dart';
 import 'package:verdict/firestore_database.dart';
 import 'dart:math';
 
@@ -7,7 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 class AuthService {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseAuth _auth = appAuth;
   final FirebaseFirestore _firestore = appFirestore;
   String? _lastErrorCode;
   String? _lastErrorMessage;
@@ -63,7 +64,7 @@ class AuthService {
       // keychain-error on simulator: retry without keychain persistence.
       if (e.code == 'keychain-error') {
         try {
-          await FirebaseAuth.instance.setPersistence(Persistence.NONE);
+          await appAuth.setPersistence(Persistence.NONE);
           final credential = await _auth.signInAnonymously();
           return credential;
         } catch (e) {

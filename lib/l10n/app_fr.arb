@@ -196,5 +196,9 @@
   "cancelChallengeConfirmation": "Le débat en attente sera supprimé. Un débat déjà commencé ne peut pas être annulé ici.",
   "guestSignOutTitle": "Quitter le compte invité ?",
   "guestSignOutWarning": "Une nouvelle connexion en tant qu’invité peut créer un autre compte. Vous ne pourrez pas récupérer votre participant actuel avec une connexion invité. Pour conserver ce compte, fermez simplement l’application sans vous déconnecter.",
-  "staySignedIn": "Rester connecté"
+  "staySignedIn": "Rester connecté",
+  "testProfilesTitle": "Profils de test",
+  "testProfileNumber": "Profil {number}",
+  "@testProfileNumber": {"placeholders": {"number": {"type": "int"}}},
+  "testProfileSwitchFailed": "Impossible de changer de profil. Vérifiez la connexion et réessayez."
 }

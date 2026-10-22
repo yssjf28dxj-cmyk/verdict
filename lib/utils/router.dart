@@ -16,7 +16,7 @@ import '../screens/settings_screen.dart';
 import '../screens/world_chat_screen.dart';
 import '../screens/welcome_screen.dart';
 
-final appRouter = GoRouter(
+GoRouter createAppRouter() => GoRouter(
   initialLocation: '/',
   debugLogDiagnostics: false,
   errorBuilder: (context, state) => Scaffold(

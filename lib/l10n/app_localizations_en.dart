@@ -602,4 +602,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get staySignedIn => 'Stay signed in';
+
+  @override
+  String get testProfilesTitle => 'Test profiles';
+
+  @override
+  String testProfileNumber(int number) {
+    return 'Profile $number';
+  }
+
+  @override
+  String get testProfileSwitchFailed => 'Could not switch profile. Check the connection and try again.';
 }

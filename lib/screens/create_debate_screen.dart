@@ -1,5 +1,5 @@
+import 'package:verdict/firebase_session.dart';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import '../painters/chat_pattern_painter.dart';
 import '../utils/debate_error_mapper.dart';
@@ -22,7 +22,7 @@ class _CreateDebateScreenState extends State<CreateDebateScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _topicController = TextEditingController();
   final TextEditingController _invitedUserIdController = TextEditingController();
-  final FirebaseFunctions _functions = FirebaseFunctions.instance;
+  final FirebaseFunctions _functions = appFunctions;
   bool _isLoading = false;
   int _selectedDuration = 180;
   int _selectedRounds = 3;
@@ -89,7 +89,7 @@ class _CreateDebateScreenState extends State<CreateDebateScreen> {
       options: HttpsCallableOptions(timeout: const Duration(seconds: 20)),
     );
     try {
-      if (FirebaseAuth.instance.currentUser == null) throw StateError(l10n.authRequired);
+      if (appAuth.currentUser == null) throw StateError(l10n.authRequired);
       if (payload['creationMode'] == 'direct_invite' && invitedUserId.isEmpty) {
         throw StateError(l10n.directInviteNeedsOpponent);
       }

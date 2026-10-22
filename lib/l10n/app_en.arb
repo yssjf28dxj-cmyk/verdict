@@ -196,5 +196,9 @@
   "cancelChallengeConfirmation": "The waiting debate will be removed. A debate that has already started cannot be cancelled here.",
   "guestSignOutTitle": "Leave your guest account?",
   "guestSignOutWarning": "Signing in as a guest again may create a new account. You will not be able to recover control of your current fighter through guest sign-in. Close the app without signing out to keep this account.",
-  "staySignedIn": "Stay signed in"
+  "staySignedIn": "Stay signed in",
+  "testProfilesTitle": "Test profiles",
+  "testProfileNumber": "Profile {number}",
+  "@testProfileNumber": {"placeholders": {"number": {"type": "int"}}},
+  "testProfileSwitchFailed": "Could not switch profile. Check the connection and try again."
 }

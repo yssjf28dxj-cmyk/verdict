@@ -1,3 +1,4 @@
+import 'package:verdict/firebase_session.dart';
 import 'package:verdict/firestore_database.dart';
 import 'dart:ui';
 
@@ -28,7 +29,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _migrationResult = '';
 
   final AdminService _adminService = AdminService();
-  final FirebaseFunctions _functions = FirebaseFunctions.instance;
+  final FirebaseFunctions _functions = appFunctions;
   final FirebaseFirestore _firestore = appFirestore;
 
   @override

@@ -1,6 +1,6 @@
+import 'package:verdict/firebase_session.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 import '../painters/chat_pattern_painter.dart';
 import '../utils/style_utils.dart';
@@ -46,7 +46,7 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   void _checkAuth() {
-    final user = FirebaseAuth.instance.currentUser;
+    final user = appAuth.currentUser;
     if (!mounted) return;
     if (user != null) {
       if (context.mounted) context.go('/home');

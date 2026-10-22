@@ -1,8 +1,8 @@
+import 'package:verdict/firebase_session.dart';
 import 'package:verdict/firestore_database.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:audio_waveforms/audio_waveforms.dart';
@@ -105,7 +105,7 @@ class _DebateMessagesListState extends State<DebateMessagesList> {
     });
 
     try {
-      final callable = FirebaseFunctions.instance.httpsCallable(
+      final callable = appFunctions.httpsCallable(
         'deleteDebateMessages',
         options: HttpsCallableOptions(timeout: const Duration(seconds: 20)),
       );
@@ -483,7 +483,7 @@ class _DebateMessagesListState extends State<DebateMessagesList> {
           .snapshots(),
       builder: (context, snapshot) {
         final l10n = AppLocalizations.of(context)!;
-        final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+        final currentUid = appAuth.currentUser?.uid ?? '';
 
         // Only show spinner on the very first load (no data yet).
         // On reconnects the previous snapshot is reused — no flash.

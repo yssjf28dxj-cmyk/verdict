@@ -1,3 +1,4 @@
+import 'firebase_session.dart';
 import 'package:verdict/firestore_database.dart';
 import 'dart:ui';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -97,6 +98,13 @@ void main() async {
     options: currentFirebaseOptions(),
   );
 
+  try {
+    await testProfiles.restore();
+  } catch (error) {
+    // Fall back to the existing default session without signing anyone out.
+    debugPrint('Test profile restore failed: $error');
+  }
+
   // ── Firestore offline persistence ──────────────────────────────
   // On mobile: keeps all data cached locally when network drops.
   // On Web: relies on IndexedDB cache which is enabled by default.
@@ -173,9 +181,13 @@ void main() async {
   setupDI();
 
   runApp(
-    VerdictApp(
-      theme: buildVerdictTheme(),
-      localeController: AppLocaleController.instance,
+    ListenableBuilder(
+      listenable: testProfiles,
+      builder: (context, _) => VerdictApp(
+        key: ValueKey(testProfiles.selected),
+        theme: buildVerdictTheme(),
+        localeController: AppLocaleController.instance,
+      ),
     ),
   );
 }

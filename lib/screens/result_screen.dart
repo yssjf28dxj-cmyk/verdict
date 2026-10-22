@@ -1,10 +1,9 @@
+import 'package:verdict/firebase_session.dart';
 import 'package:verdict/firestore_database.dart';
 import 'dart:async';
 import 'dart:ui';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -72,7 +71,7 @@ class _ResultScreenState extends State<ResultScreen> {
     // whether the CF response arrives (handles network drops cleanly).
     unawaited(() async {
       try {
-        await FirebaseFunctions.instance
+        await appFunctions
             .httpsCallable('finalizeBattle')
             .call({'debateId': widget.debateId});
       } catch (e) {
@@ -120,7 +119,7 @@ class _ResultScreenState extends State<ResultScreen> {
     if (_didPlayOutcomeCue) return;
     _didPlayOutcomeCue = true;
 
-    final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final currentUid = appAuth.currentUser?.uid ?? '';
     final fighter1Id = (data['fighter1'] ?? '').toString();
     final fighter2Id = (data['fighter2'] ?? '').toString();
     final votes1 = _asInt(data['votes1']);

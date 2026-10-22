@@ -602,4 +602,15 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get staySignedIn => '保持登录';
+
+  @override
+  String get testProfilesTitle => '测试账户';
+
+  @override
+  String testProfileNumber(int number) {
+    return '账户 $number';
+  }
+
+  @override
+  String get testProfileSwitchFailed => '无法切换账户。请检查网络后重试。';
 }

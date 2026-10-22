@@ -1,8 +1,8 @@
+import 'package:verdict/firebase_session.dart';
 import 'package:verdict/firestore_database.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../painters/chat_pattern_painter.dart';
 import '../utils/name_utils.dart';
 import '../utils/rank_utils.dart';
@@ -44,7 +44,7 @@ class _WorldChatScreenState extends State<WorldChatScreen> {
 
 
   Future<void> _sendMessage() async {
-    final user = FirebaseAuth.instance.currentUser;
+    final user = appAuth.currentUser;
     final text = _controller.text.trim();
     if (user == null || text.isEmpty) return;
 
@@ -54,7 +54,7 @@ class _WorldChatScreenState extends State<WorldChatScreen> {
     _controller.clear();
 
     try {
-      final callable = FirebaseFunctions.instance.httpsCallable(
+      final callable = appFunctions.httpsCallable(
         'sendWorldMessage',
         options: HttpsCallableOptions(timeout: const Duration(seconds: 15)),
       );
@@ -121,7 +121,7 @@ class _WorldChatScreenState extends State<WorldChatScreen> {
 
   void _openUserProfile(String senderId, String senderName) {
     if (senderId.isEmpty) return;
-    final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final currentUid = appAuth.currentUser?.uid ?? '';
     if (senderId == currentUid) return; // Don't open own profile from chat
 
     context.push(
@@ -145,7 +145,7 @@ class _WorldChatScreenState extends State<WorldChatScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final user = FirebaseAuth.instance.currentUser;
+    final user = appAuth.currentUser;
     return Scaffold(
       extendBodyBehindAppBar: true,
       backgroundColor: VerdictStyle.bg,

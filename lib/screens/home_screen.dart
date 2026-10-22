@@ -1,3 +1,4 @@
+import '../widgets/test_profile_switcher.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../painters/chat_pattern_painter.dart';
@@ -48,6 +49,7 @@ class _HomeScreenState extends State<HomeScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         actions: [
+          const TestProfileSwitcher(),
           IconButton(
             icon: const Icon(Icons.person),
             onPressed: () => context.push('/profile'),

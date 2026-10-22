@@ -602,4 +602,15 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get staySignedIn => 'Остаться в аккаунте';
+
+  @override
+  String get testProfilesTitle => 'Тестовые профили';
+
+  @override
+  String testProfileNumber(int number) {
+    return 'Профиль $number';
+  }
+
+  @override
+  String get testProfileSwitchFailed => 'Не удалось переключить профиль. Проверьте соединение и попробуйте снова.';
 }

@@ -1,7 +1,7 @@
+import 'package:verdict/firebase_session.dart';
 import 'package:verdict/firestore_database.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -64,7 +64,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
           .doc(widget.uid)
           .get();
       final userData = userDoc.data() ?? {};
-      final viewerUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+      final viewerUid = appAuth.currentUser?.uid ?? '';
 
       final debateSnapshots = await Future.wait([
         appFirestore
@@ -195,7 +195,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
 
   Future<void> _challengeToDebate() async {
     final l10n = AppLocalizations.of(context)!;
-    final currentUser = FirebaseAuth.instance.currentUser;
+    final currentUser = appAuth.currentUser;
     if (currentUser == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.authRequired)),
@@ -257,7 +257,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
 
     try {
 
-      final callable = FirebaseFunctions.instance.httpsCallable(
+      final callable = appFunctions.httpsCallable(
         'createDebate',
         options: HttpsCallableOptions(timeout: const Duration(seconds: 20)),
       );

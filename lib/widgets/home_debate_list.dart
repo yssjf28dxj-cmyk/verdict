@@ -1,7 +1,7 @@
+import 'package:verdict/firebase_session.dart';
 import 'package:verdict/firestore_database.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../l10n/app_localizations.dart';
 import '../utils/debate_query_access.dart';
 import '../widgets/debate_card.dart';
@@ -87,7 +87,7 @@ class HomeDebateList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final uid = appAuth.currentUser?.uid ?? '';
     return StreamBuilder<QuerySnapshot>(
       stream: appFirestore
           .collection('debates')

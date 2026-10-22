@@ -1,3 +1,4 @@
+import 'package:verdict/firebase_session.dart';
 import 'package:verdict/firestore_database.dart';
 import 'dart:async';
 
@@ -6,7 +7,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 
 class LobbyService {
   final FirebaseFirestore _db = appFirestore;
-  final FirebaseFunctions _functions = FirebaseFunctions.instance;
+  final FirebaseFunctions _functions = appFunctions;
   final Map<String, Future<String?>> _startInFlight = {};
 
   int _asPositiveInt(dynamic value, int fallback) {

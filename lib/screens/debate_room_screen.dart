@@ -1,3 +1,4 @@
+import 'package:verdict/firebase_session.dart';
 import 'package:verdict/firestore_database.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -69,7 +70,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
   }
 
   final TextEditingController _messageController = TextEditingController();
-  final FirebaseFunctions _functions = FirebaseFunctions.instance;
+  final FirebaseFunctions _functions = appFunctions;
   Timer? _typingDebouncer;
   Timer? _activityClearTimer;
 
@@ -376,7 +377,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
   }
 
   void _bootstrapCurrentUserIdentity() {
-    final user = FirebaseAuth.instance.currentUser;
+    final user = appAuth.currentUser;
     currentUserId = user?.uid ?? '';
     currentUserName = _bestEffortName(user);
   }
@@ -728,7 +729,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
 
   String get _effectiveCurrentUid {
     if (currentUserId.isNotEmpty) return currentUserId;
-    return FirebaseAuth.instance.currentUser?.uid ?? '';
+    return appAuth.currentUser?.uid ?? '';
   }
 
   bool get isParticipant {
@@ -1350,7 +1351,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
 
     _bootstrapCurrentUserIdentity();
     final senderName =
-        _bestEffortName(FirebaseAuth.instance.currentUser).trim();
+        _bestEffortName(appAuth.currentUser).trim();
     if (senderName.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1548,7 +1549,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
 
     _bootstrapCurrentUserIdentity();
     final senderName =
-        _bestEffortName(FirebaseAuth.instance.currentUser).trim();
+        _bestEffortName(appAuth.currentUser).trim();
     if (senderName.isEmpty) return;
 
     final l10n = AppLocalizations.of(context)!;
@@ -1802,7 +1803,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
     final l10n = AppLocalizations.of(context)!;
     _bootstrapCurrentUserIdentity();
     final senderName =
-        _bestEffortName(FirebaseAuth.instance.currentUser).trim();
+        _bestEffortName(appAuth.currentUser).trim();
     if (senderName.isEmpty) return;
 
     setState(() => _isUploadingMedia = true);

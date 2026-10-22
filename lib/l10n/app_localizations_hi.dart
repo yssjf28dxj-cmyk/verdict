@@ -602,4 +602,15 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get staySignedIn => 'साइन इन रहें';
+
+  @override
+  String get testProfilesTitle => 'परीक्षण प्रोफ़ाइल';
+
+  @override
+  String testProfileNumber(int number) {
+    return 'प्रोफ़ाइल $number';
+  }
+
+  @override
+  String get testProfileSwitchFailed => 'प्रोफ़ाइल नहीं बदली जा सकी। कनेक्शन जाँचें और फिर कोशिश करें।';
 }

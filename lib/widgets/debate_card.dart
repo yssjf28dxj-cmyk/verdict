@@ -1,3 +1,4 @@
+import 'package:verdict/firebase_session.dart';
 import 'package:verdict/firestore_database.dart';
 // ignore_for_file: use_build_context_synchronously
 import 'package:flutter/material.dart';
@@ -31,7 +32,7 @@ class DebateCard extends StatefulWidget {
 }
 
 class _DebateCardState extends State<DebateCard> {
-  final FirebaseFunctions _functions = FirebaseFunctions.instance;
+  final FirebaseFunctions _functions = appFunctions;
   bool _isJoining = false;
   bool _isCancelling = false;
 

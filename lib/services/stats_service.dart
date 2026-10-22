@@ -1,3 +1,4 @@
+import 'package:verdict/firebase_session.dart';
 import 'package:verdict/firestore_database.dart';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -5,7 +6,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 
 class StatsService {
   final FirebaseFirestore _db = appFirestore;
-  final FirebaseFunctions _functions = FirebaseFunctions.instance;
+  final FirebaseFunctions _functions = appFunctions;
 
   // Главный метод: Обработка финала битвы
   // Этот метод должен вызываться, когда таймер доходит до 0 в последнем раунде

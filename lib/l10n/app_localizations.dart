@@ -1286,6 +1286,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Stay signed in'**
   String get staySignedIn;
+
+  /// No description provided for @testProfilesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Test profiles'**
+  String get testProfilesTitle;
+
+  /// No description provided for @testProfileNumber.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile {number}'**
+  String testProfileNumber(int number);
+
+  /// No description provided for @testProfileSwitchFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not switch profile. Check the connection and try again.'**
+  String get testProfileSwitchFailed;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

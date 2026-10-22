@@ -1,3 +1,4 @@
+import 'package:verdict/firebase_session.dart';
 import 'dart:io';
 
 import 'package:firebase_storage/firebase_storage.dart';
@@ -10,7 +11,7 @@ class MediaUploadService {
   MediaUploadService._();
   static final MediaUploadService instance = MediaUploadService._();
 
-  final FirebaseStorage _storage = FirebaseStorage.instance;
+  final FirebaseStorage _storage = appStorage;
 
   /// Upload a file and return its object path, never a download-token URL.
   ///
