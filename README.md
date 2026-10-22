@@ -1,5 +1,7 @@
 # verdict
 
+[Project goals and roadmap](docs/roadmap.md)
+
 A new Flutter project.
 
 ## Getting Started
