@@ -1,11 +1,14 @@
 VERDICT Test — Android ARM64
 
-Source commit: 1a12ec16b11a23c87b35702cf67aefcc9634b513
-Build: staging profile, test/debug signing certificate.
+Source commit: b76c41e
+Build: staging profile, versionCode 4002 (base build number 2002 + ARM64 offset).
 Project: verdict-test-1471f
-Firestore database: default (without parentheses).
+Firestore: default
 Package: com.example.verdict.test
 
-For testing on a device. Not a store release. Text debates first; media setup is incomplete.
-APK signature and ZIP integrity verified. Device runtime not yet verified.
-SHA256: f5567f819fe4796716dc9ac118b7cd4a8c8a5eea8b023f3228468071accac514
+Adds cancellation of waiting challenges and a warning before guest sign-out.
+Install over the previous test APK without uninstalling or signing out.
+Update signing certificate verified to match the previous test APK.
+APK signature and ZIP integrity verified; device runtime remains to be tested.
+No Firebase deployment needed. Media and AI judge issues remain unresolved.
+SHA256: 12612d843232a9265f9c1934aaf4213ec17e81f6f8e3005edb0868fe021e79ae
