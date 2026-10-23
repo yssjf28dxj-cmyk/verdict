@@ -781,4 +781,43 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get rematchCancelled => '之前的挑战已取消，您可以重新提议再战。';
+
+  @override
+  String get savedDebatesTitle => '收藏的辩论';
+
+  @override
+  String get saveDebate => '收藏辩论';
+
+  @override
+  String get removeSavedDebate => '取消收藏';
+
+  @override
+  String get savedDebatesEmpty => '尚未收藏辩论。';
+
+  @override
+  String get savedDebateUnavailable => '辩论已删除或无权访问。';
+
+  @override
+  String get savedDebatesError => '无法加载或更新收藏。请检查连接后重试。';
+
+  @override
+  String get refreshDebates => '刷新';
+
+  @override
+  String get moreDebates => '加载更多';
+
+  @override
+  String get allDebates => '全部';
+
+  @override
+  String get liveStatus => '进行中';
+
+  @override
+  String get historyEmpty => '已加载的历史中没有符合筛选条件的辩论。';
+
+  @override
+  String get debateHistoryTitle => '辩论历史';
+
+  @override
+  String get debateHistoryError => '无法加载历史。请检查连接后重试。';
 }

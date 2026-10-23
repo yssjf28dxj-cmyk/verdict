@@ -262,5 +262,18 @@
   "rematchHint": "سيُنشأ تحدٍ خاص جديد لنفس الخصم ليؤكد الشروط في غرفة الانتظار. يبقى النزال الأصلي ونتيجته كما هما.",
   "rematchConfirm": "إرسال التحدي",
   "rematchFailed": "تعذر اقتراح إعادة النزال. حاول لاحقًا.",
-  "rematchCancelled": "تم إلغاء التحدي السابق. يمكنك اقتراح نزال جديد."
+  "rematchCancelled": "تم إلغاء التحدي السابق. يمكنك اقتراح نزال جديد.",
+  "savedDebatesTitle": "المناظرات المحفوظة",
+  "saveDebate": "حفظ المناظرة",
+  "removeSavedDebate": "إزالة من المحفوظات",
+  "savedDebatesEmpty": "لا توجد مناظرات محفوظة بعد.",
+  "savedDebateUnavailable": "حُذفت المناظرة أو لم يعد الوصول متاحًا.",
+  "savedDebatesError": "تعذر تحميل المحفوظات أو تحديثها. تحقق من الاتصال وأعد المحاولة.",
+  "refreshDebates": "تحديث",
+  "moreDebates": "تحميل المزيد",
+  "allDebates": "الكل",
+  "liveStatus": "مباشر",
+  "historyEmpty": "لا توجد مناظرات مطابقة في السجل المحمّل.",
+  "debateHistoryTitle": "سجل المناظرات",
+  "debateHistoryError": "تعذر تحميل السجل. تحقق من الاتصال وأعد المحاولة."
 }

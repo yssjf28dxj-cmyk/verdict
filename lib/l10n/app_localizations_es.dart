@@ -781,4 +781,43 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get rematchCancelled => 'El desafío anterior se canceló. Puedes proponer otra revancha.';
+
+  @override
+  String get savedDebatesTitle => 'Debates guardados';
+
+  @override
+  String get saveDebate => 'Guardar debate';
+
+  @override
+  String get removeSavedDebate => 'Quitar de guardados';
+
+  @override
+  String get savedDebatesEmpty => 'Aún no hay debates guardados.';
+
+  @override
+  String get savedDebateUnavailable => 'Debate eliminado o acceso no disponible.';
+
+  @override
+  String get savedDebatesError => 'No se pudieron cargar o actualizar los guardados. Revisa la conexión y reintenta.';
+
+  @override
+  String get refreshDebates => 'Actualizar';
+
+  @override
+  String get moreDebates => 'Cargar más';
+
+  @override
+  String get allDebates => 'Todos';
+
+  @override
+  String get liveStatus => 'En directo';
+
+  @override
+  String get historyEmpty => 'No hay debates coincidentes en el historial cargado.';
+
+  @override
+  String get debateHistoryTitle => 'Historial de debates';
+
+  @override
+  String get debateHistoryError => 'No se pudo cargar el historial. Revisa la conexión y reintenta.';
 }

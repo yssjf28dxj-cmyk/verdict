@@ -262,5 +262,18 @@
   "rematchHint": "Un nouveau défi privé sera proposé au même adversaire, qui confirmera les conditions dans le salon. Le combat initial et son résultat sont conservés.",
   "rematchConfirm": "Envoyer le défi",
   "rematchFailed": "Impossible de proposer une revanche. Réessayez plus tard.",
-  "rematchCancelled": "Le défi précédent a été annulé. Vous pouvez proposer une nouvelle revanche."
+  "rematchCancelled": "Le défi précédent a été annulé. Vous pouvez proposer une nouvelle revanche.",
+  "savedDebatesTitle": "Débats enregistrés",
+  "saveDebate": "Enregistrer le débat",
+  "removeSavedDebate": "Retirer des favoris",
+  "savedDebatesEmpty": "Aucun débat enregistré.",
+  "savedDebateUnavailable": "Débat supprimé ou accès indisponible.",
+  "savedDebatesError": "Impossible de charger ou modifier les favoris. Vérifiez la connexion et réessayez.",
+  "refreshDebates": "Actualiser",
+  "moreDebates": "Charger plus",
+  "allDebates": "Tous",
+  "liveStatus": "En direct",
+  "historyEmpty": "Aucun débat correspondant dans l’historique chargé.",
+  "debateHistoryTitle": "Historique des débats",
+  "debateHistoryError": "Impossible de charger l’historique. Vérifiez la connexion et réessayez."
 }

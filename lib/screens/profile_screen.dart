@@ -53,7 +53,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _debateStyle = 'Balanced';
   int _totalDebates = 0;
   List<DebateHistoryItem> _recentDebates = const [];
-  List<DebateHistoryItem> _allDebates = const [];
   bool _isLoading = true;
   bool _isInviting = false;
   bool _isSigningOut = false;
@@ -247,7 +246,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       if (mounted) {
         setState(() {
-          _allDebates = history;
           _recentDebates = history.take(5).toList(growable: false);
         });
       }
@@ -270,7 +268,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _openFullHistory() {
-    context.push('/profile-history', extra: _allDebates);
+    context.push('/profile-history');
   }
 
   String _effectiveDebateLanguageCode() {
@@ -1464,7 +1462,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
               ),
-              if (_allDebates.isNotEmpty)
                 InkWell(
                   onTap: _openFullHistory,
                   borderRadius: BorderRadius.circular(8),

@@ -262,5 +262,18 @@
   "rematchHint": "Se creará un nuevo desafío privado para el mismo rival, que confirmará las condiciones en la sala. El combate original y su resultado se conservan.",
   "rematchConfirm": "Enviar desafío",
   "rematchFailed": "No se pudo proponer la revancha. Inténtalo más tarde.",
-  "rematchCancelled": "El desafío anterior se canceló. Puedes proponer otra revancha."
+  "rematchCancelled": "El desafío anterior se canceló. Puedes proponer otra revancha.",
+  "savedDebatesTitle": "Debates guardados",
+  "saveDebate": "Guardar debate",
+  "removeSavedDebate": "Quitar de guardados",
+  "savedDebatesEmpty": "Aún no hay debates guardados.",
+  "savedDebateUnavailable": "Debate eliminado o acceso no disponible.",
+  "savedDebatesError": "No se pudieron cargar o actualizar los guardados. Revisa la conexión y reintenta.",
+  "refreshDebates": "Actualizar",
+  "moreDebates": "Cargar más",
+  "allDebates": "Todos",
+  "liveStatus": "En directo",
+  "historyEmpty": "No hay debates coincidentes en el historial cargado.",
+  "debateHistoryTitle": "Historial de debates",
+  "debateHistoryError": "No se pudo cargar el historial. Revisa la conexión y reintenta."
 }

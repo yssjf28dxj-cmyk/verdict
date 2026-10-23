@@ -262,5 +262,18 @@
   "rematchHint": "将向同一对手发出新的私人挑战，由对手在大厅确认条件。原来的对局和结果会保留。",
   "rematchConfirm": "发送挑战",
   "rematchFailed": "无法提议再战，请稍后重试。",
-  "rematchCancelled": "之前的挑战已取消，您可以重新提议再战。"
+  "rematchCancelled": "之前的挑战已取消，您可以重新提议再战。",
+  "savedDebatesTitle": "收藏的辩论",
+  "saveDebate": "收藏辩论",
+  "removeSavedDebate": "取消收藏",
+  "savedDebatesEmpty": "尚未收藏辩论。",
+  "savedDebateUnavailable": "辩论已删除或无权访问。",
+  "savedDebatesError": "无法加载或更新收藏。请检查连接后重试。",
+  "refreshDebates": "刷新",
+  "moreDebates": "加载更多",
+  "allDebates": "全部",
+  "liveStatus": "进行中",
+  "historyEmpty": "已加载的历史中没有符合筛选条件的辩论。",
+  "debateHistoryTitle": "辩论历史",
+  "debateHistoryError": "无法加载历史。请检查连接后重试。"
 }

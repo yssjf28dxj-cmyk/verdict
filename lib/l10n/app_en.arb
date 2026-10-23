@@ -262,5 +262,18 @@
   "rematchHint": "This creates a new private challenge for the same opponent. They confirm the terms in the lobby. The original battle and its result stay unchanged.",
   "rematchConfirm": "Send challenge",
   "rematchFailed": "Could not offer a rematch. Try again later.",
-  "rematchCancelled": "The previous challenge was cancelled. You can offer a new rematch."
+  "rematchCancelled": "The previous challenge was cancelled. You can offer a new rematch.",
+  "savedDebatesTitle": "Saved debates",
+  "saveDebate": "Save debate",
+  "removeSavedDebate": "Remove from saved",
+  "savedDebatesEmpty": "No saved debates yet.",
+  "savedDebateUnavailable": "Debate deleted or access unavailable.",
+  "savedDebatesError": "Could not load or update saved debates. Check your connection and retry.",
+  "refreshDebates": "Refresh",
+  "moreDebates": "Load more",
+  "allDebates": "All",
+  "liveStatus": "Live",
+  "historyEmpty": "No matching debates in the loaded history.",
+  "debateHistoryTitle": "Debate history",
+  "debateHistoryError": "Could not load history. Check your connection and retry."
 }

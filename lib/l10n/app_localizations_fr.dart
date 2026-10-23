@@ -781,4 +781,43 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get rematchCancelled => 'Le défi précédent a été annulé. Vous pouvez proposer une nouvelle revanche.';
+
+  @override
+  String get savedDebatesTitle => 'Débats enregistrés';
+
+  @override
+  String get saveDebate => 'Enregistrer le débat';
+
+  @override
+  String get removeSavedDebate => 'Retirer des favoris';
+
+  @override
+  String get savedDebatesEmpty => 'Aucun débat enregistré.';
+
+  @override
+  String get savedDebateUnavailable => 'Débat supprimé ou accès indisponible.';
+
+  @override
+  String get savedDebatesError => 'Impossible de charger ou modifier les favoris. Vérifiez la connexion et réessayez.';
+
+  @override
+  String get refreshDebates => 'Actualiser';
+
+  @override
+  String get moreDebates => 'Charger plus';
+
+  @override
+  String get allDebates => 'Tous';
+
+  @override
+  String get liveStatus => 'En direct';
+
+  @override
+  String get historyEmpty => 'Aucun débat correspondant dans l’historique chargé.';
+
+  @override
+  String get debateHistoryTitle => 'Historique des débats';
+
+  @override
+  String get debateHistoryError => 'Impossible de charger l’historique. Vérifiez la connexion et réessayez.';
 }

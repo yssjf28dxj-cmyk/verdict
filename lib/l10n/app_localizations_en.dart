@@ -781,4 +781,43 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get rematchCancelled => 'The previous challenge was cancelled. You can offer a new rematch.';
+
+  @override
+  String get savedDebatesTitle => 'Saved debates';
+
+  @override
+  String get saveDebate => 'Save debate';
+
+  @override
+  String get removeSavedDebate => 'Remove from saved';
+
+  @override
+  String get savedDebatesEmpty => 'No saved debates yet.';
+
+  @override
+  String get savedDebateUnavailable => 'Debate deleted or access unavailable.';
+
+  @override
+  String get savedDebatesError => 'Could not load or update saved debates. Check your connection and retry.';
+
+  @override
+  String get refreshDebates => 'Refresh';
+
+  @override
+  String get moreDebates => 'Load more';
+
+  @override
+  String get allDebates => 'All';
+
+  @override
+  String get liveStatus => 'Live';
+
+  @override
+  String get historyEmpty => 'No matching debates in the loaded history.';
+
+  @override
+  String get debateHistoryTitle => 'Debate history';
+
+  @override
+  String get debateHistoryError => 'Could not load history. Check your connection and retry.';
 }

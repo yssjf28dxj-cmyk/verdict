@@ -101,6 +101,18 @@ service cloud.firestore {
           || (request.resource.data.name is string && request.resource.data.name.size() <= 50));
 
       allow delete: if false;
+
+      // Private references only: saving never grants access to the battle.
+      match /saved_debates/{debateId} {
+        allow read, delete: if isSignedIn() && request.auth.uid == uid;
+        allow create, update: if accountMayWrite() && request.auth.uid == uid
+          && debateId.matches('^[A-Za-z0-9_-]{1,128}$')
+          && request.resource.data.keys().hasOnly(['savedAt'])
+          && request.resource.data.savedAt == request.time
+          && exists(/databases/$(database)/documents/debates/$(debateId))
+          && get(/databases/$(database)/documents/debates/$(debateId)).data.status == 'finished'
+          && canReadDebateByData(get(/databases/$(database)/documents/debates/$(debateId)).data);
+      }
     }
 
     // ─── LEGACY LOBBIES (server-only archive) ───────────────

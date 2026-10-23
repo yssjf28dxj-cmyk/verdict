@@ -781,4 +781,43 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get rematchCancelled => 'पिछली चुनौती रद्द हो गई है। आप नया प्रस्ताव भेज सकते हैं।';
+
+  @override
+  String get savedDebatesTitle => 'सहेजी गई बहसें';
+
+  @override
+  String get saveDebate => 'बहस सहेजें';
+
+  @override
+  String get removeSavedDebate => 'सहेजी गई बहस हटाएँ';
+
+  @override
+  String get savedDebatesEmpty => 'अभी कोई बहस सहेजी नहीं गई है।';
+
+  @override
+  String get savedDebateUnavailable => 'बहस हटा दी गई है या पहुँच उपलब्ध नहीं है।';
+
+  @override
+  String get savedDebatesError => 'सहेजी गई बहसें लोड या अपडेट नहीं हो सकीं। कनेक्शन जाँचें और फिर प्रयास करें।';
+
+  @override
+  String get refreshDebates => 'रीफ़्रेश करें';
+
+  @override
+  String get moreDebates => 'और लोड करें';
+
+  @override
+  String get allDebates => 'सभी';
+
+  @override
+  String get liveStatus => 'लाइव';
+
+  @override
+  String get historyEmpty => 'लोड किए गए इतिहास में कोई मेल खाती बहस नहीं है।';
+
+  @override
+  String get debateHistoryTitle => 'बहस का इतिहास';
+
+  @override
+  String get debateHistoryError => 'इतिहास लोड नहीं हो सका। कनेक्शन जाँचें और फिर प्रयास करें।';
 }

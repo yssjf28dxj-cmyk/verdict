@@ -15,6 +15,7 @@ import '../utils/name_utils.dart';
 import '../utils/style_utils.dart';
 import '../widgets/ai_result_card.dart';
 import '../widgets/rematch_button.dart';
+import '../widgets/save_debate_button.dart';
 import 'package:go_router/go_router.dart';
 
 class ResultScreen extends StatefulWidget {
@@ -500,6 +501,8 @@ class _ResultScreenState extends State<ResultScreen> {
                             },
                           ),
                           const SizedBox(height: 24),
+                          if (testProfilesEnabled && data['status'] == 'finished' && appAuth.currentUser != null)
+                            SaveDebateButton(debateId: widget.debateId),
                           if (testProfilesEnabled && data['status'] == 'finished'
                             && [data['fighter1'], data['fighter2']].contains(appAuth.currentUser?.uid)
                             && appAuth.currentUser != null) ...[

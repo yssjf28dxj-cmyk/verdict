@@ -1,16 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import '../firebase_session.dart';
+import '../l10n/app_localizations.dart';
 
 import '../models/debate_history_item.dart';
+import '../services/debate_history_service.dart';
 import '../painters/chat_pattern_painter.dart';
 import '../utils/style_utils.dart';
 
 class ProfileHistoryScreen extends StatefulWidget {
   const ProfileHistoryScreen({
     super.key,
-    required this.items,
+    this.loadPage,
+    this.hasMore,
   });
 
-  final List<DebateHistoryItem> items;
+  final Future<List<DebateHistoryItem>> Function(bool reset)? loadPage;
+  final bool Function()? hasMore;
 
   @override
   State<ProfileHistoryScreen> createState() => _ProfileHistoryScreenState();
@@ -18,6 +24,45 @@ class ProfileHistoryScreen extends StatefulWidget {
 
 class _ProfileHistoryScreenState extends State<ProfileHistoryScreen> {
   String _filter = 'all';
+  final _items = <DebateHistoryItem>[];
+  DebateHistoryService? _service;
+  bool _busy = true, _failed = false;
+  bool get _hasMore => widget.hasMore?.call() ?? _service!.hasMore;
+  @override
+  void initState() {
+    super.initState();
+    if (widget.loadPage == null) _service = DebateHistoryService();
+    _load();
+  }
+
+  Future<void> _load({bool reset = false}) async {
+    setState(() {
+      _busy = true;
+      _failed = false;
+      if (reset) _items.clear();
+    });
+    try {
+      final rows = await (widget.loadPage?.call(reset) ??
+          _service!.nextPage(reset: reset));
+      if (mounted) {
+        setState(() {
+          final merged = {
+            for (final row in _items) row.debateId: row,
+            for (final row in rows) row.debateId: row
+          };
+          _items
+            ..clear()
+            ..addAll(merged.values);
+          _items.sort((a, b) => (b.createdAt ?? DateTime(1970))
+              .compareTo(a.createdAt ?? DateTime(1970)));
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _failed = true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   Color _outcomeColor(String outcome) {
     switch (outcome) {
@@ -46,19 +91,19 @@ class _ProfileHistoryScreenState extends State<ProfileHistoryScreen> {
   List<DebateHistoryItem> _filteredItems() {
     switch (_filter) {
       case 'live':
-        return widget.items
+        return _items
             .where((e) => e.status == 'live' || e.status == 'active')
             .toList();
       case 'finished':
-        return widget.items.where((e) => e.status == 'finished').toList();
+        return _items.where((e) => e.status == 'finished').toList();
       case 'win':
-        return widget.items.where((e) => e.outcomeLabel == 'WIN').toList();
+        return _items.where((e) => e.outcomeLabel == 'WIN').toList();
       case 'loss':
-        return widget.items.where((e) => e.outcomeLabel == 'LOSS').toList();
+        return _items.where((e) => e.outcomeLabel == 'LOSS').toList();
       case 'draw':
-        return widget.items.where((e) => e.outcomeLabel == 'DRAW').toList();
+        return _items.where((e) => e.outcomeLabel == 'DRAW').toList();
       default:
-        return widget.items;
+        return _items;
     }
   }
 
@@ -77,13 +122,25 @@ class _ProfileHistoryScreenState extends State<ProfileHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     final items = _filteredItems();
+    final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
       backgroundColor: VerdictStyle.bg,
       appBar: AppBar(
         backgroundColor: VerdictStyle.bg,
         foregroundColor: Colors.white,
-        title: const Text('Debate History'),
+        title: Text(l10n.debateHistoryTitle),
+        actions: [
+          IconButton(
+              tooltip: l10n.refreshDebates,
+              onPressed: _busy ? null : () => _load(reset: true),
+              icon: const Icon(Icons.refresh)),
+          if (testProfilesEnabled)
+            IconButton(
+                tooltip: AppLocalizations.of(context)!.savedDebatesTitle,
+                onPressed: () => context.push('/saved-debates'),
+                icon: const Icon(Icons.bookmarks_outlined))
+        ],
       ),
       body: Stack(
         children: [
@@ -100,21 +157,31 @@ class _ProfileHistoryScreenState extends State<ProfileHistoryScreen> {
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    _filterChip('all', 'All'),
-                    _filterChip('live', 'Live'),
-                    _filterChip('finished', 'Finished'),
-                    _filterChip('win', 'Wins'),
-                    _filterChip('loss', 'Losses'),
-                    _filterChip('draw', 'Draws'),
+                    _filterChip('all', l10n.allDebates),
+                    _filterChip('live', l10n.liveStatus),
+                    _filterChip('finished', l10n.finishedStatus),
+                    _filterChip('win', l10n.wins),
+                    _filterChip('loss', l10n.losses),
+                    _filterChip('draw', l10n.draws),
                   ],
                 ),
               ),
+              if (_failed)
+                Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Text(l10n.debateHistoryError)),
+              if (_busy) const LinearProgressIndicator(),
+              if (!_busy && (_failed || _hasMore))
+                TextButton(
+                    onPressed: () => _load(),
+                    child: Text(
+                        _failed ? l10n.retryMediaLabel : l10n.moreDebates)),
               Expanded(
                 child: items.isEmpty
-                    ? const Center(
+                    ? Center(
                         child: Text(
-                          'No debates for selected filter',
-                          style: TextStyle(color: Colors.white70),
+                          l10n.historyEmpty,
+                          style: const TextStyle(color: Colors.white70),
                         ),
                       )
                     : ListView.builder(
@@ -124,62 +191,68 @@ class _ProfileHistoryScreenState extends State<ProfileHistoryScreen> {
                           final item = items[index];
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 10),
-                            child: GlassCard(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    item.topic,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 15,
+                            child: InkWell(
+                              onTap: () =>
+                                  context.push('/lobby/${item.debateId}'),
+                              child: GlassCard(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      item.topic.isEmpty
+                                          ? l10n.unknownTopic
+                                          : item.topic,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 15,
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    'vs ${item.opponentLabel}',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 12,
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      'vs ${item.opponentLabel}',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 12,
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Row(
-                                    children: [
-                                      Text(
-                                        item.outcomeLabel,
-                                        style: TextStyle(
-                                          color:
-                                              _outcomeColor(item.outcomeLabel),
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 12,
+                                    const SizedBox(height: 8),
+                                    Wrap(
+                                      spacing: 8,
+                                      runSpacing: 6,
+                                      children: [
+                                        Text(
+                                          item.outcomeLabel,
+                                          style: TextStyle(
+                                            color: _outcomeColor(
+                                                item.outcomeLabel),
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 12,
+                                          ),
                                         ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        item.status.toUpperCase(),
-                                        style: const TextStyle(
-                                          color: Colors.white60,
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w700,
+                                        Text(
+                                          item.status.toUpperCase(),
+                                          style: const TextStyle(
+                                            color: Colors.white60,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w700,
+                                          ),
                                         ),
-                                      ),
-                                      const Spacer(),
-                                      Text(
-                                        _formatCreatedAt(item.createdAt),
-                                        style: const TextStyle(
-                                          color: Colors.white54,
-                                          fontSize: 11,
+                                        Text(
+                                          _formatCreatedAt(item.createdAt),
+                                          style: const TextStyle(
+                                            color: Colors.white54,
+                                            fontSize: 11,
+                                          ),
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
+                                      ],
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           );

@@ -1640,6 +1640,84 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The previous challenge was cancelled. You can offer a new rematch.'**
   String get rematchCancelled;
+
+  /// No description provided for @savedDebatesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved debates'**
+  String get savedDebatesTitle;
+
+  /// No description provided for @saveDebate.
+  ///
+  /// In en, this message translates to:
+  /// **'Save debate'**
+  String get saveDebate;
+
+  /// No description provided for @removeSavedDebate.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove from saved'**
+  String get removeSavedDebate;
+
+  /// No description provided for @savedDebatesEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No saved debates yet.'**
+  String get savedDebatesEmpty;
+
+  /// No description provided for @savedDebateUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Debate deleted or access unavailable.'**
+  String get savedDebateUnavailable;
+
+  /// No description provided for @savedDebatesError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load or update saved debates. Check your connection and retry.'**
+  String get savedDebatesError;
+
+  /// No description provided for @refreshDebates.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh'**
+  String get refreshDebates;
+
+  /// No description provided for @moreDebates.
+  ///
+  /// In en, this message translates to:
+  /// **'Load more'**
+  String get moreDebates;
+
+  /// No description provided for @allDebates.
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get allDebates;
+
+  /// No description provided for @liveStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Live'**
+  String get liveStatus;
+
+  /// No description provided for @historyEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No matching debates in the loaded history.'**
+  String get historyEmpty;
+
+  /// No description provided for @debateHistoryTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Debate history'**
+  String get debateHistoryTitle;
+
+  /// No description provided for @debateHistoryError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load history. Check your connection and retry.'**
+  String get debateHistoryError;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

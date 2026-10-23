@@ -781,4 +781,43 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get rematchCancelled => 'تم إلغاء التحدي السابق. يمكنك اقتراح نزال جديد.';
+
+  @override
+  String get savedDebatesTitle => 'المناظرات المحفوظة';
+
+  @override
+  String get saveDebate => 'حفظ المناظرة';
+
+  @override
+  String get removeSavedDebate => 'إزالة من المحفوظات';
+
+  @override
+  String get savedDebatesEmpty => 'لا توجد مناظرات محفوظة بعد.';
+
+  @override
+  String get savedDebateUnavailable => 'حُذفت المناظرة أو لم يعد الوصول متاحًا.';
+
+  @override
+  String get savedDebatesError => 'تعذر تحميل المحفوظات أو تحديثها. تحقق من الاتصال وأعد المحاولة.';
+
+  @override
+  String get refreshDebates => 'تحديث';
+
+  @override
+  String get moreDebates => 'تحميل المزيد';
+
+  @override
+  String get allDebates => 'الكل';
+
+  @override
+  String get liveStatus => 'مباشر';
+
+  @override
+  String get historyEmpty => 'لا توجد مناظرات مطابقة في السجل المحمّل.';
+
+  @override
+  String get debateHistoryTitle => 'سجل المناظرات';
+
+  @override
+  String get debateHistoryError => 'تعذر تحميل السجل. تحقق من الاتصال وأعد المحاولة.';
 }

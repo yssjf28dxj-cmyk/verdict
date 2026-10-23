@@ -781,4 +781,43 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get rematchCancelled => 'Предыдущий вызов отменён. Можно предложить реванш снова.';
+
+  @override
+  String get savedDebatesTitle => 'Избранные дебаты';
+
+  @override
+  String get saveDebate => 'Сохранить дебат';
+
+  @override
+  String get removeSavedDebate => 'Убрать из избранного';
+
+  @override
+  String get savedDebatesEmpty => 'Вы ещё не сохранили дебаты.';
+
+  @override
+  String get savedDebateUnavailable => 'Дебат удалён или доступ закрыт.';
+
+  @override
+  String get savedDebatesError => 'Не удалось загрузить или изменить избранное. Проверьте соединение и повторите.';
+
+  @override
+  String get refreshDebates => 'Обновить';
+
+  @override
+  String get moreDebates => 'Загрузить ещё';
+
+  @override
+  String get allDebates => 'Все';
+
+  @override
+  String get liveStatus => 'В эфире';
+
+  @override
+  String get historyEmpty => 'В загруженной истории нет дебатов для этого фильтра.';
+
+  @override
+  String get debateHistoryTitle => 'История дебатов';
+
+  @override
+  String get debateHistoryError => 'Не удалось загрузить историю. Проверьте соединение и повторите.';
 }

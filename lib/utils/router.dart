@@ -8,6 +8,7 @@ import '../screens/debate_room_screen.dart';
 import '../screens/leaderboard_screen.dart';
 import '../screens/lobby_screen.dart';
 import '../screens/profile_history_screen.dart';
+import '../screens/saved_debates_screen.dart';
 import '../screens/profile_screen.dart';
 import '../screens/public_profile_screen.dart';
 import '../screens/result_screen.dart';
@@ -122,12 +123,12 @@ GoRouter createAppRouter() => GoRouter(
         );
       },
     ),
+    if (testProfilesEnabled) GoRoute(path: '/saved-debates', builder: (context, state) => const SavedDebatesScreen()),
     GoRoute(
       path: '/profile-history',
       name: 'profile_history',
       builder: (context, state) {
-        final items = state.extra as List<dynamic>;
-        return ProfileHistoryScreen(items: items.cast());
+        return const ProfileHistoryScreen();
       },
     ),
     GoRoute(
