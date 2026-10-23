@@ -736,4 +736,34 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get accountGoogleUnavailable => 'Google अभी उपलब्ध नहीं है। आप ईमेल इस्तेमाल कर सकते हैं।';
+
+  @override
+  String get invitationTitle => 'बहस का निमंत्रण';
+
+  @override
+  String get invitationSignInHint => 'शर्तें देखने और स्वीकार करने के लिए प्रवेश करें या अतिथि के रूप में जारी रखें। निजी चुनौती के लिए आमंत्रित खाता चाहिए।';
+
+  @override
+  String get invitationContinue => 'जारी रखें';
+
+  @override
+  String get invitationUnavailable => 'यह चुनौती हटा दी गई है या इस खाते के लिए उपलब्ध नहीं है।';
+
+  @override
+  String get invitationLoadFailed => 'चुनौती लोड नहीं हुई। कनेक्शन जाँचकर फिर कोशिश करें।';
+
+  @override
+  String get invitationRetry => 'फिर कोशिश करें';
+
+  @override
+  String get invitationCopy => 'निमंत्रण कॉपी करें';
+
+  @override
+  String get invitationCopied => 'निमंत्रण लिंक कॉपी हुआ';
+
+  @override
+  String get invitationCopyFailed => 'निमंत्रण कॉपी नहीं हुआ। फिर कोशिश करें।';
+
+  @override
+  String get invitationAccessHint => 'निजी चुनौतियाँ केवल आमंत्रित खातों के लिए हैं। लिंक निजी संदेशों की पहुँच नहीं देता।';
 }

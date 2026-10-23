@@ -15,6 +15,9 @@ import '../screens/rules_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/world_chat_screen.dart';
 import '../screens/welcome_screen.dart';
+import '../screens/invitation_screen.dart';
+import 'invitation_links.dart';
+import '../firebase_session.dart' show testProfilesEnabled;
 
 GoRouter createAppRouter() => GoRouter(
   initialLocation: '/',
@@ -64,8 +67,10 @@ GoRouter createAppRouter() => GoRouter(
     GoRoute(
       path: '/auth',
       name: 'auth',
-      builder: (context, state) => const AuthScreen(),
+      builder: (context, state) => AuthScreen(returnTo: invitationReturnPath(state.uri.queryParameters['returnTo'])),
     ),
+    if (testProfilesEnabled) GoRoute(path: '/invite/:id', builder: (context, state) =>
+      InvitationScreen(debateId: state.pathParameters['id']!)),
     GoRoute(
       path: '/home',
       name: 'home',

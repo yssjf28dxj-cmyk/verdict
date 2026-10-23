@@ -65,6 +65,10 @@ jobs:
       - name: Prepare exact copies of current Firebase rules
         working-directory: tests/firestore
         run: node prepare-rules.js
+      - name: Verify invitation links and test Hosting isolation
+        run: node --test tests/invitations/*.test.mjs
+      - name: Verify served invitation pages and Android association
+        run: node tests/invitations/run-hosting-tests.cjs
       - name: Test Firestore access and server transactions
         working-directory: tests/firestore
         shell: bash

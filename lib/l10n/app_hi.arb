@@ -247,5 +247,15 @@
   "accountEmailVerified": "ईमेल सत्यापित है",
   "accountVerificationSent": "लिंक भेज दिया गया है। इनबॉक्स और स्पैम जाँचें।",
   "accountCancel": "रद्द करें",
-  "accountGoogleUnavailable": "Google अभी उपलब्ध नहीं है। आप ईमेल इस्तेमाल कर सकते हैं।"
+  "accountGoogleUnavailable": "Google अभी उपलब्ध नहीं है। आप ईमेल इस्तेमाल कर सकते हैं।",
+  "invitationTitle": "बहस का निमंत्रण",
+  "invitationSignInHint": "शर्तें देखने और स्वीकार करने के लिए प्रवेश करें या अतिथि के रूप में जारी रखें। निजी चुनौती के लिए आमंत्रित खाता चाहिए।",
+  "invitationContinue": "जारी रखें",
+  "invitationUnavailable": "यह चुनौती हटा दी गई है या इस खाते के लिए उपलब्ध नहीं है।",
+  "invitationLoadFailed": "चुनौती लोड नहीं हुई। कनेक्शन जाँचकर फिर कोशिश करें।",
+  "invitationRetry": "फिर कोशिश करें",
+  "invitationCopy": "निमंत्रण कॉपी करें",
+  "invitationCopied": "निमंत्रण लिंक कॉपी हुआ",
+  "invitationCopyFailed": "निमंत्रण कॉपी नहीं हुआ। फिर कोशिश करें।",
+  "invitationAccessHint": "निजी चुनौतियाँ केवल आमंत्रित खातों के लिए हैं। लिंक निजी संदेशों की पहुँच नहीं देता।"
 }

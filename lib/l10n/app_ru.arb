@@ -247,5 +247,15 @@
   "accountEmailVerified": "Почта подтверждена",
   "accountVerificationSent": "Письмо отправлено. Проверьте входящие и спам.",
   "accountCancel": "Отмена",
-  "accountGoogleUnavailable": "Google пока недоступен. Можно использовать почту."
+  "accountGoogleUnavailable": "Google пока недоступен. Можно использовать почту.",
+  "invitationTitle": "Приглашение в дебаты",
+  "invitationSignInHint": "Войдите или продолжите гостем, чтобы посмотреть условия и принять вызов. Для приватного вызова нужен приглашённый аккаунт.",
+  "invitationContinue": "Продолжить",
+  "invitationUnavailable": "Вызов удалён или недоступен этому аккаунту.",
+  "invitationLoadFailed": "Не удалось загрузить вызов. Проверьте соединение и повторите попытку.",
+  "invitationRetry": "Повторить",
+  "invitationCopy": "Скопировать приглашение",
+  "invitationCopied": "Ссылка приглашения скопирована",
+  "invitationCopyFailed": "Не удалось скопировать приглашение. Повторите попытку.",
+  "invitationAccessHint": "Приватные вызовы доступны только приглашённым аккаунтам. Ссылка не открывает чужую переписку."
 }

@@ -247,5 +247,15 @@
   "accountEmailVerified": "邮箱已验证",
   "accountVerificationSent": "验证链接已发送。请检查收件箱和垃圾邮件。",
   "accountCancel": "取消",
-  "accountGoogleUnavailable": "Google 暂不可用，您可以使用邮箱。"
+  "accountGoogleUnavailable": "Google 暂不可用，您可以使用邮箱。",
+  "invitationTitle": "辩论邀请",
+  "invitationSignInHint": "登录或以游客身份继续，即可查看条件并接受挑战。私人挑战需要使用被邀请的账号。",
+  "invitationContinue": "继续",
+  "invitationUnavailable": "此挑战已被删除或当前账号无权访问。",
+  "invitationLoadFailed": "无法加载挑战。请检查网络连接后重试。",
+  "invitationRetry": "重试",
+  "invitationCopy": "复制邀请",
+  "invitationCopied": "邀请链接已复制",
+  "invitationCopyFailed": "无法复制邀请，请重试。",
+  "invitationAccessHint": "私人挑战仅限被邀请的账号访问。链接不会开放私人消息。"
 }

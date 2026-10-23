@@ -1,20 +1,29 @@
 import 'package:verdict/firestore_database.dart';
 import 'dart:async';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 /// Service that monitors a pending debate in the background.
 /// When the debate status changes to 'active', it notifies listeners
 /// so the UI can show a banner and navigate to the debate room.
+typedef PendingDebateUpdates = Stream<Map<String, dynamic>?> Function(String);
+
 class PendingDebateService extends ChangeNotifier {
-  PendingDebateService._();
+  PendingDebateService._()
+      : _updates = ((id) => appFirestore
+            .collection('debates')
+            .doc(id)
+            .snapshots()
+            .map((snapshot) => snapshot.data()));
+  PendingDebateService.forTesting(this._updates);
   static final PendingDebateService instance = PendingDebateService._();
+  final PendingDebateUpdates _updates;
 
   String? _watchedDebateId;
   String? _watchedTopic;
-  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _sub;
+  StreamSubscription<Map<String, dynamic>?>? _sub;
 
   bool _activated = false;
+  int _generation = 0;
 
   /// The debate ID that just became active (non-null = show banner).
   String? get activatedDebateId => _activated ? _watchedDebateId : null;
@@ -30,18 +39,18 @@ class PendingDebateService extends ChangeNotifier {
     // Already watching this same debate — no-op.
     if (_watchedDebateId == debateId && !_activated) return;
     _stopInternal();
+    final generation = _generation;
 
     _watchedDebateId = debateId;
     _watchedTopic = topic;
     _activated = false;
 
-    _sub = appFirestore
-        .collection('debates')
-        .doc(debateId)
-        .snapshots()
-        .listen((snap) {
-      final data = snap.data();
-      if (data == null) return;
+    _sub = _updates(debateId).listen((data) {
+      if (generation != _generation) return;
+      if (data == null) {
+        if (_watchedDebateId == debateId) stopWatching();
+        return;
+      }
       final status = (data['status'] ?? '').toString();
       if ((status == 'active' || status == 'live') && !_activated) {
         _activated = true;
@@ -49,6 +58,12 @@ class PendingDebateService extends ChangeNotifier {
       }
       // If debate is cancelled/deleted while watching.
       if (status == 'cancelled' || status == 'deleted') {
+        stopWatching();
+      }
+    }, onError: (Object error) {
+      // Revoked/private access is a normal outcome when following a locator.
+      // Do not leak an unhandled permission error or clear a newer watcher.
+      if (generation == _generation && _watchedDebateId == debateId) {
         stopWatching();
       }
     });
@@ -74,6 +89,7 @@ class PendingDebateService extends ChangeNotifier {
   }
 
   void _stopInternal() {
+    _generation++;
     _sub?.cancel();
     _sub = null;
   }

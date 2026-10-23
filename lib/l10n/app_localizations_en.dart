@@ -736,4 +736,34 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get accountGoogleUnavailable => 'Google is not available yet. You can use email.';
+
+  @override
+  String get invitationTitle => 'Invitation to debate';
+
+  @override
+  String get invitationSignInHint => 'Sign in or continue as a guest to view the terms and accept. A private challenge requires the invited account.';
+
+  @override
+  String get invitationContinue => 'Continue';
+
+  @override
+  String get invitationUnavailable => 'This challenge was removed or is not available to this account.';
+
+  @override
+  String get invitationLoadFailed => 'Could not load the challenge. Check your connection and try again.';
+
+  @override
+  String get invitationRetry => 'Try again';
+
+  @override
+  String get invitationCopy => 'Copy invitation';
+
+  @override
+  String get invitationCopied => 'Invitation link copied';
+
+  @override
+  String get invitationCopyFailed => 'Could not copy the invitation. Try again.';
+
+  @override
+  String get invitationAccessHint => 'Private challenges remain available only to invited accounts. A link does not unlock private messages.';
 }

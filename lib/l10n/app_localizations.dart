@@ -1550,6 +1550,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Google is not available yet. You can use email.'**
   String get accountGoogleUnavailable;
+
+  /// No description provided for @invitationTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Invitation to debate'**
+  String get invitationTitle;
+
+  /// No description provided for @invitationSignInHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in or continue as a guest to view the terms and accept. A private challenge requires the invited account.'**
+  String get invitationSignInHint;
+
+  /// No description provided for @invitationContinue.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue'**
+  String get invitationContinue;
+
+  /// No description provided for @invitationUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This challenge was removed or is not available to this account.'**
+  String get invitationUnavailable;
+
+  /// No description provided for @invitationLoadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load the challenge. Check your connection and try again.'**
+  String get invitationLoadFailed;
+
+  /// No description provided for @invitationRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again'**
+  String get invitationRetry;
+
+  /// No description provided for @invitationCopy.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy invitation'**
+  String get invitationCopy;
+
+  /// No description provided for @invitationCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Invitation link copied'**
+  String get invitationCopied;
+
+  /// No description provided for @invitationCopyFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not copy the invitation. Try again.'**
+  String get invitationCopyFailed;
+
+  /// No description provided for @invitationAccessHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Private challenges remain available only to invited accounts. A link does not unlock private messages.'**
+  String get invitationAccessHint;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

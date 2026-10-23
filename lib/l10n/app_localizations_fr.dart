@@ -736,4 +736,34 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get accountGoogleUnavailable => 'Google est indisponible pour le moment. Vous pouvez utiliser votre e-mail.';
+
+  @override
+  String get invitationTitle => 'Invitation à débattre';
+
+  @override
+  String get invitationSignInHint => 'Connectez-vous ou continuez comme invité pour consulter les conditions et accepter. Un défi privé nécessite le compte invité.';
+
+  @override
+  String get invitationContinue => 'Continuer';
+
+  @override
+  String get invitationUnavailable => 'Ce défi a été supprimé ou est inaccessible à ce compte.';
+
+  @override
+  String get invitationLoadFailed => 'Impossible de charger le défi. Vérifiez votre connexion et réessayez.';
+
+  @override
+  String get invitationRetry => 'Réessayer';
+
+  @override
+  String get invitationCopy => 'Copier l’invitation';
+
+  @override
+  String get invitationCopied => 'Lien d’invitation copié';
+
+  @override
+  String get invitationCopyFailed => 'Impossible de copier l’invitation. Réessayez.';
+
+  @override
+  String get invitationAccessHint => 'Les défis privés restent réservés aux comptes invités. Le lien ne donne pas accès aux messages privés.';
 }

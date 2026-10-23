@@ -736,4 +736,34 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get accountGoogleUnavailable => 'Google пока недоступен. Можно использовать почту.';
+
+  @override
+  String get invitationTitle => 'Приглашение в дебаты';
+
+  @override
+  String get invitationSignInHint => 'Войдите или продолжите гостем, чтобы посмотреть условия и принять вызов. Для приватного вызова нужен приглашённый аккаунт.';
+
+  @override
+  String get invitationContinue => 'Продолжить';
+
+  @override
+  String get invitationUnavailable => 'Вызов удалён или недоступен этому аккаунту.';
+
+  @override
+  String get invitationLoadFailed => 'Не удалось загрузить вызов. Проверьте соединение и повторите попытку.';
+
+  @override
+  String get invitationRetry => 'Повторить';
+
+  @override
+  String get invitationCopy => 'Скопировать приглашение';
+
+  @override
+  String get invitationCopied => 'Ссылка приглашения скопирована';
+
+  @override
+  String get invitationCopyFailed => 'Не удалось скопировать приглашение. Повторите попытку.';
+
+  @override
+  String get invitationAccessHint => 'Приватные вызовы доступны только приглашённым аккаунтам. Ссылка не открывает чужую переписку.';
 }

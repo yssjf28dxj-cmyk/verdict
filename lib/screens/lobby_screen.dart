@@ -3,6 +3,9 @@ import 'package:verdict/firestore_database.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:flutter/services.dart';
+import '../utils/invitation_links.dart';
+import '../utils/compact_notice.dart';
 import '../painters/chat_pattern_painter.dart';
 import '../services/pending_debate_service.dart';
 import '../utils/debate_error_mapper.dart';
@@ -35,6 +38,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
   bool _showStartedBanner = false;
   bool _isCancelling = false;
   bool _isAccepting = false;
+  bool _isCopyingInvitation = false;
+  bool _watchingRegistered = false;
   int? _proposedDurationSeconds;
   int? _proposedTotalRounds;
   final FirebaseFunctions _functions = appFunctions;
@@ -42,10 +47,32 @@ class _LobbyScreenState extends State<LobbyScreen> {
   @override
   void initState() {
     super.initState();
-    // Register this debate with the background watcher so
-    // the user can minimize and still get auto-redirected.
-    PendingDebateService.instance.startWatching(widget.debateId);
+    // Register the background watcher only after a permitted, existing
+    // document is received. A link alone never establishes read access.
   }
+
+  Future<void> _copyInvitation() async {
+    if (_isCopyingInvitation || !invitationsEnabled) return;
+    setState(() => _isCopyingInvitation = true);
+    final l10n = AppLocalizations.of(context)!;
+    try {
+      await Clipboard.setData(ClipboardData(text: testInvitationLink(widget.debateId).toString()));
+      if (mounted) showCompactNotice(context, l10n.invitationCopied);
+    } catch (_) {
+      if (mounted) showCompactNotice(context, l10n.invitationCopyFailed);
+    } finally {
+      if (mounted) setState(() => _isCopyingInvitation = false);
+    }
+  }
+
+  Widget _unavailable(AppLocalizations l10n, {bool retry = false}) => Center(
+    child: Padding(padding: const EdgeInsets.all(24), child: Column(
+      mainAxisSize: MainAxisSize.min, children: [
+        Text(retry ? l10n.invitationLoadFailed : l10n.invitationUnavailable, textAlign: TextAlign.center),
+        const SizedBox(height: 16),
+        if (retry) FilledButton(onPressed: () => setState(() {}), child: Text(l10n.invitationRetry)),
+        TextButton(onPressed: () => context.go('/home'), child: Text(l10n.mainTab)),
+      ])));
 
   @override
   void dispose() {
@@ -386,22 +413,45 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 .doc(widget.debateId)
                 .snapshots(),
             builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                final error = snapshot.error;
+                final denied = error is FirebaseException && ['permission-denied', 'not-found'].contains(error.code);
+                return _unavailable(l10n, retry: !denied);
+              }
               if (!snapshot.hasData) {
                 return const Center(
                   child: CircularProgressIndicator(color: Color(0xFFFFB74D)),
                 );
               }
+              if (!snapshot.data!.exists) return _unavailable(l10n);
 
               final data = snapshot.data!.data() ?? {};
               final status = data['status'] ?? 'waiting';
+              if (status == 'cancelled' || status == 'deleted') return _unavailable(l10n);
+              if (status == 'finished') {
+                if (!_navigated) {
+                  _navigated = true;
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) context.replace('/result/${widget.debateId}');
+                  });
+                }
+                return const Center(child: CircularProgressIndicator());
+              }
               final topic = data['topic'] ?? l10n.loadingTopic;
 
-              // Update topic in background service so the pill/overlay shows it
-              PendingDebateService.instance.updateTopic(widget.debateId, topic.toString());
+              if (status == 'waiting' && !_watchingRegistered) {
+                _watchingRegistered = true;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) PendingDebateService.instance.startWatching(widget.debateId, topic: topic.toString());
+                });
+              }
 
               final currentUid = appAuth.currentUser?.uid ?? '';
               final invitedUserId = (data['invitedUserId'] ?? '').toString();
               final fighter1 = (data['fighter1'] ?? '').toString();
+              final rawCreator = (data['creatorId'] ?? '').toString();
+              final creatorId = rawCreator.isEmpty ? fighter1 : rawCreator;
+              final isCreator = currentUid.isNotEmpty && currentUid == creatorId;
               final fighter2 = (data['fighter2'] ?? '').toString();
               final opponentId = (data['opponentId'] ?? '').toString();
               final creationMode =
@@ -745,6 +795,13 @@ class _LobbyScreenState extends State<LobbyScreen> {
                               ),
                             ),
                           if (canAcceptInvite) const SizedBox(height: 12),
+                          if (isCreator && status == 'waiting' && invitationsEnabled) ...[
+                            OutlinedButton.icon(onPressed: _isCopyingInvitation ? null : _copyInvitation,
+                              icon: const Icon(Icons.link), label: Text(l10n.invitationCopy)),
+                            const SizedBox(height: 8), Text(l10n.invitationAccessHint, textAlign: TextAlign.center),
+                            const SizedBox(height: 16),
+                          ],
+                          if (isCreator && status == 'waiting')
                           SizedBox(
                             width: double.infinity,
                             height: 56,

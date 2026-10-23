@@ -247,5 +247,15 @@
   "accountEmailVerified": "تم تأكيد البريد",
   "accountVerificationSent": "تم إرسال الرابط. تحقق من الوارد والبريد غير المرغوب.",
   "accountCancel": "إلغاء",
-  "accountGoogleUnavailable": "Google غير متاح حاليًا. يمكنك استخدام البريد."
+  "accountGoogleUnavailable": "Google غير متاح حاليًا. يمكنك استخدام البريد.",
+  "invitationTitle": "دعوة إلى مناظرة",
+  "invitationSignInHint": "سجّل الدخول أو تابع كضيف لعرض الشروط وقبول التحدي. التحدي الخاص يتطلب الحساب المدعو.",
+  "invitationContinue": "متابعة",
+  "invitationUnavailable": "تم حذف التحدي أو أنه غير متاح لهذا الحساب.",
+  "invitationLoadFailed": "تعذر تحميل التحدي. تحقق من الاتصال وحاول مجددًا.",
+  "invitationRetry": "إعادة المحاولة",
+  "invitationCopy": "نسخ الدعوة",
+  "invitationCopied": "تم نسخ رابط الدعوة",
+  "invitationCopyFailed": "تعذر نسخ الدعوة. حاول مجددًا.",
+  "invitationAccessHint": "التحديات الخاصة متاحة للحسابات المدعوة فقط. الرابط لا يفتح الرسائل الخاصة."
 }

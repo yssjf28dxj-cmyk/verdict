@@ -736,4 +736,34 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get accountGoogleUnavailable => 'Google غير متاح حاليًا. يمكنك استخدام البريد.';
+
+  @override
+  String get invitationTitle => 'دعوة إلى مناظرة';
+
+  @override
+  String get invitationSignInHint => 'سجّل الدخول أو تابع كضيف لعرض الشروط وقبول التحدي. التحدي الخاص يتطلب الحساب المدعو.';
+
+  @override
+  String get invitationContinue => 'متابعة';
+
+  @override
+  String get invitationUnavailable => 'تم حذف التحدي أو أنه غير متاح لهذا الحساب.';
+
+  @override
+  String get invitationLoadFailed => 'تعذر تحميل التحدي. تحقق من الاتصال وحاول مجددًا.';
+
+  @override
+  String get invitationRetry => 'إعادة المحاولة';
+
+  @override
+  String get invitationCopy => 'نسخ الدعوة';
+
+  @override
+  String get invitationCopied => 'تم نسخ رابط الدعوة';
+
+  @override
+  String get invitationCopyFailed => 'تعذر نسخ الدعوة. حاول مجددًا.';
+
+  @override
+  String get invitationAccessHint => 'التحديات الخاصة متاحة للحسابات المدعوة فقط. الرابط لا يفتح الرسائل الخاصة.';
 }

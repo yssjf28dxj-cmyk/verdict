@@ -736,4 +736,34 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get accountGoogleUnavailable => 'Google 暂不可用，您可以使用邮箱。';
+
+  @override
+  String get invitationTitle => '辩论邀请';
+
+  @override
+  String get invitationSignInHint => '登录或以游客身份继续，即可查看条件并接受挑战。私人挑战需要使用被邀请的账号。';
+
+  @override
+  String get invitationContinue => '继续';
+
+  @override
+  String get invitationUnavailable => '此挑战已被删除或当前账号无权访问。';
+
+  @override
+  String get invitationLoadFailed => '无法加载挑战。请检查网络连接后重试。';
+
+  @override
+  String get invitationRetry => '重试';
+
+  @override
+  String get invitationCopy => '复制邀请';
+
+  @override
+  String get invitationCopied => '邀请链接已复制';
+
+  @override
+  String get invitationCopyFailed => '无法复制邀请，请重试。';
+
+  @override
+  String get invitationAccessHint => '私人挑战仅限被邀请的账号访问。链接不会开放私人消息。';
 }

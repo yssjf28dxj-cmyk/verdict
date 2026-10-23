@@ -247,5 +247,15 @@
   "accountEmailVerified": "Email verified",
   "accountVerificationSent": "Verification link sent. Check your inbox and spam.",
   "accountCancel": "Cancel",
-  "accountGoogleUnavailable": "Google is not available yet. You can use email."
+  "accountGoogleUnavailable": "Google is not available yet. You can use email.",
+  "invitationTitle": "Invitation to debate",
+  "invitationSignInHint": "Sign in or continue as a guest to view the terms and accept. A private challenge requires the invited account.",
+  "invitationContinue": "Continue",
+  "invitationUnavailable": "This challenge was removed or is not available to this account.",
+  "invitationLoadFailed": "Could not load the challenge. Check your connection and try again.",
+  "invitationRetry": "Try again",
+  "invitationCopy": "Copy invitation",
+  "invitationCopied": "Invitation link copied",
+  "invitationCopyFailed": "Could not copy the invitation. Try again.",
+  "invitationAccessHint": "Private challenges remain available only to invited accounts. A link does not unlock private messages."
 }

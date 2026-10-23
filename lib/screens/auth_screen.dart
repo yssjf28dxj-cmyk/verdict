@@ -6,9 +6,11 @@ import '../utils/style_utils.dart';
 import '../l10n/app_localizations.dart';
 import '../services/account_service.dart';
 import '../widgets/email_account_dialog.dart';
+import '../utils/invitation_links.dart';
 
 class AuthScreen extends StatefulWidget {
-  const AuthScreen({super.key});
+  const AuthScreen({super.key, this.returnTo});
+  final String? returnTo;
 
   @override
   State<AuthScreen> createState() => _AuthScreenState();
@@ -17,6 +19,7 @@ class AuthScreen extends StatefulWidget {
 class _AuthScreenState extends State<AuthScreen> {
   final AuthService _authService = AuthService();
   bool _isLoading = false;
+  String get _afterLogin => invitationReturnPath(widget.returnTo) ?? '/';
 
   Future<void> _emailLogin() async {
     if (_isLoading) return;
@@ -28,7 +31,7 @@ class _AuthScreenState extends State<AuthScreen> {
           builder: (_) =>
               EmailAccountDialog(service: AccountService(), linking: false));
       if (!mounted) return;
-      if (signedIn == true) context.go('/');
+      if (signedIn == true) context.go(_afterLogin);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -48,7 +51,7 @@ class _AuthScreenState extends State<AuthScreen> {
     });
 
     if (result != null) {
-      context.go('/');
+      context.go(_afterLogin);
     } else {
       final l10n = AppLocalizations.of(context)!;
       final reason = _authService.lastErrorCode;
@@ -74,7 +77,7 @@ class _AuthScreenState extends State<AuthScreen> {
     });
 
     if (result != null) {
-      context.go('/');
+      context.go(_afterLogin);
     } else {
       final l10n = AppLocalizations.of(context)!;
       final reason = _authService.lastErrorCode;

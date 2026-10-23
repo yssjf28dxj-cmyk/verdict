@@ -247,5 +247,15 @@
   "accountEmailVerified": "Adresse e-mail confirmée",
   "accountVerificationSent": "Lien envoyé. Vérifiez votre boîte de réception et les indésirables.",
   "accountCancel": "Annuler",
-  "accountGoogleUnavailable": "Google est indisponible pour le moment. Vous pouvez utiliser votre e-mail."
+  "accountGoogleUnavailable": "Google est indisponible pour le moment. Vous pouvez utiliser votre e-mail.",
+  "invitationTitle": "Invitation à débattre",
+  "invitationSignInHint": "Connectez-vous ou continuez comme invité pour consulter les conditions et accepter. Un défi privé nécessite le compte invité.",
+  "invitationContinue": "Continuer",
+  "invitationUnavailable": "Ce défi a été supprimé ou est inaccessible à ce compte.",
+  "invitationLoadFailed": "Impossible de charger le défi. Vérifiez votre connexion et réessayez.",
+  "invitationRetry": "Réessayer",
+  "invitationCopy": "Copier l’invitation",
+  "invitationCopied": "Lien d’invitation copié",
+  "invitationCopyFailed": "Impossible de copier l’invitation. Réessayez.",
+  "invitationAccessHint": "Les défis privés restent réservés aux comptes invités. Le lien ne donne pas accès aux messages privés."
 }

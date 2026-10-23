@@ -247,5 +247,15 @@
   "accountEmailVerified": "Correo verificado",
   "accountVerificationSent": "Enlace enviado. Revisa el correo y el spam.",
   "accountCancel": "Cancelar",
-  "accountGoogleUnavailable": "Google aún no está disponible. Puedes usar tu correo."
+  "accountGoogleUnavailable": "Google aún no está disponible. Puedes usar tu correo.",
+  "invitationTitle": "Invitación a debatir",
+  "invitationSignInHint": "Entra o continúa como invitado para ver las condiciones y aceptar. Un desafío privado requiere la cuenta invitada.",
+  "invitationContinue": "Continuar",
+  "invitationUnavailable": "El desafío se eliminó o no está disponible para esta cuenta.",
+  "invitationLoadFailed": "No se pudo cargar el desafío. Comprueba la conexión e inténtalo de nuevo.",
+  "invitationRetry": "Reintentar",
+  "invitationCopy": "Copiar invitación",
+  "invitationCopied": "Enlace copiado",
+  "invitationCopyFailed": "No se pudo copiar la invitación. Inténtalo de nuevo.",
+  "invitationAccessHint": "Los desafíos privados siguen limitados a las cuentas invitadas. El enlace no abre mensajes privados."
 }
