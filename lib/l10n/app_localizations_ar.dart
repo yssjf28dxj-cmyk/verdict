@@ -766,4 +766,19 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get invitationAccessHint => 'التحديات الخاصة متاحة للحسابات المدعوة فقط. الرابط لا يفتح الرسائل الخاصة.';
+
+  @override
+  String get rematchOffer => 'اقتراح إعادة النزال';
+
+  @override
+  String get rematchHint => 'سيُنشأ تحدٍ خاص جديد لنفس الخصم ليؤكد الشروط في غرفة الانتظار. يبقى النزال الأصلي ونتيجته كما هما.';
+
+  @override
+  String get rematchConfirm => 'إرسال التحدي';
+
+  @override
+  String get rematchFailed => 'تعذر اقتراح إعادة النزال. حاول لاحقًا.';
+
+  @override
+  String get rematchCancelled => 'تم إلغاء التحدي السابق. يمكنك اقتراح نزال جديد.';
 }

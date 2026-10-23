@@ -766,4 +766,19 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get invitationAccessHint => 'Приватные вызовы доступны только приглашённым аккаунтам. Ссылка не открывает чужую переписку.';
+
+  @override
+  String get rematchOffer => 'Предложить реванш';
+
+  @override
+  String get rematchHint => 'Будет создан новый приватный вызов тому же сопернику. Он подтвердит условия в лобби. Первый бой и его результат сохранятся.';
+
+  @override
+  String get rematchConfirm => 'Отправить вызов';
+
+  @override
+  String get rematchFailed => 'Не удалось предложить реванш. Повторите позже.';
+
+  @override
+  String get rematchCancelled => 'Предыдущий вызов отменён. Можно предложить реванш снова.';
 }

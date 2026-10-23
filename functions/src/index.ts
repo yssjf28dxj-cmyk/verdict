@@ -8,6 +8,8 @@ import { createDeadlineController } from './debate_deadlines';
 import { createAiJudgeController } from './ai_judgement';
 import { createProfileIdentityController } from './profile_identity';
 import { createLiveMediaController, createPresenceController } from './live_experience';
+import { createRematchController } from './rematches';
+import { buildWaitingDebate, ALLOWED_DURATIONS, ALLOWED_ROUNDS, TERMS_POLICY_VERSION } from './domain/debate/waiting';
 import { countStoredVotes } from './domain/debate/votes';
 import { createHash } from 'node:crypto';
 import { assertAccountMayWrite, assertRateLimit, consumeRateLimit, rateLimitRef, requestDocumentId } from './request_control';
@@ -66,9 +68,6 @@ const LEGACY_OPPONENT_ID_PLACEHOLDERS = new Set([
   'приглашен',
   'приглашён',
 ]);
-const ALLOWED_DURATIONS = [30, 60, 90, 120, 180, 300, 420, 600] as const;
-const ALLOWED_ROUNDS = [1, 3, 5] as const;
-const TERMS_POLICY_VERSION = 'v1_mean_nearest_strict';
 const MAX_MIGRATION_EMERGENCY_TTL_MS = 24 * 60 * 60 * 1000;
 // Grace window (ms) given to in-flight media uploads that started just before
 // a round timer expired. Applied in sendDebateMessage (accept late messages),
@@ -482,54 +481,11 @@ export const createDebate = onCall({ invoker: 'public' }, async (request) => {
   const fighter1Rating = asInt(userData.rating, 0);
 
   const debateRef = db.collection('debates').doc();
-  const accessApprovedUserIds = invitedUserId ? [uid, invitedUserId] : [uid];
-  await debateRef.set({
-    topic,
-    creatorId: uid,
-    fighter1: uid,
-    fighter1Name,
-    fighter1Rating,
-    fighter2: invitedUserId || '',
-    fighter2Name: '',
-    fighter2Rating: 0,
-    invitedUserId: invitedUserId || '',
-    status: 'waiting',
-    durationSeconds,
-    roundDurationSeconds: durationSeconds,
-    totalRounds,
-    termsProposalCreator: {
-      uid,
-      roundDurationSeconds: durationSeconds,
-      totalRounds,
-      submittedAt: firestore.FieldValue.serverTimestamp(),
-    },
-    termsResolved: {
-      roundDurationSeconds: durationSeconds,
-      totalRounds,
-      policyVersion: TERMS_POLICY_VERSION,
-      resolutionMode: 'initial_creator_defaults',
-      resolvedAt: firestore.FieldValue.serverTimestamp(),
-    },
-    termsResolutionStatus: 'pending_opponent',
-    termsResolverVersion: TERMS_POLICY_VERSION,
-    roundIndex: 1,
-    creationMode,
-    visibilityMode,
-    languageCode,
-    region,
-    viewerCount: 0,
-    ...(preciseDeadlinesEnabled ? { clockMode: 'bank_v1', timeBankMs: { [uid]: 0 } } : {}),
-    votes1: 0,
-    votes2: 0,
-    voteTallyVersion: 1,
-    accessRequests: [],
-    accessApprovedUserIds,
-    createdAt: firestore.FieldValue.serverTimestamp(),
-    schemaVersion: 2,
-    migrationState: 'pre_backfill',
-    normalizerVersion: 'v2_runtime_flags',
-    transitionPolicyVersion: coreFlags.strictTransitionsEnabled ? 'strict_v1' : 'compat_v1',
-  });
+  await debateRef.set(buildWaitingDebate({
+    uid, name: fighter1Name, rating: fighter1Rating, topic, durationSeconds, totalRounds,
+    creationMode, visibilityMode, languageCode, region, invitedUserId,
+    preciseDeadlines: preciseDeadlinesEnabled, strictTransitions: coreFlags.strictTransitionsEnabled,
+  }));
 
   await incrementCoreMetric(db, 'action.create.accepted.count');
   await logCoreEvent(db, 'debate.created', {
@@ -542,6 +498,14 @@ export const createDebate = onCall({ invoker: 'public' }, async (request) => {
   return {
     debateId: debateRef.id,
   };
+});
+
+const rematches = createRematchController(db, preciseDeadlinesEnabled);
+export const requestRematch = onCall({ invoker: 'public' }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Required authentication.');
+  const flags = await getCoreRuntimeFlags(db);
+  return rematches(uid, request.data ?? {}, flags.strictTransitionsEnabled);
 });
 
 export const acceptDebateInvite = onCall({ invoker: 'public' }, async (request) => {

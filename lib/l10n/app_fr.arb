@@ -257,5 +257,10 @@
   "invitationCopy": "Copier l’invitation",
   "invitationCopied": "Lien d’invitation copié",
   "invitationCopyFailed": "Impossible de copier l’invitation. Réessayez.",
-  "invitationAccessHint": "Les défis privés restent réservés aux comptes invités. Le lien ne donne pas accès aux messages privés."
+  "invitationAccessHint": "Les défis privés restent réservés aux comptes invités. Le lien ne donne pas accès aux messages privés.",
+  "rematchOffer": "Proposer une revanche",
+  "rematchHint": "Un nouveau défi privé sera proposé au même adversaire, qui confirmera les conditions dans le salon. Le combat initial et son résultat sont conservés.",
+  "rematchConfirm": "Envoyer le défi",
+  "rematchFailed": "Impossible de proposer une revanche. Réessayez plus tard.",
+  "rematchCancelled": "Le défi précédent a été annulé. Vous pouvez proposer une nouvelle revanche."
 }

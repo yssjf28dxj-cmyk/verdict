@@ -257,5 +257,10 @@
   "invitationCopy": "Copy invitation",
   "invitationCopied": "Invitation link copied",
   "invitationCopyFailed": "Could not copy the invitation. Try again.",
-  "invitationAccessHint": "Private challenges remain available only to invited accounts. A link does not unlock private messages."
+  "invitationAccessHint": "Private challenges remain available only to invited accounts. A link does not unlock private messages.",
+  "rematchOffer": "Offer a rematch",
+  "rematchHint": "This creates a new private challenge for the same opponent. They confirm the terms in the lobby. The original battle and its result stay unchanged.",
+  "rematchConfirm": "Send challenge",
+  "rematchFailed": "Could not offer a rematch. Try again later.",
+  "rematchCancelled": "The previous challenge was cancelled. You can offer a new rematch."
 }

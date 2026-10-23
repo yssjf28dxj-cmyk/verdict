@@ -1610,6 +1610,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Private challenges remain available only to invited accounts. A link does not unlock private messages.'**
   String get invitationAccessHint;
+
+  /// No description provided for @rematchOffer.
+  ///
+  /// In en, this message translates to:
+  /// **'Offer a rematch'**
+  String get rematchOffer;
+
+  /// No description provided for @rematchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'This creates a new private challenge for the same opponent. They confirm the terms in the lobby. The original battle and its result stay unchanged.'**
+  String get rematchHint;
+
+  /// No description provided for @rematchConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Send challenge'**
+  String get rematchConfirm;
+
+  /// No description provided for @rematchFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not offer a rematch. Try again later.'**
+  String get rematchFailed;
+
+  /// No description provided for @rematchCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'The previous challenge was cancelled. You can offer a new rematch.'**
+  String get rematchCancelled;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

@@ -766,4 +766,19 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get invitationAccessHint => 'Los desafíos privados siguen limitados a las cuentas invitadas. El enlace no abre mensajes privados.';
+
+  @override
+  String get rematchOffer => 'Proponer revancha';
+
+  @override
+  String get rematchHint => 'Se creará un nuevo desafío privado para el mismo rival, que confirmará las condiciones en la sala. El combate original y su resultado se conservan.';
+
+  @override
+  String get rematchConfirm => 'Enviar desafío';
+
+  @override
+  String get rematchFailed => 'No se pudo proponer la revancha. Inténtalo más tarde.';
+
+  @override
+  String get rematchCancelled => 'El desafío anterior se canceló. Puedes proponer otra revancha.';
 }

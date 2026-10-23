@@ -257,5 +257,10 @@
   "invitationCopy": "Copiar invitación",
   "invitationCopied": "Enlace copiado",
   "invitationCopyFailed": "No se pudo copiar la invitación. Inténtalo de nuevo.",
-  "invitationAccessHint": "Los desafíos privados siguen limitados a las cuentas invitadas. El enlace no abre mensajes privados."
+  "invitationAccessHint": "Los desafíos privados siguen limitados a las cuentas invitadas. El enlace no abre mensajes privados.",
+  "rematchOffer": "Proponer revancha",
+  "rematchHint": "Se creará un nuevo desafío privado para el mismo rival, que confirmará las condiciones en la sala. El combate original y su resultado se conservan.",
+  "rematchConfirm": "Enviar desafío",
+  "rematchFailed": "No se pudo proponer la revancha. Inténtalo más tarde.",
+  "rematchCancelled": "El desafío anterior se canceló. Puedes proponer otra revancha."
 }

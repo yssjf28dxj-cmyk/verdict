@@ -766,4 +766,19 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get invitationAccessHint => 'Private challenges remain available only to invited accounts. A link does not unlock private messages.';
+
+  @override
+  String get rematchOffer => 'Offer a rematch';
+
+  @override
+  String get rematchHint => 'This creates a new private challenge for the same opponent. They confirm the terms in the lobby. The original battle and its result stay unchanged.';
+
+  @override
+  String get rematchConfirm => 'Send challenge';
+
+  @override
+  String get rematchFailed => 'Could not offer a rematch. Try again later.';
+
+  @override
+  String get rematchCancelled => 'The previous challenge was cancelled. You can offer a new rematch.';
 }

@@ -766,4 +766,19 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get invitationAccessHint => 'Les défis privés restent réservés aux comptes invités. Le lien ne donne pas accès aux messages privés.';
+
+  @override
+  String get rematchOffer => 'Proposer une revanche';
+
+  @override
+  String get rematchHint => 'Un nouveau défi privé sera proposé au même adversaire, qui confirmera les conditions dans le salon. Le combat initial et son résultat sont conservés.';
+
+  @override
+  String get rematchConfirm => 'Envoyer le défi';
+
+  @override
+  String get rematchFailed => 'Impossible de proposer une revanche. Réessayez plus tard.';
+
+  @override
+  String get rematchCancelled => 'Le défi précédent a été annulé. Vous pouvez proposer une nouvelle revanche.';
 }

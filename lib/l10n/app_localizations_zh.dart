@@ -766,4 +766,19 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get invitationAccessHint => '私人挑战仅限被邀请的账号访问。链接不会开放私人消息。';
+
+  @override
+  String get rematchOffer => '提议再战';
+
+  @override
+  String get rematchHint => '将向同一对手发出新的私人挑战，由对手在大厅确认条件。原来的对局和结果会保留。';
+
+  @override
+  String get rematchConfirm => '发送挑战';
+
+  @override
+  String get rematchFailed => '无法提议再战，请稍后重试。';
+
+  @override
+  String get rematchCancelled => '之前的挑战已取消，您可以重新提议再战。';
 }

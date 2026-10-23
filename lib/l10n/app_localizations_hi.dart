@@ -766,4 +766,19 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get invitationAccessHint => 'निजी चुनौतियाँ केवल आमंत्रित खातों के लिए हैं। लिंक निजी संदेशों की पहुँच नहीं देता।';
+
+  @override
+  String get rematchOffer => 'दोबारा मुकाबले का प्रस्ताव';
+
+  @override
+  String get rematchHint => 'उसी प्रतिद्वंद्वी के लिए नई निजी चुनौती बनेगी। वह लॉबी में शर्तों की पुष्टि करेगा। पुराना मुकाबला और उसका परिणाम सुरक्षित रहेंगे।';
+
+  @override
+  String get rematchConfirm => 'चुनौती भेजें';
+
+  @override
+  String get rematchFailed => 'दोबारा मुकाबले का प्रस्ताव नहीं भेजा गया। बाद में फिर कोशिश करें।';
+
+  @override
+  String get rematchCancelled => 'पिछली चुनौती रद्द हो गई है। आप नया प्रस्ताव भेज सकते हैं।';
 }

@@ -14,6 +14,7 @@ import '../services/sound_service.dart';
 import '../utils/name_utils.dart';
 import '../utils/style_utils.dart';
 import '../widgets/ai_result_card.dart';
+import '../widgets/rematch_button.dart';
 import 'package:go_router/go_router.dart';
 
 class ResultScreen extends StatefulWidget {
@@ -499,6 +500,15 @@ class _ResultScreenState extends State<ResultScreen> {
                             },
                           ),
                           const SizedBox(height: 24),
+                          if (testProfilesEnabled && data['status'] == 'finished'
+                            && [data['fighter1'], data['fighter2']].contains(appAuth.currentUser?.uid)
+                            && appAuth.currentUser != null) ...[
+                            RematchButton(sourceId: widget.debateId, topic: topic,
+                              opponentName: appAuth.currentUser!.uid == data['fighter1'] ? fighter2Name : fighter1Name,
+                              durationSeconds: _asInt(data['roundDurationSeconds'] ?? data['durationSeconds']),
+                              rounds: _asInt(data['totalRounds'])),
+                            const SizedBox(height: 16),
+                          ],
                           SizedBox(
                             height: 56,
                             child: ElevatedButton(

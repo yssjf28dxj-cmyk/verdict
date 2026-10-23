@@ -257,5 +257,10 @@
   "invitationCopy": "复制邀请",
   "invitationCopied": "邀请链接已复制",
   "invitationCopyFailed": "无法复制邀请，请重试。",
-  "invitationAccessHint": "私人挑战仅限被邀请的账号访问。链接不会开放私人消息。"
+  "invitationAccessHint": "私人挑战仅限被邀请的账号访问。链接不会开放私人消息。",
+  "rematchOffer": "提议再战",
+  "rematchHint": "将向同一对手发出新的私人挑战，由对手在大厅确认条件。原来的对局和结果会保留。",
+  "rematchConfirm": "发送挑战",
+  "rematchFailed": "无法提议再战，请稍后重试。",
+  "rematchCancelled": "之前的挑战已取消，您可以重新提议再战。"
 }
