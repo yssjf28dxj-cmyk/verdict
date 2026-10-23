@@ -1,3 +1,4 @@
+import '../services/pending_text_send.dart';
 import '../utils/pending_message_request.dart';
 import '../utils/compact_notice.dart';
 import 'package:verdict/firebase_session.dart';
@@ -100,6 +101,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
   }
 
   final TextEditingController _messageController = TextEditingController();
+  late final TextDraftTracker _textDraft;
   final FirebaseFunctions _functions = appFunctions;
   Timer? _typingDebouncer;
   Timer? _activityClearTimer;
@@ -434,6 +436,8 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
   @override
   void initState() {
     super.initState();
+    _textDraft = TextDraftTracker(_messageController);
+    _restorePendingText();
     WidgetsBinding.instance.addObserver(this);
     _timeLeftNotifier = ValueNotifier<int>(60);
     _dangerZoneNotifier = ValueNotifier<bool>(false);
@@ -1391,6 +1395,19 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
     }
   }
 
+  Future<void> _restorePendingText() async {
+    final uid = appAuth.currentUser?.uid;
+    if (uid == null) return;
+    final revision = _textDraft.revision;
+    try {
+      final pending = await PendingTextSend(uid, widget.debateId).load();
+      if (mounted && appAuth.currentUser?.uid == uid &&
+          pending != null && !_isSendingMessage) {
+        _textDraft.restoreIfUnchanged(revision, pending.text);
+      }
+    } catch (_) { /* A corrupt local request is never sent automatically. */ }
+  }
+
   Future<void> sendMessage() async {
     final l10n = AppLocalizations.of(context)!;
     if (_isSendingMessage) return;
@@ -1426,42 +1443,28 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
     setState(() {
       _isSendingMessage = true;
     });
+    final uid = appAuth.currentUser?.uid;
+    if (uid == null) {
+      setState(() => _isSendingMessage = false);
+      return;
+    }
+    final pending = PendingTextSend(uid, widget.debateId);
+    final submittedRevision = _textDraft.revision;
     try {
-      await callable.call({
-        'debateId': widget.debateId,
-        'text': text,
-        'senderName': senderName,
-      });
-      if (!mounted) return;
+      await pending.send(text, roundIndex, callable: callable,
+        isCurrentSession: () => mounted && appAuth.currentUser?.uid == uid);
+      if (!mounted || appAuth.currentUser?.uid != uid) return;
       currentUserName = senderName;
-      _messageController.clear();
+      _textDraft.clearIfUnchanged(submittedRevision);
       _clearMyActivity();
     } on FirebaseFunctionsException catch (e) {
-      final retryableCodes = {
-        'internal',
-        'unavailable',
-        'deadline-exceeded',
-      };
-      if (retryableCodes.contains(e.code)) {
-        try {
-          await Future.delayed(const Duration(milliseconds: 700));
-          await callable.call({
-            'debateId': widget.debateId,
-            'text': text,
-            'senderName': senderName,
-          });
-          if (!mounted) return;
-          currentUserName = senderName;
-          _messageController.clear();
-          return;
-        } catch (_) {}
-      }
+      if (!mounted || appAuth.currentUser?.uid != uid) return;
       final details = e.details;
       final reason = details is Map ? (details['reason'] ?? '').toString() : '';
       if (reason == 'TURN_TIME_EXPIRED' || reason == 'ROUND_NOT_ACTIVE') {
         _attemptAdvanceRoundOrFinish();
       }
-      if (!mounted) return;
+      if (!mounted || appAuth.currentUser?.uid != uid) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
             content: Text(mapDebateCallableError(
@@ -1471,7 +1474,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
         ))),
       );
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || appAuth.currentUser?.uid != uid) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('${l10n.errorPrefix}: $e')),
       );
@@ -1739,6 +1742,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
     for (final path in _sentVoiceFiles) {
       if (!kIsWeb) { try { io_shim.File(path).deleteSync(); } catch (_) {} }
     }
+    _textDraft.dispose();
     _messageController.dispose();
     _timeLeftNotifier.dispose();
     _dangerZoneNotifier.dispose();

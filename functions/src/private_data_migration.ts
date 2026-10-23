@@ -3,6 +3,26 @@ import * as firestore from 'firebase-admin/firestore';
 import { validateAiResult } from './domain/debate/ai_result';
 
 type Data = Record<string, any>;
+// Accept states written by ai_judgement/sanitizeLegacyAiResult, plus historical
+// ready results without status. Never normalize/replace an existing private result.
+function isUsablePrivateJudgement(document: Data, debate: Data): boolean {
+  const value = document.aiResult;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  if (value.judgedAt !== undefined && !(value.judgedAt instanceof firestore.Timestamp)) return false;
+  if (value.status === undefined || value.status === 'ready') {
+    if (value.error !== undefined && value.error !== false) return false;
+    try {
+      validateAiResult(value, debate.fighter1 || debate.creatorId, debate.fighter2 || debate.opponentId);
+      return true;
+    } catch { return false; }
+  }
+  return value.error === true && (
+    (value.status === 'insufficient_content' && value.reason === 'no_content')
+    || (value.status === 'unavailable' && value.reason === 'not_configured')
+    || (value.status === 'error' && value.reason === 'unavailable')
+  );
+}
+
 export type PrivateDataMigrationStats = {
   profilesScanned: number;
   emailsFound: number;
@@ -68,6 +88,10 @@ export function createPrivateDataMigrationController(
       if (!data || !Object.prototype.hasOwnProperty.call(data, field)) return false;
       const privateRef = kind === 'ai' ? item.ref.collection('private_state').doc('judgement') : null;
       const privateSnapshot = privateRef ? await tx.get(privateRef) : null;
+      if (privateSnapshot?.exists && !isUsablePrivateJudgement(privateSnapshot.data()!, data)) {
+        // Fixed message: neither private payload nor source identifiers enter logs.
+        throw new Error('PRIVATE_JUDGEMENT_CONFLICT: migration stopped; existing private judgement requires review');
+      }
       tx.create(archive.collection('records').doc(recordId), {
         originalPath: item.ref.path,
         field,

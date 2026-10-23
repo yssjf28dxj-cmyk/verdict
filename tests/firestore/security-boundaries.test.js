@@ -276,3 +276,15 @@ test('only the active fighter can publish ephemeral activity; outsider cannot re
   await assertFails(setDoc(activity('creator'), data()));
   await assertSucceeds(setDoc(activity('creator'), { status: '', updatedAt: serverTimestamp() }));
 });
+
+test('text receipts cannot be read, forged or deleted by clients', async () => {
+  await environment.withSecurityRulesDisabled(async context => {
+    await setDoc(doc(context.firestore(), 'debates/public/server_text_requests/receipt'), {messageId:'message',textHash:'hash',roundIndex:1});
+  });
+  for (const uid of ['creator','opponent','viewer']) {
+    const receipt = doc(db(uid),'debates/public/server_text_requests/receipt');
+    await assertFails(getDoc(receipt));
+    await assertFails(setDoc(receipt,{messageId:'forged'}));
+    await assertFails(deleteDoc(receipt));
+  }
+});
