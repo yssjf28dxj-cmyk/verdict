@@ -1,3 +1,5 @@
+import '../utils/pending_message_request.dart';
+import '../utils/compact_notice.dart';
 import 'package:verdict/firebase_session.dart';
 import 'package:verdict/firestore_database.dart';
 import 'dart:async';
@@ -190,6 +192,43 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
   // ─── MEDIA STATE ──────────────────────────────────────────
   bool _isRecording = false;
   bool _isUploadingMedia = false;
+  String _activitySpeakerSubscribed = '';
+  String? _pendingMediaPath;
+  String? _pendingMediaRequestId;
+  final Set<String> _confirmedMediaIds = {};
+  final Set<String> _sentVoiceFiles = {};
+
+  void _mediaConfirmed(String id) {
+    _confirmedMediaIds.add(id);
+    if (!mounted || _pendingMediaRequestId != id) return;
+    setState(() { _pendingMediaPath = null; _pendingMediaType = null; _pendingMediaRequestId = null; _isUploadingMedia = false; });
+  }
+  String? _pendingMediaType;
+  bool _pendingMediaFailed = false;
+  VoidCallback? _retryPendingMedia;
+  bool _bankEnabled = false;
+  Map<String, dynamic> _timeBanks = {};
+  Timer? _presenceTimer;
+  bool _presenceBusy = false;
+  bool _roomVisible = true;
+  int? _liveViewers;
+
+  Future<void> _heartbeat({bool present = true}) async {
+    if (_presenceBusy && present) return;
+    if (present && (!_roomVisible || isLoading || status == 'finished')) return;
+    _presenceBusy = true;
+    try {
+      final result = await _functions.httpsCallable('heartbeatDebateViewer',
+        options: HttpsCallableOptions(timeout: const Duration(seconds: 10)))
+        .call({'debateId': widget.debateId, 'present': present});
+      final data = result.data;
+      if (mounted && present && data is Map && data['viewers'] is num) {
+        setState(() => _liveViewers = (data['viewers'] as num).toInt());
+      }
+    } catch (_) { /* A missing count must never be presented as a confirmed zero. */ }
+    finally { _presenceBusy = false; }
+  }
+
   // Non-null only during a multi-photo batch upload. Format: "current/total".
   String? _batchUploadLabel;
   final AudioRecorder _audioRecorder = AudioRecorder();
@@ -404,23 +443,26 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
       ..androidEncoder = AndroidEncoder.aac
       ..androidOutputFormat = AndroidOutputFormat.mpeg4
       ..iosEncoder = IosEncoder.kAudioFormatMPEG4AAC
-      ..sampleRate = 44100
-      ..bitRate = 128000; // 128 kbps AAC — crystal-clear voice quality
+      ..sampleRate = 22050
+      ..bitRate = 64000; // 64 kbps AAC keeps voice uploads compact.
 
     _overlayCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 380),
+      duration: const Duration(milliseconds: 180),
     );
 
     _bootstrapCurrentUserIdentity();
     _startRoundCountdownTicker();
-    _loadDebate();
+    _loadDebate().then((_) { if (mounted) _heartbeat(); });
+    _presenceTimer = Timer.periodic(const Duration(seconds: 20), (_) => _heartbeat());
   }
 
   /// Releases the microphone when the app is backgrounded or interrupted
   /// by an incoming call. Prevents mic lock and silent crash on iOS/Android.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    _roomVisible = state == AppLifecycleState.resumed;
+    if (_roomVisible) { _heartbeat(); } else { _heartbeat(present: false); }
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive) {
       if (_isRecording) {
@@ -495,7 +537,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
           _graceDelayActive = true;
           final capturedToken = _advanceAttemptToken;
           Future.delayed(
-            const Duration(milliseconds: _uploadGraceMs),
+            Duration(milliseconds: _bankEnabled ? 0 : _uploadGraceMs),
             () {
               if (!mounted) return;
               if (movedToResult) return;
@@ -682,8 +724,9 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
 
       // Listener for active speaker's activity
       final currentActiveSpeaker = (liveData['activeSpeakerId'] ?? '').toString();
-      if (currentActiveSpeaker != activeSpeakerId && currentActiveSpeaker.isNotEmpty) {
+      if (currentActiveSpeaker != _activitySpeakerSubscribed && currentActiveSpeaker.isNotEmpty) {
         _activitySub?.cancel();
+        _activitySpeakerSubscribed = currentActiveSpeaker;
         _activitySub = appFirestore
             .collection('debates')
             .doc(widget.debateId)
@@ -704,11 +747,13 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
           } else {
             setState(() => _activeSpeakerActivity = '');
           }
-        });
+        }, onError: (Object error) { debugPrint('Activity unavailable: $error'); });
       }
 
       _debate = Debate.fromMap(widget.debateId, liveData);
       _syncVoteTallies(liveData);
+      _bankEnabled = liveData['clockMode'] == 'bank_v1';
+      _timeBanks = liveData['timeBankMs'] is Map ? Map<String, dynamic>.from(liveData['timeBankMs']) : {};
       setState(() {
         _isRoundActiveMutated = false; // Reset optimistic lock
         final pending = liveData['pendingPenalty'];
@@ -1049,7 +1094,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
                 final isActive = status == 'active';
                 final timerText =
                     isActive ? _formatTimeLeft(timeLeft) : '--:--';
-                final compactHeight = _headerCollapsed ? 0.0 : 92.0;
+                final compactHeight = _headerCollapsed ? 0.0 : (_bankEnabled ? 148.0 : 112.0);
                 final borderColor = isDanger
                     ? (pulse
                         ? const Color(0x44FF6B6B)
@@ -1088,7 +1133,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              '$votes1:$votes2',
+                              '$votes1:$votes2 · ${_liveViewers == null ? '—' : '≈$_liveViewers'} ${l10n.spectatorsLiveLabel}',
                               style: const TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w800,
@@ -1112,7 +1157,15 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
                         ],
                       ),
                       if (!_headerCollapsed) ...[
-                        const SizedBox(height: 8),
+                        if (_bankEnabled) Row(children: [
+                          for (final side in [1, 2]) Expanded(child: TextButton(
+                            onPressed: isMyTurn && isRoundActive && !_isYieldingTurn && currentUserId == (side == 1 ? fighter1 : fighter2) ? _onYieldPressed : null,
+                            child: Text('${side == 1 ? fighter1Label : fighter2Label}  ${activeSpeakerId == (side == 1 ? fighter1 : fighter2) ? _formatTimeLeft(timeLeft) : '+${_formatTimeLeft(((_timeBanks[side == 1 ? fighter1 : fighter2] as num?)?.toInt() ?? 0) ~/ 1000)}'}',
+                              maxLines: 1, overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 12, color: side == 1 ? VerdictStyle.fighterBlue : VerdictStyle.fighterRed)),
+                          )),
+                        ]),
+                        const SizedBox(height: 4),
                         Text(
                           status == 'finished'
                               ? l10n.finishedStatus
@@ -1248,7 +1301,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
     final attemptToken = ++_advanceAttemptToken;
     final stableUid = _effectiveCurrentUid;
     final hashSeed = stableUid.isNotEmpty ? stableUid : widget.debateId;
-    final delayMs = _stableHash(hashSeed) % _advanceJitterWindowMs;
+    final delayMs = _stableHash(hashSeed) % (_bankEnabled ? 150 : _advanceJitterWindowMs);
 
     _advancePending = true;
     _lastAdvanceAttemptAt = now;
@@ -1549,110 +1602,10 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
     if (files.length > 10) files = files.sublist(0, 10);
 
     HapticFeedback.lightImpact();
-    _publishActivity('image');
-
-    _bootstrapCurrentUserIdentity();
-    final senderName =
-        _bestEffortName(appAuth.currentUser).trim();
-    if (senderName.isEmpty) return;
-
-    final l10n = AppLocalizations.of(context)!;
-    final total = files.length;
-
-    setState(() {
-      _isUploadingMedia = true;
-      // Only show a counter badge when sending more than one photo.
-      _batchUploadLabel = total > 1 ? '1/$total' : null;
-    });
-
-    for (int i = 0; i < total; i++) {
-      // Stop if the widget was unmounted or the turn changed mid-batch.
+    for (final file in files) {
       if (!mounted || !isMyTurn) break;
-
-      if (total > 1) {
-        setState(() => _batchUploadLabel = '${i + 1}/$total');
-      }
-
-      bool stopBatch = false;
-      try {
-        // 1. Upload file to Firebase Storage.
-        final mediaPath = await MediaUploadService.instance.uploadImage(
-          debateId: widget.debateId,
-          uid: currentUserId,
-          filePath: files[i].path,
-        );
-        if (mediaPath == null) throw Exception('Upload returned no object path');
-        if (!mounted) break;
-
-        // 2. Persist message via Cloud Function.
-        final callable = _functions.httpsCallable(
-          'sendDebateMessage',
-          options: HttpsCallableOptions(timeout: const Duration(seconds: 30)),
-        );
-        await callable.call({
-          'debateId': widget.debateId,
-          'text': '',
-          'senderName': senderName,
-          'messageType': 'image',
-          'mediaPath': mediaPath,
-        });
-
-        SoundService.instance.play(SFX.whoosh);
-        HapticFeedback.selectionClick();
-
-        // Delete the temporary file after a successful send.
-        if (!kIsWeb) {
-          try {
-            io_shim.File(files[i].path).deleteSync();
-          } catch (_) {}
-        }
-      } on FirebaseFunctionsException catch (e) {
-        if (!mounted) break;
-        final reason =
-            (e.details is Map ? e.details['reason'] : null)?.toString() ?? '';
-        const turnExpiryCodes = {
-          'TURN_NOT_ACTIVE_SPEAKER',
-          'TURN_TIME_EXPIRED',
-          'ROUND_NOT_ACTIVE',
-        };
-        if (turnExpiryCodes.contains(reason)) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              duration: Duration(seconds: 2),
-              behavior: SnackBarBehavior.floating,
-              content: Text('Время истекло — загрузка остановлена.'),
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              duration: const Duration(seconds: 6),
-              content: Text(mapDebateCallableError(l10n, e,
-                  fallbackMessage: l10n.errorPrefix)),
-            ),
-          );
-        }
-        stopBatch = true;
-      } catch (e) {
-        if (!mounted) break;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            duration: const Duration(seconds: 6),
-            content: Text('${l10n.errorPrefix}: Upload failed. Check connection.'),
-          ),
-        );
-        stopBatch = true;
-      }
-
-      if (stopBatch) break;
-    }
-
-    if (mounted) {
-      setState(() {
-        _isUploadingMedia = false;
-        _batchUploadLabel = null;
-      });
-      _clearMyActivity();
+      final sent = await _sendMediaMessage(filePath: file.path, messageType: 'image');
+      if (!sent) break;
     }
   }
 
@@ -1662,103 +1615,10 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
     if (_isYieldingTurn) return;
     final l10n = AppLocalizations.of(context)!;
 
-    // Flow B: upload in progress → warn about cancellation.
-    // Flow A: no upload → simple confirmation.
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => _isUploadingMedia
-          ? AlertDialog(
-              backgroundColor: const Color(0xFF141C2F),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-                side: BorderSide(
-                  color: Colors.orange.withValues(alpha: 0.4),
-                  width: 1.2,
-                ),
-              ),
-              title: const Text(
-                'Отменить отправку и уступить?',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 17,
-                ),
-              ),
-              content: const Text(
-                'Ваше сообщение ещё загружается. Если уступить сейчас, загрузка будет отменена.',
-                style: TextStyle(color: Colors.white70, fontSize: 14),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(false),
-                  child: Text(
-                    'Продолжить загрузку',
-                    style: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
-                  ),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(true),
-                  child: const Text(
-                    'Отменить и уступить',
-                    style: TextStyle(
-                      color: Color(0xFFFFA500),
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            )
-          : AlertDialog(
-              backgroundColor: const Color(0xFF141C2F),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-                side: BorderSide(
-                  color: Colors.white.withValues(alpha: 0.15),
-                  width: 1,
-                ),
-              ),
-              title: const Text(
-                'Уступить слово?',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 17,
-                ),
-              ),
-              content: const Text(
-                'Ваше оставшееся время будет передано оппоненту.',
-                style: TextStyle(color: Colors.white70, fontSize: 14),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(false),
-                  child: Text(
-                    'Отмена',
-                    style: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
-                  ),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(true),
-                  child: const Text(
-                    'Уступить',
-                    style: TextStyle(
-                      color: Color(0xFFFFA500),
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-    );
-
-    if (confirmed != true) return;
-    if (!mounted) return;
-
-    // Policy B: cancel any in-flight upload before yielding.
-    if (_isUploadingMedia) {
-      setState(() => _isUploadingMedia = false);
-    }
-
+    if (!isMyTurn || !isRoundActive) return;
+    HapticFeedback.lightImpact();
+    final expectedRound = roundIndex;
+    final expectedEnd = _roundEndsAtLocal?.millisecondsSinceEpoch;
     setState(() {
       _isYieldingTurn = true;
       isRoundActive = false; // Optimistic lock — disable input instantly.
@@ -1766,17 +1626,21 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
     try {
       await _functions
           .httpsCallable('yieldTurn')
-          .call({'debateId': widget.debateId})
+          .call({'debateId': widget.debateId, if (expectedEnd != null) 'expectedTurn': {'round': expectedRound, 'endMs': expectedEnd}})
           .timeout(const Duration(seconds: 10));
     } on TimeoutException {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('${l10n.errorPrefix}: Превышено время ожидания.')),
       );
-      setState(() => isRoundActive = true); // Rollback optimistic lock!
+      if (roundIndex == expectedRound && _roundEndsAtLocal?.millisecondsSinceEpoch == expectedEnd) {
+        setState(() => isRoundActive = true);
+      }
     } on FirebaseFunctionsException catch (e) {
       if (!mounted) return;
-      setState(() => isRoundActive = true); // Rollback optimistic lock!
+      if (roundIndex == expectedRound && _roundEndsAtLocal?.millisecondsSinceEpoch == expectedEnd) {
+        setState(() => isRoundActive = true);
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -1786,7 +1650,9 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
       );
     } catch (_) {
       if (!mounted) return;
-      setState(() => isRoundActive = true); // Rollback optimistic lock!
+      if (roundIndex == expectedRound && _roundEndsAtLocal?.millisecondsSinceEpoch == expectedEnd) {
+        setState(() => isRoundActive = true);
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('${l10n.errorPrefix}: не удалось уступить слово.')),
       );
@@ -1797,129 +1663,47 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
 
   // ─── SHARED MEDIA UPLOAD & SEND ───────────────────────────
 
-  Future<void> _sendMediaMessage({
-    required String filePath,
-    required String messageType,
-    int mediaDuration = 0,
-  }) async {
-    if (_isUploadingMedia) return;
-
-    final l10n = AppLocalizations.of(context)!;
-    _bootstrapCurrentUserIdentity();
-    final senderName =
-        _bestEffortName(appAuth.currentUser).trim();
-    if (senderName.isEmpty) return;
-
-    setState(() => _isUploadingMedia = true);
-    bool succeeded = false;
-
+  Future<bool> _sendMediaMessage({required String filePath, required String messageType,
+    int mediaDuration = 0, String? requestId, int? expectedRound}) async {
+    if (_isUploadingMedia || !isMyTurn || !isRoundActive) return false;
+    final id = requestId ?? PendingMessageRequest().forText(filePath).id;
+    final round = expectedRound ?? roundIndex;
+    setState(() {
+      _isUploadingMedia = true; _pendingMediaPath = filePath; _pendingMediaRequestId = id;
+      _pendingMediaType = messageType; _pendingMediaFailed = false;
+      _retryPendingMedia = null;
+    });
+    _publishActivity(messageType);
     try {
-      // 1. Upload to Firebase Storage
-      String? mediaPath;
-      if (messageType == 'voice') {
-        mediaPath = await MediaUploadService.instance.uploadVoice(
-          debateId: widget.debateId,
-          uid: currentUserId,
-          filePath: filePath,
-        );
-      } else {
-        mediaPath = await MediaUploadService.instance.uploadImage(
-          debateId: widget.debateId,
-          uid: currentUserId,
-          filePath: filePath,
-        );
-      }
-
-      if (mediaPath == null) {
-        throw Exception('Upload returned no object path');
-      }
-      if (!mounted) return;
-
-      // 2. Call Cloud Function with media data
-      final callable = _functions.httpsCallable(
-        'sendDebateMessage',
-        options: HttpsCallableOptions(timeout: const Duration(seconds: 30)),
-      );
-      await callable.call({
-        'debateId': widget.debateId,
-        'text': '',
-        'senderName': senderName,
-        'messageType': messageType,
-        'mediaPath': mediaPath,
-        if (mediaDuration > 0) 'mediaDuration': mediaDuration,
-      });
-
-      succeeded = true;
-      if (!mounted) return;
+      await MediaUploadService.instance.sendMedia(debateId: widget.debateId,
+        uid: currentUserId, filePath: filePath, messageType: messageType,
+        requestId: id, expectedRound: round, duration: mediaDuration);
+      if (!mounted) return true;
+      _mediaConfirmed(id);
+      if (messageType == 'voice') _sentVoiceFiles.add(filePath);
       SoundService.instance.play(SFX.whoosh);
       HapticFeedback.selectionClick();
-    } on FirebaseFunctionsException catch (e) {
-      if (!mounted) return;
-      // Turn-expiry errors mean the grace window passed before the upload
-      // completed. Retrying won't succeed — the round has already switched.
-      // Show a brief, non-blocking toast and discard silently.
-      final reason =
-          (e.details is Map ? e.details['reason'] : null)?.toString() ?? '';
-      const turnExpiryCodes = {
-        'TURN_NOT_ACTIVE_SPEAKER',
-        'TURN_TIME_EXPIRED',
-        'ROUND_NOT_ACTIVE',
-      };
-      if (turnExpiryCodes.contains(reason)) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            duration: Duration(seconds: 2),
-            behavior: SnackBarBehavior.floating,
-            content: Text('Время истекло — сообщение не отправлено.'),
-          ),
-        );
-        return;
-      }
-      // All other CF errors: show with Retry option.
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          duration: const Duration(seconds: 10),
-          content: Text(mapDebateCallableError(l10n, e,
-              fallbackMessage: l10n.errorPrefix)),
-          action: SnackBarAction(
-            label: 'Retry',
-            onPressed: () => _sendMediaMessage(
-              filePath: filePath,
-              messageType: messageType,
-              mediaDuration: mediaDuration,
-            ),
-          ),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          duration: const Duration(seconds: 10),
-          content: Text('${l10n.errorPrefix}: Upload failed. Check connection.'),
-          action: SnackBarAction(
-            label: 'Retry',
-            onPressed: () => _sendMediaMessage(
-              filePath: filePath,
-              messageType: messageType,
-              mediaDuration: mediaDuration,
-            ),
-          ),
-        ),
-      );
+      // ImagePicker cache is managed by the OS. Never delete a user's original
+      // photo while an image provider may still be decoding its preview.
+      return true;
+    } catch (_) {
+      if (_confirmedMediaIds.contains(id)) return true;
+      if (!mounted) return false;
+      setState(() {
+        _pendingMediaFailed = true;
+        _retryPendingMedia = roundIndex == round ? () => _sendMediaMessage(filePath: filePath,
+          messageType: messageType, mediaDuration: mediaDuration, requestId: id, expectedRound: round) : null;
+      });
+      showCompactNotice(context, AppLocalizations.of(context)!.messageSendFailed);
+      return false;
     } finally {
-      if (mounted) setState(() => _isUploadingMedia = false);
-      // Only delete temp file on success — keep it for retry on failure.
-      if (succeeded) {
-        if (!kIsWeb) {
-          try { io_shim.File(filePath).deleteSync(); } catch (_) {}
-        }
-      }
+      if (mounted && _pendingMediaRequestId == id) setState(() => _isUploadingMedia = false);
+      if (_pendingMediaRequestId == null || _pendingMediaRequestId == id) _clearMyActivity();
     }
   }
 
   /// Shows a brief full-screen overlay (e.g. "РАУНД 2", "ВАШ ХОД!").
-  /// Animates in over 380ms, holds for 1.2s, then animates out.
+  /// Brief fade and 300ms hold keep the composer responsive between turns.
   void _showRoundOverlay(String message) {
     if (!mounted) return;
     _overlayTimer?.cancel();
@@ -1927,7 +1711,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
     setState(() => _roundOverlayMessage = message);
     _overlayCtrl.forward(from: 0.0).then((_) {
       if (!mounted) return;
-      _overlayTimer = Timer(const Duration(milliseconds: 1200), () {
+      _overlayTimer = Timer(const Duration(milliseconds: 300), () {
         if (!mounted) return;
         _overlayCtrl.reverse().then((_) {
           if (mounted) setState(() => _roundOverlayMessage = null);
@@ -1939,6 +1723,8 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _presenceTimer?.cancel();
+    unawaited(_heartbeat(present: false));
     _roundCountdownTicker?.cancel();
     _typingDebouncer?.cancel();
     _activityClearTimer?.cancel();
@@ -1950,6 +1736,9 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
     _clearMyActivity();
     _advanceAttemptToken++;
     _advancePending = false;
+    for (final path in _sentVoiceFiles) {
+      if (!kIsWeb) { try { io_shim.File(path).deleteSync(); } catch (_) {} }
+    }
     _messageController.dispose();
     _timeLeftNotifier.dispose();
     _dangerZoneNotifier.dispose();
@@ -1973,7 +1762,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
         .set({
       'status': activityStatus,
       'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    }, SetOptions(merge: true)).catchError((Object error) { debugPrint('Activity update unavailable: $error'); });
 
     // Auto-clear after 8 seconds of inactivity
     _activityClearTimer?.cancel();
@@ -1994,7 +1783,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
         .set({
       'status': '',
       'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    }, SetOptions(merge: true)).catchError((Object error) { debugPrint('Activity update unavailable: $error'); });
   }
 
   /// Call from text input onChange — debounced at 500ms.
@@ -2141,9 +1930,12 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
                                     status != 'finished' &&
                                     !isMyTurn,
                                 waitingText: l10n.waitingYourTurn,
-                                uploadingMediaType: _isUploadingMedia
-                                    ? (_isRecording ? 'voice' : 'media')
-                                    : null,
+                                uploadingMediaType: _pendingMediaType,
+                                pendingMediaPath: _pendingMediaPath,
+                                pendingMediaRequestId: _pendingMediaRequestId,
+                                onPendingMediaConfirmed: _mediaConfirmed,
+                                pendingMediaFailed: _pendingMediaFailed,
+                                onRetryPendingMedia: _retryPendingMedia,
                                 currentRoundIndex: roundIndex,
                               ),
                             ),

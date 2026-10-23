@@ -640,4 +640,19 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get voteSendFailed => 'आपके वोट की पुष्टि नहीं हो सकी। कृपया फिर से प्रयास करें।';
+
+  @override
+  String get timeBankLabel => 'समय बैंक';
+
+  @override
+  String get timeBankHint => 'बचा हुआ समय आपके अगले अवसर में जुड़ जाता है।';
+
+  @override
+  String get spectatorsLiveLabel => 'दर्शक';
+
+  @override
+  String get mediaSending => 'भेजा जा रहा है';
+
+  @override
+  String get retryMediaLabel => 'फिर भेजें';
 }

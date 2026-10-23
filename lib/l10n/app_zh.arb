@@ -215,5 +215,10 @@
   "aiJudgeUnavailable": "AI 裁决暂不可用，请稍后重试。",
   "publicIdPending": "正在准备公开 ID",
   "voteTotalsUnavailable": "实时票数暂不可用。",
-  "voteSendFailed": "无法确认您的投票，请重试。"
+  "voteSendFailed": "无法确认您的投票，请重试。",
+  "timeBankLabel": "时间储备",
+  "timeBankHint": "剩余时间会保留，并加到你的下一回合。",
+  "spectatorsLiveLabel": "人观看",
+  "mediaSending": "正在发送",
+  "retryMediaLabel": "重新发送"
 }

@@ -640,4 +640,19 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get voteSendFailed => 'Your vote could not be confirmed. Please retry.';
+
+  @override
+  String get timeBankLabel => 'Time bank';
+
+  @override
+  String get timeBankHint => 'Unused time stays with you and is added to your next turn.';
+
+  @override
+  String get spectatorsLiveLabel => 'watching';
+
+  @override
+  String get mediaSending => 'Sending';
+
+  @override
+  String get retryMediaLabel => 'Retry send';
 }

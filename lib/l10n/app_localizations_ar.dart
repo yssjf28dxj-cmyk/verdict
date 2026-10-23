@@ -640,4 +640,19 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get voteSendFailed => 'تعذر تأكيد صوتك. يرجى المحاولة مجددًا.';
+
+  @override
+  String get timeBankLabel => 'رصيد الوقت';
+
+  @override
+  String get timeBankHint => 'يُحفظ وقتك المتبقي ويُضاف إلى دورك التالي.';
+
+  @override
+  String get spectatorsLiveLabel => 'يشاهدون';
+
+  @override
+  String get mediaSending => 'جارٍ الإرسال';
+
+  @override
+  String get retryMediaLabel => 'إعادة الإرسال';
 }

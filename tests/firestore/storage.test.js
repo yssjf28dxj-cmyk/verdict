@@ -336,3 +336,79 @@ test('known limitation: private token link can be fetched without authentication
   assert.equal(response.status, 200);
   assert.equal((await response.arrayBuffer()).byteLength, 3);
 });
+
+const liveRequest = (patch = {}, uid = 'creator') => ({ auth: { uid, token: {} }, data: {
+  debateId: 'private', clientRequestId: 'live-test-request-0001', expectedRoundIndex: 1,
+  contentType: 'image/png', base64: Buffer.from([7, 8, 9]).toString('base64'), ...patch,
+} });
+for (const contentType of ['image/png', 'audio/m4a']) {
+  test(`one-call media ${contentType}: private bytes, committed message, idempotent retry`, async () => {
+    const request = liveRequest({ contentType });
+    const sent = await callables.sendLiveMedia.run(request);
+    const retry = await callables.sendLiveMedia.run(request);
+    assert.equal(retry.messageId, sent.messageId);
+    const result = await callables.getDebateMedia.run({ auth: request.auth, data: { debateId: 'private', mediaPath: sent.mediaPath } });
+    assert.deepEqual([...Buffer.from(result.base64, 'base64')], [7, 8, 9]);
+    await assertFails(getDownloadURL(ref(environment.authenticatedContext('creator').storage(), sent.mediaPath)));
+    await environment.withSecurityRulesDisabled(async (context) => {
+      assert.equal((await getDocs(collection(context.firestore(), 'debates/private/messages'))).size, 1);
+    });
+    await assert.rejects(callables.sendLiveMedia.run(liveRequest({ contentType, base64: Buffer.from([1]).toString('base64') })),
+      (error) => error.details?.reason === 'MESSAGE_REQUEST_REUSED');
+  });
+}
+for (const [label, patch, uid] of [
+  ['spectator', {}, 'outsider'], ['wrong speaker', {}, 'opponent'],
+  ['wrong round', { expectedRoundIndex: 2 }, 'creator'],
+  ['malformed bytes', { base64: 'bad!' }, 'creator'],
+  ['prototype mime', { contentType: '__proto__' }, 'creator'],
+]) {
+  test(`one-call media rejects ${label} before publishing`, async () => {
+    await assert.rejects(callables.sendLiveMedia.run(liveRequest(patch, uid)));
+    await environment.withSecurityRulesDisabled(async (context) => {
+      assert.equal((await getDocs(collection(context.firestore(), 'debates/private/messages'))).size, 0);
+    });
+  });
+}
+test('presence counts unique viewers, excludes fighters and expired leases, protects private rooms', async () => {
+  const beat = (uid, debateId, present = true) => callables.heartbeatDebateViewer.run({ auth: { uid, token: {} }, data: { debateId, present } });
+  assert.equal((await beat('creator', 'public')).viewers, 0);
+  assert.equal((await beat('spectator', 'public')).viewers, 1);
+  assert.equal((await beat('opponent', 'public')).viewers, 1);
+  await assert.rejects(beat('outsider', 'private'), (error) => error.code === 'permission-denied');
+  await environment.withSecurityRulesDisabled(async (context) => {
+    const rows = await getDocs(collection(context.firestore(), 'debates/public/presence'));
+    for (const row of rows.docs) await updateDoc(row.ref, { expiresAt: Timestamp.fromMillis(1) });
+  });
+  assert.equal((await beat('creator', 'public')).viewers, 0);
+  assert.equal((await beat('spectator', 'public', false)).viewers, 0);
+});
+
+test('one-call media rechecks the turn after Storage completes', async () => {
+  const { createLiveMediaController } = functionsRequire('./lib/live_experience');
+  const db = functionsRequire('firebase-admin/firestore').getFirestore();
+  let storedPath;
+  const send = createLiveMediaController(db, { bucket: () => ({ file: (path) => ({
+    save: async (...args) => {
+      storedPath = path;
+      await storageBucket().file(path).save(...args);
+      // The server changes the speaker while the upload is in flight.
+      await db.doc('debates/private').update({ activeSpeakerId: 'opponent' });
+    },
+  }) }) });
+  await assert.rejects(send('creator', liveRequest().data),
+    (error) => error.details?.reason === 'TURN_NOT_ACTIVE_SPEAKER');
+  assert.equal((await db.collection('debates/private/messages').get()).size, 0);
+  assert.ok(storedPath);
+  await assertFails(getBytes(ref(environment.authenticatedContext('creator').storage(), storedPath)));
+});
+
+test('one-call media acknowledges a lost-response retry after the turn changed', async () => {
+  const request = liveRequest();
+  const first = await callables.sendLiveMedia.run(request);
+  const db = functionsRequire('firebase-admin/firestore').getFirestore();
+  await db.doc('debates/private').update({ activeSpeakerId: 'opponent', roundIndex: 2 });
+  const retry = await callables.sendLiveMedia.run(request);
+  assert.equal(retry.messageId, first.messageId);
+  assert.equal((await db.collection('debates/private/messages').get()).size, 1);
+});

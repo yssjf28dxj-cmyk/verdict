@@ -66,3 +66,39 @@ test('yielded turn gives the next fighter full duration without subtracting lega
   assert.equal(next.activeSpeakerId, 'bob');
   assert.equal(next.roundEndsAt.toMillis(), now + 60000);
 });
+
+const { planHandOff } = require('../lib/debate_deadlines');
+test('bank handoff saves remaining time for its owner and consumes the next speaker bank once', () => {
+  const data = { ...state(), clockMode: 'bank_v1', timeBankMs: { alice: 0, bob: 30000 } };
+  const next = planHandOff('d', data, 'alice', 70000);
+  assert.equal(next.activeSpeakerId, 'bob');
+  assert.equal(next.timeBankMs.alice, 30000);
+  assert.equal(next.timeBankMs.bob, 0);
+  assert.equal(next.roundEndsAt.toMillis(), 160000);
+  const second = planHandOff('d', { ...data, ...next }, 'bob', 100000);
+  assert.equal(second.activeSpeakerId, 'alice');
+  assert.equal(second.roundIndex, 2);
+  assert.equal(second.roundEndsAt.toMillis(), 190000);
+  assert.equal(second.timeBankMs.alice, 0);
+  assert.equal(second.timeBankMs.bob, 60000);
+});
+test('bank automatic expiry does not mint unused time during delayed delivery', () => {
+  const next = planExpiredTurns('d', { ...state(), clockMode: 'bank_v1', timeBankMs: { alice: 0, bob: 30000 } }, 220000);
+  assert.equal(next.activeSpeakerId, 'alice');
+  assert.equal(next.roundIndex, 2);
+  assert.equal(next.roundEndsAt.toMillis(), 250000);
+  assert.deepEqual(next.timeBankMs, { alice: 0, bob: 0 });
+});
+test('handoff rejects the other fighter and legacy clocks do not gain a bank', () => {
+  assert.throws(() => planHandOff('d', state(), 'bob', 90000));
+  const next = planHandOff('d', state(), 'alice', 90000);
+  assert.equal(next.timeBankMs, undefined);
+  assert.equal(next.roundEndsAt.toMillis(), 150000);
+});
+test('final handoff ends the debate and expired handoff saves no extra time', () => {
+  const final = { ...state(), clockMode: 'bank_v1', activeSpeakerId: 'bob', totalRounds: 1 };
+  assert.equal(planHandOff('d', final, 'bob', 90000).status, 'finished');
+  const next = planHandOff('d', { ...state(), clockMode: 'bank_v1' }, 'alice', 110000);
+  assert.equal(next.roundEndsAt.toMillis(), 160000);
+  assert.equal(next.timeBankMs.alice || 0, 0);
+});

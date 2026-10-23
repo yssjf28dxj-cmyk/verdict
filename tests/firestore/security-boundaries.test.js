@@ -254,3 +254,25 @@ test('a banned creator cannot bypass access moderation through a direct write', 
     accessRequests: [], accessApprovedUserIds: ['creator', 'other-requester'],
   }));
 });
+
+test('only the active fighter can publish ephemeral activity; outsider cannot read it', async () => {
+  const { serverTimestamp } = await import('firebase/firestore');
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), 'debates/private'), {
+      status: 'active', activeSpeakerId: 'creator', roundEndsAt: Timestamp.fromMillis(Date.now() + 60000),
+    });
+  });
+  const activity = (uid, owner = uid) => doc(db(uid), 'debates/private/activity', owner);
+  const data = () => ({ status: 'typing', updatedAt: serverTimestamp() });
+  await assertSucceeds(setDoc(activity('creator'), data()));
+  await assertSucceeds(getDoc(activity('opponent', 'creator')));
+  await assertFails(getDoc(activity('outsider', 'creator')));
+  await assertFails(setDoc(activity('opponent'), data()));
+  await assertFails(setDoc(activity('outsider', 'creator'), data()));
+  await assertFails(setDoc(activity('creator'), { ...data(), activeSpeakerId: 'creator' }));
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), 'debates/private'), { status: 'finished' });
+  });
+  await assertFails(setDoc(activity('creator'), data()));
+  await assertSucceeds(setDoc(activity('creator'), { status: '', updatedAt: serverTimestamp() }));
+});

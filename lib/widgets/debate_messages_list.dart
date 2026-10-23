@@ -1,3 +1,4 @@
+import 'pending_media_bubble.dart';
 import 'package:verdict/firebase_session.dart';
 import 'package:verdict/firestore_database.dart';
 
@@ -21,6 +22,11 @@ class DebateMessagesList extends StatefulWidget {
   /// When non-null, shows a local "uploading" placeholder bubble at the
   /// bottom of the chat (index 0 in the reversed list).
   final String? uploadingMediaType;
+  final String? pendingMediaPath;
+  final String? pendingMediaRequestId;
+  final ValueChanged<String>? onPendingMediaConfirmed;
+  final bool pendingMediaFailed;
+  final VoidCallback? onRetryPendingMedia;
   /// Current round index — used to scope "Clear My Round" deletes.
   final int currentRoundIndex;
 
@@ -31,6 +37,11 @@ class DebateMessagesList extends StatefulWidget {
     this.showWaitingTurn = false,
     this.waitingText = '',
     this.uploadingMediaType,
+    this.pendingMediaPath,
+    this.pendingMediaRequestId,
+    this.onPendingMediaConfirmed,
+    this.pendingMediaFailed = false,
+    this.onRetryPendingMedia,
     this.currentRoundIndex = 1,
   });
 
@@ -496,7 +507,17 @@ class _DebateMessagesListState extends State<DebateMessagesList> {
 
         final docs = snapshot.data?.docs ?? [];
         _scheduleAutoScrollIfNeeded(docs.length);
-        final hasUpload = widget.uploadingMediaType != null;
+        final pendingId = widget.pendingMediaRequestId;
+        final delivered = pendingId != null && docs.any((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          return data['senderId'] == appAuth.currentUser?.uid && data['clientRequestId'] == pendingId;
+        });
+        if (delivered) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && widget.pendingMediaRequestId == pendingId) widget.onPendingMediaConfirmed?.call(pendingId);
+          });
+        }
+        final hasUpload = widget.uploadingMediaType != null && !delivered;
         final extraCount = hasUpload ? 1 : 0;
 
         final list = docs.isEmpty && !hasUpload
@@ -523,8 +544,11 @@ class _DebateMessagesListState extends State<DebateMessagesList> {
                 itemBuilder: (_, index) {
                   // Index 0 in reversed list = newest = bottom of screen.
                   if (hasUpload && index == 0) {
-                    return _UploadingPlaceholder(
+                    return PendingMediaBubble(
                       mediaType: widget.uploadingMediaType!,
+                      filePath: widget.pendingMediaPath,
+                      failed: widget.pendingMediaFailed,
+                      onRetry: widget.onRetryPendingMedia,
                     );
                   }
                   final docIndex = hasUpload ? index - 1 : index;
@@ -589,73 +613,6 @@ class _DebateMessagesListState extends State<DebateMessagesList> {
 // ─────────────────────────────────────────────────────────────
 // UPLOAD PLACEHOLDER — shown at list bottom while media uploads
 // ─────────────────────────────────────────────────────────────
-
-class _UploadingPlaceholder extends StatelessWidget {
-  final String mediaType;
-
-  const _UploadingPlaceholder({required this.mediaType});
-
-  @override
-  Widget build(BuildContext context) {
-    final label = mediaType == 'voice' ? 'Отправка голосового...' : 'Загрузка...';
-    final icon = mediaType == 'voice' ? Icons.mic_rounded : Icons.image_outlined;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          Container(
-            constraints: const BoxConstraints(maxWidth: 220),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: const BoxDecoration(
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(18),
-                topRight: Radius.circular(18),
-                bottomLeft: Radius.circular(18),
-                bottomRight: Radius.circular(4),
-              ),
-              color: Color(0xFFFFD700),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black12,
-                  blurRadius: 4,
-                  offset: Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: 16, color: Colors.black54),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Text(
-                    label,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: Colors.black54,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                const SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 1.8,
-                    color: Colors.black87,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 // ─────────────────────────────────────────────────────────────
 // VOICE MESSAGE PLAYER

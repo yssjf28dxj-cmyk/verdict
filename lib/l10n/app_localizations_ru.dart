@@ -640,4 +640,19 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get voteSendFailed => 'Не удалось подтвердить голос. Попробуйте ещё раз.';
+
+  @override
+  String get timeBankLabel => 'Банк времени';
+
+  @override
+  String get timeBankHint => 'Оставшееся время сохраняется у вас и добавляется к следующему ходу.';
+
+  @override
+  String get spectatorsLiveLabel => 'зрителей';
+
+  @override
+  String get mediaSending => 'Отправляется';
+
+  @override
+  String get retryMediaLabel => 'Повторить отправку';
 }

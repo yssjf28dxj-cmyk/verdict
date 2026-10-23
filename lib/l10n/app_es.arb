@@ -215,5 +215,10 @@
   "aiJudgeUnavailable": "El veredicto de IA no está disponible. Inténtalo más tarde.",
   "publicIdPending": "Se está preparando el ID público",
   "voteTotalsUnavailable": "El recuento de votos en directo no está disponible temporalmente.",
-  "voteSendFailed": "No se pudo confirmar tu voto. Inténtalo de nuevo."
+  "voteSendFailed": "No se pudo confirmar tu voto. Inténtalo de nuevo.",
+  "timeBankLabel": "Banco de tiempo",
+  "timeBankHint": "El tiempo restante se guarda y se añade a tu próximo turno.",
+  "spectatorsLiveLabel": "espectadores",
+  "mediaSending": "Enviando",
+  "retryMediaLabel": "Reintentar envío"
 }

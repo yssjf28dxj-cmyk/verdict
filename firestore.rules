@@ -166,6 +166,22 @@ service cloud.firestore {
         allow delete: if false;
       }
 
+      // Ephemeral typing/recording status: only the current fighter may
+      // publish activity, and a fighter may always clear their own status.
+      match /activity/{uid} {
+        function parent() { return get(/databases/$(database)/documents/debates/$(debateId)).data; }
+        allow read: if canReadDebateMessagesByData(parent());
+        allow create, update: if accountMayWrite() && request.auth.uid == uid
+          && (uid == parent().get('fighter1', '') || uid == parent().get('fighter2', ''))
+          && request.resource.data.keys().hasOnly(['status', 'updatedAt'])
+          && request.resource.data.updatedAt == request.time
+          && (request.resource.data.status == ''
+            || (parent().status in ['active', 'live'] && parent().activeSpeakerId == uid
+              && request.time < parent().roundEndsAt
+              && request.resource.data.status in ['typing', 'recording', 'voice', 'image']));
+        allow delete: if false;
+      }
+
       // Viewer-facing AI reasoning follows the transcript's access boundary.
       // A request-only debate card is discoverable before access is approved,
       // but its transcript and judgement are not.

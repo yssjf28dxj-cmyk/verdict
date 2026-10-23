@@ -640,4 +640,19 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get voteSendFailed => 'Votre vote n’a pas pu être confirmé. Réessayez.';
+
+  @override
+  String get timeBankLabel => 'Réserve de temps';
+
+  @override
+  String get timeBankHint => 'Le temps restant est conservé et ajouté à votre prochain tour.';
+
+  @override
+  String get spectatorsLiveLabel => 'spectateurs';
+
+  @override
+  String get mediaSending => 'Envoi en cours';
+
+  @override
+  String get retryMediaLabel => 'Réessayer';
 }

@@ -640,4 +640,19 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get voteSendFailed => 'No se pudo confirmar tu voto. Inténtalo de nuevo.';
+
+  @override
+  String get timeBankLabel => 'Banco de tiempo';
+
+  @override
+  String get timeBankHint => 'El tiempo restante se guarda y se añade a tu próximo turno.';
+
+  @override
+  String get spectatorsLiveLabel => 'espectadores';
+
+  @override
+  String get mediaSending => 'Enviando';
+
+  @override
+  String get retryMediaLabel => 'Reintentar envío';
 }

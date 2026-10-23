@@ -7,6 +7,7 @@ import { onTaskDispatched } from 'firebase-functions/v2/tasks';
 import { createDeadlineController } from './debate_deadlines';
 import { createAiJudgeController } from './ai_judgement';
 import { createProfileIdentityController } from './profile_identity';
+import { createLiveMediaController, createPresenceController } from './live_experience';
 import { countStoredVotes } from './domain/debate/votes';
 import { createHash } from 'node:crypto';
 import { assertAccountMayWrite, assertRateLimit, consumeRateLimit, rateLimitRef, requestDocumentId } from './request_control';
@@ -517,6 +518,7 @@ export const createDebate = onCall({ invoker: 'public' }, async (request) => {
     languageCode,
     region,
     viewerCount: 0,
+    ...(preciseDeadlinesEnabled ? { clockMode: 'bank_v1', timeBankMs: { [uid]: 0 } } : {}),
     votes1: 0,
     votes2: 0,
     voteTallyVersion: 1,
@@ -1177,6 +1179,19 @@ export const sendDebateMessage = onCall({ invoker: 'public', memory: '512MiB', c
   return { ok: true, messageId: messageRef.id };
 });
 
+const liveMedia = createLiveMediaController(db, getStorage());
+export const sendLiveMedia = onCall({ invoker: 'public', memory: '512MiB', concurrency: 2, timeoutSeconds: 45 }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Требуется авторизация.');
+  return liveMedia(uid, request.data ?? {});
+});
+const presence = createPresenceController(db, canUserReadDebate);
+export const heartbeatDebateViewer = onCall({ invoker: 'public' }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Требуется авторизация.');
+  return presence(uid, request.data ?? {});
+});
+
 // Bounded authenticated upload proxy. Storage Rules can only consult the
 // (default) database, whereas the isolated test app uses the named `default`.
 // Authorize against the selected database before Admin SDK touches Storage.
@@ -1189,7 +1204,7 @@ export const uploadDebateMedia = onCall({ invoker: 'public', memory: '512MiB', c
   const contentType = asString(request.data?.contentType);
   const extension = ({ 'image/png': 'png', 'image/jpeg': 'jpg', 'audio/m4a': 'm4a', 'audio/mp4': 'm4a' } as Record<string, string>)[contentType];
   const encoded = asString(request.data?.base64);
-  if (!extension || !encoded || encoded.length > 8 * 1024 * 1024 || !/^[A-Za-z0-9+/]+={0,2}$/.test(encoded) || encoded.length % 4 !== 0) {
+  if (!['image/png', 'image/jpeg', 'audio/m4a', 'audio/mp4'].includes(contentType) || !extension || !encoded || encoded.length > 8 * 1024 * 1024 || !/^[A-Za-z0-9+/]+={0,2}$/.test(encoded) || encoded.length % 4 !== 0) {
     throw new HttpsError('invalid-argument', 'Неверный тип или размер медиа.', { reason: 'MESSAGE_INVALID_MEDIA_FILE' });
   }
   const bytes = Buffer.from(encoded, 'base64');
@@ -1273,6 +1288,14 @@ export const yieldTurn = onCall({ invoker: 'public' }, async (request) => {
     throw new HttpsError('invalid-argument', 'debateId обязателен.', {
       reason: 'YIELD_DEBATE_ID_REQUIRED',
     });
+  }
+
+  if (preciseDeadlinesEnabled) {
+    const raw = request.data?.expectedTurn;
+    if (raw !== undefined && (!raw || !Number.isInteger(raw.round) || !Number.isSafeInteger(raw.endMs))) throw new HttpsError('invalid-argument', 'Некорректный ход.');
+    const expected = raw && Number.isInteger(raw.round) && Number.isSafeInteger(raw.endMs)
+      ? { debateId, round: raw.round, speaker: uid, endMs: raw.endMs } : undefined;
+    return deadlineController.handoff(debateId, uid, expected);
   }
 
   const debateRef = db.collection('debates').doc(debateId);

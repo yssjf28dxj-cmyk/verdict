@@ -1358,6 +1358,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Your vote could not be confirmed. Please retry.'**
   String get voteSendFailed;
+
+  /// No description provided for @timeBankLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Time bank'**
+  String get timeBankLabel;
+
+  /// No description provided for @timeBankHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Unused time stays with you and is added to your next turn.'**
+  String get timeBankHint;
+
+  /// No description provided for @spectatorsLiveLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'watching'**
+  String get spectatorsLiveLabel;
+
+  /// No description provided for @mediaSending.
+  ///
+  /// In en, this message translates to:
+  /// **'Sending'**
+  String get mediaSending;
+
+  /// No description provided for @retryMediaLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry send'**
+  String get retryMediaLabel;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

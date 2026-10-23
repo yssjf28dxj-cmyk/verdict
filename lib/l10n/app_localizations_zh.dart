@@ -640,4 +640,19 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get voteSendFailed => '无法确认您的投票，请重试。';
+
+  @override
+  String get timeBankLabel => '时间储备';
+
+  @override
+  String get timeBankHint => '剩余时间会保留，并加到你的下一回合。';
+
+  @override
+  String get spectatorsLiveLabel => '人观看';
+
+  @override
+  String get mediaSending => '正在发送';
+
+  @override
+  String get retryMediaLabel => '重新发送';
 }

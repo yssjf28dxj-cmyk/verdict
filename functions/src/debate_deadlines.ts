@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import * as firestore from 'firebase-admin/firestore';
+import { HttpsError } from 'firebase-functions/v2/https';
 import { assertCanAdvanceOrFinish, readTurnDeadlineMs } from './domain/debate/guards';
 import { countStoredVotes } from './domain/debate/votes';
 
@@ -54,6 +55,7 @@ export function planExpiredTurns(debateId: string, data: Data, nowMs: number): D
   let speaker = initial.speaker;
   let endMs = initial.endMs;
   const pending: Data = { ...(data.pendingPenalty || {}) };
+  const bank: Data = { ...(data.timeBankMs || {}) };
   for (let transitions = 0; transitions < 10 && nowMs >= endMs; transitions++) {
     if (speaker === data.fighter2) {
       if (round >= totalRounds) return { status: 'finished', isRoundActive: false };
@@ -64,12 +66,32 @@ export function planExpiredTurns(debateId: string, data: Data, nowMs: number): D
     }
     const penalty = Number.isFinite(pending[speaker]) ? Math.max(0, Math.trunc(pending[speaker])) : 0;
     pending[speaker] = 0;
-    endMs += Math.max(duration - penalty, 5) * 1000;
+    const saved = data.clockMode === 'bank_v1' ? readBankMs({ ...data, timeBankMs: bank }, speaker) : 0;
+    bank[speaker] = 0;
+    endMs += Math.max(duration * 1000 + saved - penalty * 1000, 5000);
   }
   return {
     roundIndex: round, activeSpeakerId: speaker, isRoundActive: true,
     roundEndsAt: firestore.Timestamp.fromMillis(endMs), pendingPenalty: pending,
+    ...(data.clockMode === 'bank_v1' ? { timeBankMs: bank } : {}),
   };
+}
+
+function readBankMs(data: Data, uid: string): number {
+  const value = data.timeBankMs?.[uid];
+  const max = (data.totalRounds ?? 3) * (data.roundDurationSeconds ?? 60) * 1000;
+  return Number.isSafeInteger(value) && value > 0 ? Math.min(value, max) : 0;
+}
+
+// Bank belongs to the speaker who saves it. It is consumed once on their next turn.
+export function planHandOff(debateId: string, data: Data, uid: string, nowMs: number): Data {
+  const turn = readDeadline(debateId, data);
+  if (!turn || turn.speaker !== uid) throw new HttpsError('failed-precondition', 'Сейчас не ваш ход.', { reason: 'YIELD_NOT_ACTIVE_SPEAKER' });
+  if (nowMs >= turn.endMs) return planExpiredTurns(debateId, data, nowMs)!;
+  const bank = { ...(data.timeBankMs || {}) };
+  if (data.clockMode === 'bank_v1') bank[uid] = turn.endMs - nowMs;
+  const next = planExpiredTurns(debateId, { ...data, timeBankMs: bank, roundEndsAt: firestore.Timestamp.fromMillis(nowMs) }, nowMs)!;
+  return { ...next, ...(data.clockMode === 'bank_v1' ? { timeBankMs: next.timeBankMs || bank } : {}), yieldedAt: firestore.FieldValue.serverTimestamp() };
 }
 
 export function createDeadlineController(db: firestore.Firestore, queue: Queue, clock = Date.now) {
@@ -123,6 +145,30 @@ export function createDeadlineController(db: firestore.Firestore, queue: Queue, 
   return {
     schedule,
     advance,
+    async handoff(debateId: string, uid: string, expected?: Deadline): Promise<Data> {
+      const ref = db.collection('debates').doc(debateId);
+      const next = await db.runTransaction(async (tx) => {
+        const snapshot = await tx.get(ref);
+        if (!snapshot.exists) throw new HttpsError('not-found', 'Дебат не найден.');
+        const data = snapshot.data()!;
+        assertCanAdvanceOrFinish({ uid, debate: data });
+        const turn = readDeadline(debateId, data);
+        // A repeated request for a previous turn cannot surrender a later one.
+        if (expected && !sameDeadline(turn, expected)) return { changed: false };
+        const patch = planHandOff(debateId, data, uid, clock());
+        if (patch.status === 'finished') {
+          const votes = await tx.get(ref.collection('votes'));
+          const counts = countStoredVotes(votes.docs.map((vote) => vote.data()), data.totalRounds ?? 3);
+          Object.assign(patch, counts, { winner: counts.votes1 > counts.votes2 ? 'fighter1' : counts.votes2 > counts.votes1 ? 'fighter2' : 'draw', finishedAt: firestore.FieldValue.serverTimestamp() });
+        }
+        tx.update(ref, patch);
+        return { changed: true };
+      });
+      // Scheduling is also repaired by the retrying Firestore trigger. Do not
+      // report a failed handoff if only the post-commit enqueue failed.
+      await schedule(debateId).catch((error) => console.error('handoff_schedule_retry', { debateId, error }));
+      return next;
+    },
     async onWrite(debateId: string, before: Data | undefined, after: Data | undefined): Promise<void> {
       const next = readDeadline(debateId, after);
       if (next && !sameDeadline(next, readDeadline(debateId, before))) await schedule(debateId);

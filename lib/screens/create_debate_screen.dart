@@ -1,7 +1,7 @@
 import 'package:verdict/firebase_session.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_functions/cloud_functions.dart';
-import '../painters/chat_pattern_painter.dart';
+import '../widgets/debate_setup_controls.dart';
 import '../utils/debate_error_mapper.dart';
 import '../utils/style_utils.dart';
 import '../l10n/app_localizations.dart';
@@ -15,13 +15,10 @@ class CreateDebateScreen extends StatefulWidget {
 }
 
 class _CreateDebateScreenState extends State<CreateDebateScreen> {
-  static const List<int> _durationOptions = <int>[
-    30, 60, 90, 120, 180, 300, 420, 600,
-  ];
-
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _topicController = TextEditingController();
-  final TextEditingController _invitedUserIdController = TextEditingController();
+  final TextEditingController _invitedUserIdController =
+      TextEditingController();
   final FirebaseFunctions _functions = appFunctions;
   bool _isLoading = false;
   int _selectedDuration = 180;
@@ -35,11 +32,17 @@ class _CreateDebateScreenState extends State<CreateDebateScreen> {
   String _sanitizeLanguageCode(String v) =>
       const <String>{'ru', 'en', 'ar'}.contains(v) ? v : 'ru';
   String _sanitizeRegion(String v) =>
-      const <String>{'global', 'cis', 'mena', 'europe_africa'}.contains(v) ? v : 'global';
+      const <String>{'global', 'cis', 'mena', 'europe_africa'}.contains(v)
+          ? v
+          : 'global';
   String _sanitizeCreationMode(String v) =>
-      const <String>{'public_feed', 'direct_invite'}.contains(v) ? v : 'public_feed';
+      const <String>{'public_feed', 'direct_invite'}.contains(v)
+          ? v
+          : 'public_feed';
   String _sanitizeVisibilityMode(String v) =>
-      const <String>{'public', 'request_only', 'private'}.contains(v) ? v : 'public';
+      const <String>{'public', 'request_only', 'private'}.contains(v)
+          ? v
+          : 'public';
 
   Map<String, dynamic> _buildPayload(String invitedUserId) {
     final creationMode = _sanitizeCreationMode(_creationMode);
@@ -53,7 +56,10 @@ class _CreateDebateScreenState extends State<CreateDebateScreen> {
       'visibilityMode': visibilityMode,
       'languageCode': _sanitizeLanguageCode(_languageCode),
       'region': _sanitizeRegion(_region),
-      'invitedUserId': invitedUserId,
+      'invitedUserId':
+          creationMode == 'direct_invite' || visibilityMode == 'private'
+              ? invitedUserId
+              : '',
     };
   }
 
@@ -71,16 +77,20 @@ class _CreateDebateScreenState extends State<CreateDebateScreen> {
     return null;
   }
 
-  String _resolveCreateError(AppLocalizations l10n, FirebaseFunctionsException e) {
-    final mapped = mapCallableError(l10n, e, fallbackMessage: 'Server error (${e.code})');
-    if (mapped.trim().isNotEmpty && mapped.trim().toUpperCase() != 'NOT_FOUND') return mapped;
+  String _resolveCreateError(
+      AppLocalizations l10n, FirebaseFunctionsException e) {
+    final mapped =
+        mapCallableError(l10n, e, fallbackMessage: 'Server error (${e.code})');
+    if (mapped.trim().isNotEmpty && mapped.trim().toUpperCase() != 'NOT_FOUND') {
+      return mapped;
+    }
     return (e.message?.trim().isNotEmpty == true)
         ? e.message!
         : 'Request failed (${e.code})';
   }
 
   Future<void> _createDebate(AppLocalizations l10n) async {
-    if (!_formKey.currentState!.validate()) return;
+    if (_isLoading || !_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
     final invitedUserId = _invitedUserIdController.text.trim();
     final payload = _buildPayload(invitedUserId);
@@ -101,7 +111,12 @@ class _CreateDebateScreenState extends State<CreateDebateScreen> {
       context.replace('/lobby/$debateId');
     } on FirebaseFunctionsException catch (e) {
       if (!mounted) return;
-      final retryable = {'internal', 'not-found', 'unavailable', 'unimplemented'};
+      final retryable = {
+        'internal',
+        'not-found',
+        'unavailable',
+        'unimplemented'
+      };
       if (!retryable.contains(e.code)) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(_resolveCreateError(l10n, e))),
@@ -146,12 +161,6 @@ class _CreateDebateScreenState extends State<CreateDebateScreen> {
 
   // ─── UI helpers ───────────────────────────────────────────────
 
-  String _durationLabel(int seconds) {
-    final m = seconds ~/ 60;
-    final s = seconds % 60;
-    return s == 0 ? '$m:00' : '$m:${s.toString().padLeft(2, '0')}';
-  }
-
   /// A compact pill chip.
   Widget _chip({
     required bool selected,
@@ -179,8 +188,8 @@ class _CreateDebateScreenState extends State<CreateDebateScreen> {
           ),
           boxShadow: selected
               ? [
-                  BoxShadow(
-                    color: const Color(0xFFFFD700).withValues(alpha: 0.35),
+                  const BoxShadow(
+                    color: Colors.transparent,
                     blurRadius: 10,
                     spreadRadius: -2,
                   )
@@ -192,8 +201,7 @@ class _CreateDebateScreenState extends State<CreateDebateScreen> {
           children: [
             if (icon != null) ...[
               Icon(icon,
-                  size: 14,
-                  color: selected ? Colors.black : Colors.white70),
+                  size: 14, color: selected ? Colors.black : Colors.white70),
               const SizedBox(width: 5),
             ],
             Text(
@@ -232,12 +240,12 @@ class _CreateDebateScreenState extends State<CreateDebateScreen> {
               Icon(icon, size: 14, color: const Color(0xFFFFD700)),
               const SizedBox(width: 6),
               Text(
-                title.toUpperCase(),
+                title,
                 style: const TextStyle(
                   color: Color(0xFFFFD700),
                   fontSize: 11,
                   fontWeight: FontWeight.w800,
-                  letterSpacing: 1.2,
+                  letterSpacing: 0,
                 ),
               ),
             ],
@@ -268,323 +276,225 @@ class _CreateDebateScreenState extends State<CreateDebateScreen> {
         title: Text(
           l10n.createBattleTitle,
           style: const TextStyle(
-            color: Color(0xFFFFD700),
+            color: Colors.white,
             fontWeight: FontWeight.w900,
-            letterSpacing: 1.2,
+            letterSpacing: 0,
             fontSize: 18,
           ),
         ),
       ),
       body: Stack(
         children: [
-          const Positioned.fill(
-            child: CustomPaint(
-              painter: ChatPatternPainter(color: Color(0x09FFFFFF)),
-            ),
-          ),
           SafeArea(
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // ── Topic ──────────────────────────────────────
-                    _section(
-                      icon: Icons.chat_bubble_outline_rounded,
-                      title: l10n.debateTopicLabel,
-                      child: TextFormField(
-                        controller: _topicController,
-                        style: const TextStyle(
-                            color: Colors.white, fontSize: 15, height: 1.4),
-                        decoration: InputDecoration(
-                          hintText: l10n.enterTopic,
-                          hintStyle: const TextStyle(
-                              color: Colors.white30, fontSize: 15),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: BorderSide.none,
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: const BorderSide(
-                                color: Color(0xFFFFD700), width: 1.5),
-                          ),
-                          filled: true,
-                          fillColor: Colors.white.withValues(alpha: 0.06),
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 12),
-                        ),
-                        validator: (v) => v == null || v.trim().isEmpty
-                            ? l10n.enterTopicValidation
-                            : null,
-                        textInputAction: TextInputAction.done,
-                        maxLines: 2,
-                        minLines: 1,
-                      ),
-                    ),
-
-                    // ── Round time ─────────────────────────────────
-                    _section(
-                      icon: Icons.timer_outlined,
-                      title: l10n.roundTimeLabel,
-                      child: Wrap(
-                        spacing: 7,
-                        runSpacing: 7,
-                        children: _durationOptions
-                            .map((s) => _chip(
-                                  selected: _selectedDuration == s,
-                                  label: _durationLabel(s),
-                                  onTap: () => setState(
-                                      () => _selectedDuration = s),
-                                ))
-                            .toList(),
-                      ),
-                    ),
-
-                    // ── Rounds ─────────────────────────────────────
-                    _section(
-                      icon: Icons.repeat_rounded,
-                      title: l10n.roundsLabel,
-                      child: Wrap(
-                        spacing: 7,
-                        runSpacing: 7,
-                        children: [
-                          _chip(
-                              selected: _selectedRounds == 1,
-                              label: l10n.oneRound,
-                              onTap: () =>
-                                  setState(() => _selectedRounds = 1)),
-                          _chip(
-                              selected: _selectedRounds == 3,
-                              label: l10n.threeRounds,
-                              onTap: () =>
-                                  setState(() => _selectedRounds = 3)),
-                          _chip(
-                              selected: _selectedRounds == 5,
-                              label: l10n.fiveRounds,
-                              onTap: () =>
-                                  setState(() => _selectedRounds = 5)),
-                        ],
-                      ),
-                    ),
-
-                    // ── Mode ───────────────────────────────────────
-                    _section(
-                      icon: Icons.sports_mma_rounded,
-                      title: l10n.modesLabel,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Creation mode row
-                          Wrap(
-                            spacing: 7,
-                            runSpacing: 7,
-                            children: [
-                              _chip(
-                                selected: _creationMode == 'public_feed',
-                                label: l10n.publicFeed,
-                                icon: Icons.public_rounded,
-                                onTap: () => setState(() {
-                                  _creationMode = 'public_feed';
-                                  if (_visibilityMode == 'private') {
-                                    _visibilityMode = 'request_only';
-                                  }
-                                }),
-                              ),
-                              _chip(
-                                selected: _creationMode == 'direct_invite',
-                                label: l10n.directInvite,
-                                icon: Icons.person_add_rounded,
-                                onTap: () => setState(
-                                    () => _creationMode = 'direct_invite'),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          // Visibility row
-                          Wrap(
-                            spacing: 7,
-                            runSpacing: 7,
-                            children: [
-                              _chip(
-                                selected: _visibilityMode == 'public',
-                                label: l10n.publicMode,
-                                icon: Icons.visibility_rounded,
-                                onTap: () => setState(
-                                    () => _visibilityMode = 'public'),
-                              ),
-                              _chip(
-                                selected: _visibilityMode == 'request_only',
-                                label: l10n.requestOnly,
-                                icon: Icons.lock_open_rounded,
-                                onTap: () => setState(() =>
-                                    _visibilityMode = 'request_only'),
-                              ),
-                              _chip(
-                                selected: _visibilityMode == 'private',
-                                label: l10n.privateMode,
-                                icon: Icons.lock_rounded,
-                                onTap: () => setState(() {
-                                  _visibilityMode = 'private';
-                                  _creationMode = 'direct_invite';
-                                }),
-                              ),
-                            ],
-                          ),
-                          // Invite field (conditional)
-                          if (showInviteField) ...[
-                            const SizedBox(height: 12),
-                            TextFormField(
-                              controller: _invitedUserIdController,
-                              style: const TextStyle(
-                                  color: Colors.white, fontSize: 14),
-                              decoration: InputDecoration(
-                                hintText: l10n.opponentId,
-                                hintStyle: const TextStyle(
-                                    color: Colors.white30, fontSize: 14),
-                                prefixIcon: const Icon(
-                                    Icons.alternate_email_rounded,
-                                    color: Colors.white30,
-                                    size: 18),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                  borderSide: BorderSide.none,
+              child: Center(
+                  child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 680),
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // ── Topic ──────────────────────────────────────
+                            _section(
+                              icon: Icons.chat_bubble_outline_rounded,
+                              title: l10n.debateTopicLabel,
+                              child: TextFormField(
+                                controller: _topicController,
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 15,
+                                    height: 1.4),
+                                decoration: InputDecoration(
+                                  hintText: l10n.enterTopic,
+                                  hintStyle: const TextStyle(
+                                      color: Colors.white30, fontSize: 15),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: const BorderSide(
+                                        color: Color(0xFFFFD700), width: 1.5),
+                                  ),
+                                  filled: true,
+                                  fillColor:
+                                      Colors.white.withValues(alpha: 0.06),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 16, vertical: 12),
                                 ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                  borderSide: const BorderSide(
-                                      color: Color(0xFFFFD700), width: 1.5),
-                                ),
-                                filled: true,
-                                fillColor:
-                                    Colors.white.withValues(alpha: 0.06),
-                                contentPadding:
-                                    const EdgeInsets.symmetric(
-                                        horizontal: 16, vertical: 12),
+                                validator: (v) => v == null || v.trim().isEmpty
+                                    ? l10n.enterTopicValidation
+                                    : null,
+                                textInputAction: TextInputAction.done,
+                                maxLines: 2,
+                                minLines: 1,
                               ),
-                              validator: (v) {
-                                if (_creationMode != 'direct_invite') {
-                                  return null;
-                                }
-                                if (v == null || v.trim().isEmpty) {
-                                  return l10n.enterOpponentId;
-                                }
-                                return null;
-                              },
-                              textInputAction: TextInputAction.done,
                             ),
-                          ],
-                        ],
-                      ),
-                    ),
 
-                    // ── Language & Region ──────────────────────────
-                    _section(
-                      icon: Icons.language_rounded,
-                      title: l10n.languageRegionLabel,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Wrap(
-                            spacing: 7,
-                            runSpacing: 7,
-                            children: [
-                              _chip(
-                                  selected: _languageCode == 'ru',
-                                  label: 'RU',
-                                  onTap: () =>
-                                      setState(() => _languageCode = 'ru')),
-                              _chip(
-                                  selected: _languageCode == 'en',
-                                  label: 'EN',
-                                  onTap: () =>
-                                      setState(() => _languageCode = 'en')),
-                              _chip(
-                                  selected: _languageCode == 'ar',
-                                  label: 'AR',
-                                  onTap: () =>
-                                      setState(() => _languageCode = 'ar')),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 7,
-                            runSpacing: 7,
-                            children: [
-                              _chip(
-                                  selected: _region == 'global',
-                                  label: l10n.regionGlobal,
-                                  onTap: () =>
-                                      setState(() => _region = 'global')),
-                              _chip(
-                                  selected: _region == 'cis',
-                                  label: l10n.regionCis,
-                                  onTap: () =>
-                                      setState(() => _region = 'cis')),
-                              _chip(
-                                  selected: _region == 'mena',
-                                  label: l10n.regionMena,
-                                  onTap: () =>
-                                      setState(() => _region = 'mena')),
-                              _chip(
-                                  selected: _region == 'europe_africa',
-                                  label: l10n.regionEuAf,
-                                  onTap: () => setState(
-                                      () => _region = 'europe_africa')),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
+                            _section(
+                                icon: Icons.tune_rounded,
+                                title: l10n.modesLabel,
+                                child: DebateSetupControls(
+                                    duration: _selectedDuration,
+                                    rounds: _selectedRounds,
+                                    visibility: _visibilityMode,
+                                    directInvite:
+                                        _creationMode == 'direct_invite',
+                                    enabled: !_isLoading,
+                                    onDuration: (value) => setState(
+                                        () => _selectedDuration = value),
+                                    onRounds: (value) =>
+                                        setState(() => _selectedRounds = value),
+                                    onDirectInvite: (value) => setState(() {
+                                          _creationMode = value
+                                              ? 'direct_invite'
+                                              : 'public_feed';
+                                          _visibilityMode =
+                                              value ? 'private' : 'public';
+                                        }),
+                                    onVisibility: (value) => setState(() {
+                                          _visibilityMode = value;
+                                          _creationMode = value == 'private'
+                                              ? 'direct_invite'
+                                              : 'public_feed';
+                                        }))),
+                            AnimatedSize(
+                                duration: const Duration(milliseconds: 180),
+                                child: showInviteField
+                                    ? Padding(
+                                        padding:
+                                            const EdgeInsets.only(bottom: 16),
+                                        child: TextFormField(
+                                            controller:
+                                                _invitedUserIdController,
+                                            style: const TextStyle(
+                                                color: Colors.white),
+                                            decoration: InputDecoration(
+                                                labelText: l10n.opponentId,
+                                                prefixIcon: const Icon(
+                                                    Icons.person_outline),
+                                                border:
+                                                    const OutlineInputBorder()),
+                                            validator: (value) =>
+                                                value == null ||
+                                                        value.trim().isEmpty
+                                                    ? l10n.enterOpponentId
+                                                    : null))
+                                    : const SizedBox.shrink()),
 
-                    const SizedBox(height: 8),
-
-                    // ── Publish button ─────────────────────────────
-                    SizedBox(
-                      height: 54,
-                      child: ElevatedButton(
-                        onPressed:
-                            _isLoading ? null : () => _createDebate(l10n),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFFFD700),
-                          foregroundColor: Colors.black,
-                          disabledBackgroundColor:
-                              const Color(0xFFFFD700).withValues(alpha: 0.5),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          elevation: 0,
-                          shadowColor: const Color(0xFFFFD700),
-                        ),
-                        child: _isLoading
-                            ? const SizedBox(
-                                width: 22,
-                                height: 22,
-                                child: CircularProgressIndicator(
-                                    color: Colors.black, strokeWidth: 2.5),
-                              )
-                            : Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
+                            // ── Language & Region ──────────────────────────
+                            _section(
+                              icon: Icons.language_rounded,
+                              title: l10n.languageRegionLabel,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Icon(Icons.bolt_rounded, size: 20),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    l10n.publishChallenge.toUpperCase(),
-                                    style: const TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w900,
-                                      letterSpacing: 1.4,
-                                    ),
+                                  Wrap(
+                                    spacing: 7,
+                                    runSpacing: 7,
+                                    children: [
+                                      _chip(
+                                          selected: _languageCode == 'ru',
+                                          label: 'RU',
+                                          onTap: () => setState(
+                                              () => _languageCode = 'ru')),
+                                      _chip(
+                                          selected: _languageCode == 'en',
+                                          label: 'EN',
+                                          onTap: () => setState(
+                                              () => _languageCode = 'en')),
+                                      _chip(
+                                          selected: _languageCode == 'ar',
+                                          label: 'AR',
+                                          onTap: () => setState(
+                                              () => _languageCode = 'ar')),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Wrap(
+                                    spacing: 7,
+                                    runSpacing: 7,
+                                    children: [
+                                      _chip(
+                                          selected: _region == 'global',
+                                          label: l10n.regionGlobal,
+                                          onTap: () => setState(
+                                              () => _region = 'global')),
+                                      _chip(
+                                          selected: _region == 'cis',
+                                          label: l10n.regionCis,
+                                          onTap: () =>
+                                              setState(() => _region = 'cis')),
+                                      _chip(
+                                          selected: _region == 'mena',
+                                          label: l10n.regionMena,
+                                          onTap: () =>
+                                              setState(() => _region = 'mena')),
+                                      _chip(
+                                          selected: _region == 'europe_africa',
+                                          label: l10n.regionEuAf,
+                                          onTap: () => setState(
+                                              () => _region = 'europe_africa')),
+                                    ],
                                   ),
                                 ],
                               ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+                            ),
+
+                            const SizedBox(height: 8),
+
+                            // ── Publish button ─────────────────────────────
+                            SizedBox(
+                              height: 54,
+                              child: ElevatedButton(
+                                onPressed: _isLoading
+                                    ? null
+                                    : () => _createDebate(l10n),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFFFFD700),
+                                  foregroundColor: Colors.black,
+                                  disabledBackgroundColor:
+                                      const Color(0xFFFFD700)
+                                          .withValues(alpha: 0.5),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  elevation: 0,
+                                  shadowColor: const Color(0xFFFFD700),
+                                ),
+                                child: _isLoading
+                                    ? const SizedBox(
+                                        width: 22,
+                                        height: 22,
+                                        child: CircularProgressIndicator(
+                                            color: Colors.black,
+                                            strokeWidth: 2.5),
+                                      )
+                                    : Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          const Icon(Icons.bolt_rounded,
+                                              size: 20),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            l10n.publishChallenge.toUpperCase(),
+                                            style: const TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w900,
+                                              letterSpacing: 1.4,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ))),
             ),
           ),
         ],

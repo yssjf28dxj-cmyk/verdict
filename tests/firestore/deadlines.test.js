@@ -130,3 +130,42 @@ test('deleted debate and malformed payload do not recreate documents', async () 
   await assert.rejects(controller.runTask({ debateId: '../users' }));
   assert.equal((await ref().get()).exists, false);
 });
+
+test('concurrent handoff is atomic, saves bank once and stale retry cannot surrender a later turn', async () => {
+  await ref().set(seed({ clockMode: 'bank_v1', timeBankMs: { alice: 0, bob: 0 } }));
+  now = 70000;
+  const expected = readDeadline(ref().id, (await ref().get()).data());
+  await Promise.all([controller.handoff(ref().id, 'alice', expected), controller.handoff(ref().id, 'alice', expected)]);
+  const bob = (await ref().get()).data();
+  assert.equal(bob.activeSpeakerId, 'bob'); assert.equal(bob.timeBankMs.alice, 30000);
+  now = 90000;
+  await controller.handoff(ref().id, 'bob', readDeadline(ref().id, bob));
+  const alice = (await ref().get()).data();
+  assert.equal(alice.roundIndex, 2); assert.equal(alice.roundEndsAt.toMillis(), 180000);
+  await controller.handoff(ref().id, 'alice', expected);
+  assert.equal((await ref().get()).data().activeSpeakerId, 'alice');
+  assert.equal((await ref().get()).data().roundEndsAt.toMillis(), 180000);
+});
+test('server advances a banked turn when both apps remain closed', async () => {
+  await ref().set(seed({ clockMode: 'bank_v1', timeBankMs: { bob: 30000 } }));
+  now = 220000;
+  await controller.advance(ref().id);
+  const next = (await ref().get()).data();
+  assert.equal(next.roundIndex, 2); assert.equal(next.activeSpeakerId, 'alice');
+  assert.equal(next.roundEndsAt.toMillis(), 250000); assert.equal(next.timeBankMs.bob, 0);
+});
+
+test('handoff remains committed if queue enqueue fails and a later retry repairs scheduling', async () => {
+  await ref().set(seed({ clockMode: 'bank_v1' }));
+  now = 70000;
+  const expected = readDeadline(ref().id, (await ref().get()).data());
+  enqueueFailure = new Error('temporary queue failure');
+  assert.equal((await controller.handoff(ref().id, 'alice', expected)).changed, true);
+  const committed = (await ref().get()).data();
+  assert.equal(committed.activeSpeakerId, 'bob');
+  assert.equal(committed.timeBankMs.alice, 30000);
+  enqueueFailure = null;
+  assert.equal((await controller.handoff(ref().id, 'alice', expected)).changed, false);
+  assert.equal(tasks.at(-1).data.speaker, 'bob');
+  assert.equal((await ref().get()).data().timeBankMs.alice, 30000);
+});

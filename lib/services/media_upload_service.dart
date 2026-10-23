@@ -62,29 +62,37 @@ class MediaUploadService {
     }
   }
 
-  Future<String?> uploadVoice({
-    required String debateId,
-    required String uid,
-    required String filePath,
-  }) =>
-      uploadMedia(
-        debateId: debateId,
-        uid: uid,
-        filePath: filePath,
-        contentType: 'audio/m4a',
-      );
-
-  Future<String?> uploadImage({
-    required String debateId,
-    required String uid,
-    required String filePath,
-  }) {
-    final ext = filePath.split('.').last.toLowerCase();
-    return uploadMedia(
-      debateId: debateId,
-      uid: uid,
-      filePath: filePath,
-      contentType: ext == 'png' ? 'image/png' : 'image/jpeg',
-    );
+  Future<void> sendMedia(
+      {required String debateId,
+      required String uid,
+      required String filePath,
+      required String messageType,
+      required String requestId,
+      required int expectedRound,
+      int duration = 0}) async {
+    final functions = appFunctions;
+    final auth = appAuth;
+    if (auth.currentUser?.uid != uid) throw StateError('Account changed');
+    final file = File(filePath);
+    if (!await file.exists() || await file.length() > maxUploadBytes) {
+      throw StateError('Invalid media size');
+    }
+    final bytes = await file.readAsBytes();
+    if (auth.currentUser?.uid != uid) throw StateError('Account changed');
+    await functions
+        .httpsCallable('sendLiveMedia',
+            options: HttpsCallableOptions(timeout: const Duration(seconds: 45)))
+        .call({
+      'debateId': debateId,
+      'base64': base64Encode(bytes),
+      'contentType': messageType == 'voice'
+          ? 'audio/m4a'
+          : (filePath.toLowerCase().endsWith('.png')
+              ? 'image/png'
+              : 'image/jpeg'),
+      'clientRequestId': requestId,
+      'expectedRoundIndex': expectedRound,
+      'mediaDuration': duration,
+    });
   }
 }

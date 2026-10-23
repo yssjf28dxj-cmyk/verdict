@@ -215,5 +215,10 @@
   "aiJudgeUnavailable": "Le verdict de l’IA est indisponible. Réessayez plus tard.",
   "publicIdPending": "L’identifiant public est en préparation",
   "voteTotalsUnavailable": "Le décompte des votes en direct est temporairement indisponible.",
-  "voteSendFailed": "Votre vote n’a pas pu être confirmé. Réessayez."
+  "voteSendFailed": "Votre vote n’a pas pu être confirmé. Réessayez.",
+  "timeBankLabel": "Réserve de temps",
+  "timeBankHint": "Le temps restant est conservé et ajouté à votre prochain tour.",
+  "spectatorsLiveLabel": "spectateurs",
+  "mediaSending": "Envoi en cours",
+  "retryMediaLabel": "Réessayer"
 }

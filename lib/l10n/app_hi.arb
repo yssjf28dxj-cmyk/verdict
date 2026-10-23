@@ -215,5 +215,10 @@
   "aiJudgeUnavailable": "एआई का फैसला उपलब्ध नहीं है। कृपया बाद में प्रयास करें।",
   "publicIdPending": "सार्वजनिक आईडी तैयार की जा रही है",
   "voteTotalsUnavailable": "लाइव वोट की गिनती अस्थायी रूप से उपलब्ध नहीं है।",
-  "voteSendFailed": "आपके वोट की पुष्टि नहीं हो सकी। कृपया फिर से प्रयास करें।"
+  "voteSendFailed": "आपके वोट की पुष्टि नहीं हो सकी। कृपया फिर से प्रयास करें।",
+  "timeBankLabel": "समय बैंक",
+  "timeBankHint": "बचा हुआ समय आपके अगले अवसर में जुड़ जाता है।",
+  "spectatorsLiveLabel": "दर्शक",
+  "mediaSending": "भेजा जा रहा है",
+  "retryMediaLabel": "फिर भेजें"
 }

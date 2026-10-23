@@ -215,5 +215,10 @@
   "aiJudgeUnavailable": "AI verdict is unavailable. Please try again later.",
   "publicIdPending": "Public ID is being prepared",
   "voteTotalsUnavailable": "Live vote totals are temporarily unavailable.",
-  "voteSendFailed": "Your vote could not be confirmed. Please retry."
+  "voteSendFailed": "Your vote could not be confirmed. Please retry.",
+  "timeBankLabel": "Time bank",
+  "timeBankHint": "Unused time stays with you and is added to your next turn.",
+  "spectatorsLiveLabel": "watching",
+  "mediaSending": "Sending",
+  "retryMediaLabel": "Retry send"
 }

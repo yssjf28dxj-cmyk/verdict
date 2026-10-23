@@ -215,5 +215,10 @@
   "aiJudgeUnavailable": "حكم الذكاء الاصطناعي غير متاح. يرجى المحاولة لاحقًا.",
   "publicIdPending": "جارٍ إعداد المعرّف العام",
   "voteTotalsUnavailable": "إجمالي الأصوات المباشر غير متاح مؤقتًا.",
-  "voteSendFailed": "تعذر تأكيد صوتك. يرجى المحاولة مجددًا."
+  "voteSendFailed": "تعذر تأكيد صوتك. يرجى المحاولة مجددًا.",
+  "timeBankLabel": "رصيد الوقت",
+  "timeBankHint": "يُحفظ وقتك المتبقي ويُضاف إلى دورك التالي.",
+  "spectatorsLiveLabel": "يشاهدون",
+  "mediaSending": "جارٍ الإرسال",
+  "retryMediaLabel": "إعادة الإرسال"
 }
