@@ -1,3 +1,4 @@
+import { createTextMessageController } from './text_messages';
 import { initializeApp, getApp } from 'firebase-admin/app';
 import { getStorage } from 'firebase-admin/storage';
 import * as firestore from 'firebase-admin/firestore';
@@ -986,6 +987,9 @@ export const moderateAccessRequest = onCall({ invoker: 'public' }, async (reques
   return { ok: true };
 });
 
+const sendText = createTextMessageController(db, canUserReadDebate, (uid, profile) =>
+  deriveNeutralUserName({ profileName: profile.name, tokenName: '', tokenEmail: '', uid }));
+
 export const sendDebateMessage = onCall({ invoker: 'public', memory: '512MiB', concurrency: 4 }, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
@@ -994,6 +998,11 @@ export const sendDebateMessage = onCall({ invoker: 'public', memory: '512MiB', c
     });
   }
   await assertAccountMayWrite(db, uid);
+
+  if ((!request.data?.messageType || request.data.messageType === 'text')
+      && (request.data?.clientRequestId !== undefined || request.data?.expectedRound !== undefined || request.data?.expectedSenderId !== undefined)) {
+    return sendText(uid, request.data, validateMessageText(asString(request.data.text)));
+  }
 
   await consumeRateLimit(db, uid, 'sendDebateMessage', 2000); // 1 msg per 2 sec
 
