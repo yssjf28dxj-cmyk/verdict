@@ -655,4 +655,85 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get retryMediaLabel => 'Réessayer';
+
+  @override
+  String get accountSaveTitle => 'Sauvegarder le compte';
+
+  @override
+  String get accountSaveHint => 'Associez Google ou une adresse e-mail pour retrouver votre profil, votre historique et votre place dans les débats.';
+
+  @override
+  String get accountLinkGoogle => 'Associer Google';
+
+  @override
+  String get accountLinkEmail => 'Associer un e-mail';
+
+  @override
+  String get accountEmailLabel => 'Adresse e-mail';
+
+  @override
+  String get accountPasswordLabel => 'Mot de passe';
+
+  @override
+  String get accountPasswordHint => 'Utilisez au moins 8 caractères.';
+
+  @override
+  String get accountPasswordConfirm => 'Confirmer le mot de passe';
+
+  @override
+  String get accountPasswordMismatch => 'Les mots de passe ne correspondent pas.';
+
+  @override
+  String get accountSaved => 'Compte sauvegardé';
+
+  @override
+  String get accountConflict => 'Cet identifiant appartient déjà à un autre compte. Votre invité est inchangé. Utilisez un autre identifiant pour le sauvegarder.';
+
+  @override
+  String get accountSessionChanged => 'La session a changé. Ouvrez le profil actuel et réessayez.';
+
+  @override
+  String get accountProviderDisabled => 'Ce mode de connexion est indisponible. Votre session est inchangée.';
+
+  @override
+  String get accountEmailInvalid => 'Saisissez une adresse e-mail valide.';
+
+  @override
+  String get accountCredentialsInvalid => 'Vérifiez votre e-mail et votre mot de passe.';
+
+  @override
+  String get accountNetworkError => 'Connexion impossible. Réessayez lorsque vous serez en ligne.';
+
+  @override
+  String get accountActionFailed => 'Impossible de terminer cette action. Réessayez plus tard.';
+
+  @override
+  String get accountEmailSignIn => 'Se connecter par e-mail';
+
+  @override
+  String get accountResetPassword => 'Mot de passe oublié ?';
+
+  @override
+  String get accountResetSent => 'Si un compte utilise cette adresse, un lien vous sera envoyé. Vérifiez aussi les indésirables.';
+
+  @override
+  String get accountVerificationHint => 'E-mail associé. Envoyez le lien et confirmez votre adresse.';
+
+  @override
+  String get accountSendVerification => 'Envoyer le lien';
+
+  @override
+  String get accountCheckVerification => 'Adresse confirmée';
+
+  @override
+  String get accountEmailVerified => 'Adresse e-mail confirmée';
+
+  @override
+  String get accountVerificationSent => 'Lien envoyé. Vérifiez votre boîte de réception et les indésirables.';
+
+  @override
+  String get accountCancel => 'Annuler';
+
+  @override
+  String get accountGoogleUnavailable => 'Google est indisponible pour le moment. Vous pouvez utiliser votre e-mail.';
 }

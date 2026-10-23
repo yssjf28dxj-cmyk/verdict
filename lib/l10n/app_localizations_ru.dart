@@ -655,4 +655,85 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get retryMediaLabel => 'Повторить отправку';
+
+  @override
+  String get accountSaveTitle => 'Сохранить аккаунт';
+
+  @override
+  String get accountSaveHint => 'Привяжите Google или почту, чтобы при повторном входе сохранить бойца, историю и своё место в дебатах.';
+
+  @override
+  String get accountLinkGoogle => 'Привязать Google';
+
+  @override
+  String get accountLinkEmail => 'Привязать почту';
+
+  @override
+  String get accountEmailLabel => 'Почта';
+
+  @override
+  String get accountPasswordLabel => 'Пароль';
+
+  @override
+  String get accountPasswordHint => 'Используйте не менее 8 символов.';
+
+  @override
+  String get accountPasswordConfirm => 'Повторите пароль';
+
+  @override
+  String get accountPasswordMismatch => 'Пароли не совпадают.';
+
+  @override
+  String get accountSaved => 'Аккаунт сохранён';
+
+  @override
+  String get accountConflict => 'Этот способ входа уже связан с другим аккаунтом. Текущий гость не изменён. Используйте другую почту или Google-аккаунт для его привязки.';
+
+  @override
+  String get accountSessionChanged => 'Сессия изменилась. Откройте текущий профиль и повторите попытку.';
+
+  @override
+  String get accountProviderDisabled => 'Этот способ входа пока недоступен. Текущая сессия сохранена.';
+
+  @override
+  String get accountEmailInvalid => 'Введите корректный адрес почты.';
+
+  @override
+  String get accountCredentialsInvalid => 'Проверьте почту и пароль.';
+
+  @override
+  String get accountNetworkError => 'Нет соединения. Повторите попытку после подключения к сети.';
+
+  @override
+  String get accountActionFailed => 'Не удалось завершить действие. Повторите позже.';
+
+  @override
+  String get accountEmailSignIn => 'Войти по почте';
+
+  @override
+  String get accountResetPassword => 'Забыли пароль?';
+
+  @override
+  String get accountResetSent => 'Если для этой почты есть аккаунт, придёт ссылка для сброса пароля. Проверьте входящие и спам.';
+
+  @override
+  String get accountVerificationHint => 'Почта привязана. Отправьте письмо и подтвердите адрес по ссылке.';
+
+  @override
+  String get accountSendVerification => 'Отправить письмо';
+
+  @override
+  String get accountCheckVerification => 'Я подтвердил почту';
+
+  @override
+  String get accountEmailVerified => 'Почта подтверждена';
+
+  @override
+  String get accountVerificationSent => 'Письмо отправлено. Проверьте входящие и спам.';
+
+  @override
+  String get accountCancel => 'Отмена';
+
+  @override
+  String get accountGoogleUnavailable => 'Google пока недоступен. Можно использовать почту.';
 }

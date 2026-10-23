@@ -1388,6 +1388,168 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Retry send'**
   String get retryMediaLabel;
+
+  /// No description provided for @accountSaveTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Save account'**
+  String get accountSaveTitle;
+
+  /// No description provided for @accountSaveHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Link Google or an email to keep your fighter, history and place in debates when signing in again.'**
+  String get accountSaveHint;
+
+  /// No description provided for @accountLinkGoogle.
+  ///
+  /// In en, this message translates to:
+  /// **'Link Google'**
+  String get accountLinkGoogle;
+
+  /// No description provided for @accountLinkEmail.
+  ///
+  /// In en, this message translates to:
+  /// **'Link email'**
+  String get accountLinkEmail;
+
+  /// No description provided for @accountEmailLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Email'**
+  String get accountEmailLabel;
+
+  /// No description provided for @accountPasswordLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Password'**
+  String get accountPasswordLabel;
+
+  /// No description provided for @accountPasswordHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Use at least 8 characters.'**
+  String get accountPasswordHint;
+
+  /// No description provided for @accountPasswordConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Repeat password'**
+  String get accountPasswordConfirm;
+
+  /// No description provided for @accountPasswordMismatch.
+  ///
+  /// In en, this message translates to:
+  /// **'Passwords do not match.'**
+  String get accountPasswordMismatch;
+
+  /// No description provided for @accountSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Account saved'**
+  String get accountSaved;
+
+  /// No description provided for @accountConflict.
+  ///
+  /// In en, this message translates to:
+  /// **'This login already belongs to another account. Your current guest is unchanged. Use a different login to save this guest.'**
+  String get accountConflict;
+
+  /// No description provided for @accountSessionChanged.
+  ///
+  /// In en, this message translates to:
+  /// **'The session changed. Open the current profile and try again.'**
+  String get accountSessionChanged;
+
+  /// No description provided for @accountProviderDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'This sign-in method is not available yet. Your current session is unchanged.'**
+  String get accountProviderDisabled;
+
+  /// No description provided for @accountEmailInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a valid email address.'**
+  String get accountEmailInvalid;
+
+  /// No description provided for @accountCredentialsInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Check your email and password.'**
+  String get accountCredentialsInvalid;
+
+  /// No description provided for @accountNetworkError.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection failed. Try again when you are online.'**
+  String get accountNetworkError;
+
+  /// No description provided for @accountActionFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not complete the action. Try again later.'**
+  String get accountActionFailed;
+
+  /// No description provided for @accountEmailSignIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in with email'**
+  String get accountEmailSignIn;
+
+  /// No description provided for @accountResetPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Forgot password?'**
+  String get accountResetPassword;
+
+  /// No description provided for @accountResetSent.
+  ///
+  /// In en, this message translates to:
+  /// **'If this email has an account, a reset link will arrive. Check your inbox and spam.'**
+  String get accountResetSent;
+
+  /// No description provided for @accountVerificationHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Email linked. Send a verification link and confirm it in your inbox.'**
+  String get accountVerificationHint;
+
+  /// No description provided for @accountSendVerification.
+  ///
+  /// In en, this message translates to:
+  /// **'Send verification link'**
+  String get accountSendVerification;
+
+  /// No description provided for @accountCheckVerification.
+  ///
+  /// In en, this message translates to:
+  /// **'I verified my email'**
+  String get accountCheckVerification;
+
+  /// No description provided for @accountEmailVerified.
+  ///
+  /// In en, this message translates to:
+  /// **'Email verified'**
+  String get accountEmailVerified;
+
+  /// No description provided for @accountVerificationSent.
+  ///
+  /// In en, this message translates to:
+  /// **'Verification link sent. Check your inbox and spam.'**
+  String get accountVerificationSent;
+
+  /// No description provided for @accountCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get accountCancel;
+
+  /// No description provided for @accountGoogleUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Google is not available yet. You can use email.'**
+  String get accountGoogleUnavailable;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

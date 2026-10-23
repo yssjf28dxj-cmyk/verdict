@@ -655,4 +655,85 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get retryMediaLabel => 'إعادة الإرسال';
+
+  @override
+  String get accountSaveTitle => 'حفظ الحساب';
+
+  @override
+  String get accountSaveHint => 'اربط Google أو البريد للاحتفاظ بملفك وسجلك ودورك في المناظرات عند الدخول مجددًا.';
+
+  @override
+  String get accountLinkGoogle => 'ربط Google';
+
+  @override
+  String get accountLinkEmail => 'ربط البريد';
+
+  @override
+  String get accountEmailLabel => 'البريد الإلكتروني';
+
+  @override
+  String get accountPasswordLabel => 'كلمة المرور';
+
+  @override
+  String get accountPasswordHint => 'استخدم 8 أحرف على الأقل.';
+
+  @override
+  String get accountPasswordConfirm => 'تأكيد كلمة المرور';
+
+  @override
+  String get accountPasswordMismatch => 'كلمتا المرور غير متطابقتين.';
+
+  @override
+  String get accountSaved => 'تم حفظ الحساب';
+
+  @override
+  String get accountConflict => 'طريقة الدخول مرتبطة بحساب آخر. لم يتغير حساب الضيف. استخدم بريدًا أو حساب Google آخر لحفظه.';
+
+  @override
+  String get accountSessionChanged => 'تغيرت الجلسة. افتح ملفك الحالي وحاول مجددًا.';
+
+  @override
+  String get accountProviderDisabled => 'طريقة الدخول غير متاحة حاليًا. لم تتغير جلستك.';
+
+  @override
+  String get accountEmailInvalid => 'أدخل بريدًا إلكترونيًا صحيحًا.';
+
+  @override
+  String get accountCredentialsInvalid => 'تحقق من البريد وكلمة المرور.';
+
+  @override
+  String get accountNetworkError => 'تعذر الاتصال. حاول مجددًا عند توفر الإنترنت.';
+
+  @override
+  String get accountActionFailed => 'تعذر إكمال العملية. حاول لاحقًا.';
+
+  @override
+  String get accountEmailSignIn => 'الدخول بالبريد';
+
+  @override
+  String get accountResetPassword => 'نسيت كلمة المرور؟';
+
+  @override
+  String get accountResetSent => 'إذا كان البريد مرتبطًا بحساب فستصلك رسالة لإعادة التعيين. تحقق من الوارد والبريد غير المرغوب.';
+
+  @override
+  String get accountVerificationHint => 'تم ربط البريد. أرسل رابط التحقق وأكده من بريدك.';
+
+  @override
+  String get accountSendVerification => 'إرسال رابط التحقق';
+
+  @override
+  String get accountCheckVerification => 'أكدت بريدي';
+
+  @override
+  String get accountEmailVerified => 'تم تأكيد البريد';
+
+  @override
+  String get accountVerificationSent => 'تم إرسال الرابط. تحقق من الوارد والبريد غير المرغوب.';
+
+  @override
+  String get accountCancel => 'إلغاء';
+
+  @override
+  String get accountGoogleUnavailable => 'Google غير متاح حاليًا. يمكنك استخدام البريد.';
 }

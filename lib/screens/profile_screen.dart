@@ -13,6 +13,7 @@ import '../painters/chat_pattern_painter.dart';
 import '../utils/debate_error_mapper.dart';
 import '../utils/style_utils.dart';
 import '../utils/profile_stats.dart';
+import '../widgets/account_security_card.dart';
 
 class _PublicUserPreview {
   const _PublicUserPreview({
@@ -866,6 +867,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     children: [
                       // ── HERO FIGHTER CARD ──────────────────
                       _buildHeroCard(l10n, rank, langCode),
+                      const SizedBox(height: 16),
+                      const AccountSecurityCard(),
                       const SizedBox(height: 16),
 
                       // ── BOXING STATS W/L/D ─────────────────

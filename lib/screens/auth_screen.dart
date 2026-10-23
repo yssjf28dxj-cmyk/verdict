@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import '../painters/chat_pattern_painter.dart';
 import '../utils/style_utils.dart';
 import '../l10n/app_localizations.dart';
+import '../services/account_service.dart';
+import '../widgets/email_account_dialog.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -15,6 +17,22 @@ class AuthScreen extends StatefulWidget {
 class _AuthScreenState extends State<AuthScreen> {
   final AuthService _authService = AuthService();
   bool _isLoading = false;
+
+  Future<void> _emailLogin() async {
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
+    try {
+      final signedIn = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) =>
+              EmailAccountDialog(service: AccountService(), linking: false));
+      if (!mounted) return;
+      if (signedIn == true) context.go('/');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   Future<void> _continueAsGuest() async {
     setState(() {
@@ -83,7 +101,7 @@ class _AuthScreenState extends State<AuthScreen> {
           Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 560),
-              child: Padding(
+              child: SingleChildScrollView(
                 padding: const EdgeInsets.all(24),
                 child: GlassCard(
                   child: Column(
@@ -110,7 +128,9 @@ class _AuthScreenState extends State<AuthScreen> {
                         width: double.infinity,
                         height: 54,
                         child: ElevatedButton(
-                          onPressed: _isLoading ? null : _googleLogin,
+                          onPressed: _isLoading || !googleLoginAvailable
+                              ? null
+                              : _googleLogin,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0x662A3147),
                             foregroundColor: Colors.white,
@@ -121,6 +141,11 @@ class _AuthScreenState extends State<AuthScreen> {
                           child: Text(l10n.signInWithGoogle),
                         ),
                       ),
+                      if (!googleLoginAvailable)
+                        Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(l10n.accountGoogleUnavailable,
+                                textAlign: TextAlign.center)),
                       const SizedBox(height: 16),
                       SizedBox(
                         width: double.infinity,
@@ -141,6 +166,9 @@ class _AuthScreenState extends State<AuthScreen> {
                               : Text(l10n.browseWithoutRegistration),
                         ),
                       ),
+                      TextButton(
+                          onPressed: _isLoading ? null : _emailLogin,
+                          child: Text(l10n.accountEmailSignIn)),
                     ],
                   ),
                 ),

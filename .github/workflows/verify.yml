@@ -76,6 +76,9 @@ jobs:
       - name: Test Storage access and protected media
         working-directory: tests/firestore
         run: npm run test:storage
+      - name: Test guest account linking and recovery
+        working-directory: tests/auth
+        run: ../firestore/node_modules/.bin/firebase emulators:exec --config firebase.json --project demo-verdict-accounts --only auth 'node --test account-linking.test.js'
       - name: Preserve emulator logs on failure
         if: failure()
         uses: actions/upload-artifact@v4

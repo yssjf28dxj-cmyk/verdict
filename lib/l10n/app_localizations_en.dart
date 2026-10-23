@@ -655,4 +655,85 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get retryMediaLabel => 'Retry send';
+
+  @override
+  String get accountSaveTitle => 'Save account';
+
+  @override
+  String get accountSaveHint => 'Link Google or an email to keep your fighter, history and place in debates when signing in again.';
+
+  @override
+  String get accountLinkGoogle => 'Link Google';
+
+  @override
+  String get accountLinkEmail => 'Link email';
+
+  @override
+  String get accountEmailLabel => 'Email';
+
+  @override
+  String get accountPasswordLabel => 'Password';
+
+  @override
+  String get accountPasswordHint => 'Use at least 8 characters.';
+
+  @override
+  String get accountPasswordConfirm => 'Repeat password';
+
+  @override
+  String get accountPasswordMismatch => 'Passwords do not match.';
+
+  @override
+  String get accountSaved => 'Account saved';
+
+  @override
+  String get accountConflict => 'This login already belongs to another account. Your current guest is unchanged. Use a different login to save this guest.';
+
+  @override
+  String get accountSessionChanged => 'The session changed. Open the current profile and try again.';
+
+  @override
+  String get accountProviderDisabled => 'This sign-in method is not available yet. Your current session is unchanged.';
+
+  @override
+  String get accountEmailInvalid => 'Enter a valid email address.';
+
+  @override
+  String get accountCredentialsInvalid => 'Check your email and password.';
+
+  @override
+  String get accountNetworkError => 'Connection failed. Try again when you are online.';
+
+  @override
+  String get accountActionFailed => 'Could not complete the action. Try again later.';
+
+  @override
+  String get accountEmailSignIn => 'Sign in with email';
+
+  @override
+  String get accountResetPassword => 'Forgot password?';
+
+  @override
+  String get accountResetSent => 'If this email has an account, a reset link will arrive. Check your inbox and spam.';
+
+  @override
+  String get accountVerificationHint => 'Email linked. Send a verification link and confirm it in your inbox.';
+
+  @override
+  String get accountSendVerification => 'Send verification link';
+
+  @override
+  String get accountCheckVerification => 'I verified my email';
+
+  @override
+  String get accountEmailVerified => 'Email verified';
+
+  @override
+  String get accountVerificationSent => 'Verification link sent. Check your inbox and spam.';
+
+  @override
+  String get accountCancel => 'Cancel';
+
+  @override
+  String get accountGoogleUnavailable => 'Google is not available yet. You can use email.';
 }

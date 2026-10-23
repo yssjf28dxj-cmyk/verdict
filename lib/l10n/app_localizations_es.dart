@@ -655,4 +655,85 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get retryMediaLabel => 'Reintentar envío';
+
+  @override
+  String get accountSaveTitle => 'Guardar cuenta';
+
+  @override
+  String get accountSaveHint => 'Vincula Google o tu correo para conservar tu perfil, historial y lugar en los debates al volver a entrar.';
+
+  @override
+  String get accountLinkGoogle => 'Vincular Google';
+
+  @override
+  String get accountLinkEmail => 'Vincular correo';
+
+  @override
+  String get accountEmailLabel => 'Correo electrónico';
+
+  @override
+  String get accountPasswordLabel => 'Contraseña';
+
+  @override
+  String get accountPasswordHint => 'Usa al menos 8 caracteres.';
+
+  @override
+  String get accountPasswordConfirm => 'Repetir contraseña';
+
+  @override
+  String get accountPasswordMismatch => 'Las contraseñas no coinciden.';
+
+  @override
+  String get accountSaved => 'Cuenta guardada';
+
+  @override
+  String get accountConflict => 'Este acceso pertenece a otra cuenta. Tu invitado no ha cambiado. Usa otro acceso para guardarlo.';
+
+  @override
+  String get accountSessionChanged => 'La sesión cambió. Abre el perfil actual e inténtalo de nuevo.';
+
+  @override
+  String get accountProviderDisabled => 'Este acceso aún no está disponible. Tu sesión no ha cambiado.';
+
+  @override
+  String get accountEmailInvalid => 'Introduce un correo válido.';
+
+  @override
+  String get accountCredentialsInvalid => 'Comprueba el correo y la contraseña.';
+
+  @override
+  String get accountNetworkError => 'Sin conexión. Inténtalo cuando tengas internet.';
+
+  @override
+  String get accountActionFailed => 'No se pudo completar la acción. Inténtalo más tarde.';
+
+  @override
+  String get accountEmailSignIn => 'Entrar con correo';
+
+  @override
+  String get accountResetPassword => '¿Olvidaste la contraseña?';
+
+  @override
+  String get accountResetSent => 'Si hay una cuenta con este correo, recibirás un enlace. Revisa también el spam.';
+
+  @override
+  String get accountVerificationHint => 'Correo vinculado. Envía el enlace y verifica tu dirección.';
+
+  @override
+  String get accountSendVerification => 'Enviar verificación';
+
+  @override
+  String get accountCheckVerification => 'Ya verifiqué el correo';
+
+  @override
+  String get accountEmailVerified => 'Correo verificado';
+
+  @override
+  String get accountVerificationSent => 'Enlace enviado. Revisa el correo y el spam.';
+
+  @override
+  String get accountCancel => 'Cancelar';
+
+  @override
+  String get accountGoogleUnavailable => 'Google aún no está disponible. Puedes usar tu correo.';
 }

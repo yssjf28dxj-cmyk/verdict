@@ -655,4 +655,85 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get retryMediaLabel => '重新发送';
+
+  @override
+  String get accountSaveTitle => '保存账号';
+
+  @override
+  String get accountSaveHint => '关联 Google 或邮箱，以便再次登录时保留角色、历史记录和辩论身份。';
+
+  @override
+  String get accountLinkGoogle => '关联 Google';
+
+  @override
+  String get accountLinkEmail => '关联邮箱';
+
+  @override
+  String get accountEmailLabel => '邮箱';
+
+  @override
+  String get accountPasswordLabel => '密码';
+
+  @override
+  String get accountPasswordHint => '请使用至少 8 个字符。';
+
+  @override
+  String get accountPasswordConfirm => '确认密码';
+
+  @override
+  String get accountPasswordMismatch => '两次输入的密码不一致。';
+
+  @override
+  String get accountSaved => '账号已保存';
+
+  @override
+  String get accountConflict => '此登录方式已关联其他账号。当前游客身份未改变。请选择其他邮箱或 Google 账号来保存此游客账号。';
+
+  @override
+  String get accountSessionChanged => '会话已改变。请打开当前个人资料后重试。';
+
+  @override
+  String get accountProviderDisabled => '此登录方式暂不可用。当前会话未改变。';
+
+  @override
+  String get accountEmailInvalid => '请输入有效的邮箱地址。';
+
+  @override
+  String get accountCredentialsInvalid => '请检查邮箱和密码。';
+
+  @override
+  String get accountNetworkError => '连接失败。请联网后重试。';
+
+  @override
+  String get accountActionFailed => '操作未完成，请稍后重试。';
+
+  @override
+  String get accountEmailSignIn => '邮箱登录';
+
+  @override
+  String get accountResetPassword => '忘记密码？';
+
+  @override
+  String get accountResetSent => '如果此邮箱已有账号，将收到重置链接。请检查收件箱和垃圾邮件。';
+
+  @override
+  String get accountVerificationHint => '邮箱已关联。请发送验证链接并在邮箱中确认。';
+
+  @override
+  String get accountSendVerification => '发送验证邮件';
+
+  @override
+  String get accountCheckVerification => '我已验证邮箱';
+
+  @override
+  String get accountEmailVerified => '邮箱已验证';
+
+  @override
+  String get accountVerificationSent => '验证链接已发送。请检查收件箱和垃圾邮件。';
+
+  @override
+  String get accountCancel => '取消';
+
+  @override
+  String get accountGoogleUnavailable => 'Google 暂不可用，您可以使用邮箱。';
 }

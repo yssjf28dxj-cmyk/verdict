@@ -655,4 +655,85 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get retryMediaLabel => 'फिर भेजें';
+
+  @override
+  String get accountSaveTitle => 'खाता सुरक्षित करें';
+
+  @override
+  String get accountSaveHint => 'दोबारा प्रवेश पर अपना प्रोफ़ाइल, इतिहास और बहस में अपनी जगह बनाए रखने के लिए Google या ईमेल जोड़ें।';
+
+  @override
+  String get accountLinkGoogle => 'Google जोड़ें';
+
+  @override
+  String get accountLinkEmail => 'ईमेल जोड़ें';
+
+  @override
+  String get accountEmailLabel => 'ईमेल';
+
+  @override
+  String get accountPasswordLabel => 'पासवर्ड';
+
+  @override
+  String get accountPasswordHint => 'कम से कम 8 अक्षर रखें।';
+
+  @override
+  String get accountPasswordConfirm => 'पासवर्ड दोहराएँ';
+
+  @override
+  String get accountPasswordMismatch => 'पासवर्ड मेल नहीं खाते।';
+
+  @override
+  String get accountSaved => 'खाता सुरक्षित है';
+
+  @override
+  String get accountConflict => 'यह प्रवेश किसी दूसरे खाते से जुड़ा है। मौजूदा अतिथि नहीं बदला है। इसे सुरक्षित करने के लिए दूसरा ईमेल या Google खाता चुनें।';
+
+  @override
+  String get accountSessionChanged => 'सत्र बदल गया है। मौजूदा प्रोफ़ाइल खोलकर फिर कोशिश करें।';
+
+  @override
+  String get accountProviderDisabled => 'यह प्रवेश तरीका अभी उपलब्ध नहीं है। आपका सत्र नहीं बदला है।';
+
+  @override
+  String get accountEmailInvalid => 'सही ईमेल पता दर्ज करें।';
+
+  @override
+  String get accountCredentialsInvalid => 'ईमेल और पासवर्ड जाँचें।';
+
+  @override
+  String get accountNetworkError => 'कनेक्शन विफल हुआ। इंटरनेट आने पर फिर कोशिश करें।';
+
+  @override
+  String get accountActionFailed => 'कार्रवाई पूरी नहीं हुई। बाद में फिर कोशिश करें।';
+
+  @override
+  String get accountEmailSignIn => 'ईमेल से प्रवेश करें';
+
+  @override
+  String get accountResetPassword => 'पासवर्ड भूल गए?';
+
+  @override
+  String get accountResetSent => 'यदि इस ईमेल पर खाता है तो रीसेट लिंक आएगा। इनबॉक्स और स्पैम जाँचें।';
+
+  @override
+  String get accountVerificationHint => 'ईमेल जुड़ गया है। सत्यापन लिंक भेजें और ईमेल से पुष्टि करें।';
+
+  @override
+  String get accountSendVerification => 'सत्यापन लिंक भेजें';
+
+  @override
+  String get accountCheckVerification => 'ईमेल की पुष्टि कर दी';
+
+  @override
+  String get accountEmailVerified => 'ईमेल सत्यापित है';
+
+  @override
+  String get accountVerificationSent => 'लिंक भेज दिया गया है। इनबॉक्स और स्पैम जाँचें।';
+
+  @override
+  String get accountCancel => 'रद्द करें';
+
+  @override
+  String get accountGoogleUnavailable => 'Google अभी उपलब्ध नहीं है। आप ईमेल इस्तेमाल कर सकते हैं।';
 }

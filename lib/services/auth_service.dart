@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'account_service.dart' show googleLoginAvailable;
 
 class AuthService {
   final FirebaseAuth _auth = appAuth;
@@ -87,6 +88,12 @@ class AuthService {
   Future<UserCredential?> signInWithGoogle() async {
     _clearError();
     try {
+      if (!googleLoginAvailable) {
+        throw FirebaseAuthException(code: 'operation-not-allowed');
+      }
+      if (_auth.currentUser != null) {
+        throw FirebaseAuthException(code: 'guest-session-changed');
+      }
       final GoogleSignIn googleSignIn = GoogleSignIn();
 
       final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
@@ -106,6 +113,10 @@ class AuthService {
         idToken: googleAuth.idToken,
       );
 
+      // A guest created while the provider picker was open must not be replaced.
+      if (_auth.currentUser != null) {
+        throw FirebaseAuthException(code: 'guest-session-changed');
+      }
       final userCredential = await _auth.signInWithCredential(credential);
       final displayName = userCredential.user?.displayName?.trim() ?? '';
 
