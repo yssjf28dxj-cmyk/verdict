@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:verdict/firebase_session.dart';
 import 'package:verdict/firestore_database.dart';
 import 'package:flutter/material.dart';
@@ -11,6 +12,7 @@ import 'package:go_router/go_router.dart';
 import '../painters/chat_pattern_painter.dart';
 import '../utils/debate_error_mapper.dart';
 import '../utils/style_utils.dart';
+import '../utils/profile_stats.dart';
 
 class _PublicUserPreview {
   const _PublicUserPreview({
@@ -38,6 +40,7 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _profileSub;
   String? _displayName;
   String _publicId = '';
   int _wins = 0;
@@ -53,6 +56,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isLoading = true;
   bool _isInviting = false;
   bool _isSigningOut = false;
+  bool _identityRequested = false;
   final FirebaseFunctions _functions = appFunctions;
 
   String _extractDebateId(dynamic payload) {
@@ -67,17 +71,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return '';
   }
 
-  int _asInt(dynamic value, {int fallback = 0}) {
-    if (value is int) return value;
-    if (value is num) return value.toInt();
-    return fallback;
-  }
-
-  double _asDouble(dynamic value, {double fallback = 0}) {
-    if (value is num) return value.toDouble();
-    return fallback;
-  }
-
   double get _winRate {
     if (_totalDebates <= 0) return 0;
     return ((_wins + (_draws * 0.5)) / _totalDebates) * 100;
@@ -85,32 +78,63 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   bool _disposed = false;
 
-  void _applyUserData(Map<String, dynamic> data, String uid) {
-    var publicId = (data['publicId'] ?? '').toString().trim();
-    if (publicId.isEmpty) publicId = _generatePublicId(uid);
+  void _applyUserData(Map<String, dynamic> data) {
+    final publicId = (data['publicId'] ?? '').toString().trim();
+    final name = (data['name'] ?? data['displayName'] ?? '').toString().trim();
     setState(() {
       _publicId = publicId;
-      _wins = _asInt(data['wins']);
-      _losses = _asInt(data['losses']);
-      _draws = _asInt(data['draws']);
-      _rating = _asDouble(data['rating']);
-      _reputation = _asDouble(data['reputation']);
-      _viewerScore = _asDouble(data['viewerScore']);
-      _debateStyle = (data['debateStyle'] ?? 'Balanced').toString();
-      _totalDebates = _asInt(data['totalDebates']);
+      if (name.isNotEmpty) _displayName = name;
+      _wins = profileStatistic(data, 'wins').toInt();
+      _losses = profileStatistic(data, 'losses').toInt();
+      _draws = profileStatistic(data, 'draws').toInt();
+      _rating = profileStatistic(data, 'rating').toDouble();
+      _reputation = profileStatistic(data, 'reputation').toDouble();
+      _viewerScore = profileStatistic(data, 'viewerScore').toDouble();
+      _debateStyle = profileDebateStyle(data);
+      _totalDebates = profileStatistic(data, 'totalDebates').toInt();
     });
   }
 
   @override
   void initState() {
     super.initState();
+    final uid = appAuth.currentUser?.uid;
+    if (uid != null) {
+      _profileSub = appFirestore.collection('users').doc(uid).snapshots().listen((snapshot) {
+        final data = snapshot.data();
+        if (mounted && !_disposed && data != null) _applyUserData(data);
+      }, onError: (Object error) {
+        debugPrint('Profile updates unavailable: $error');
+      });
+    }
     _loadProfile();
   }
 
   @override
   void dispose() {
     _disposed = true;
+    _profileSub?.cancel();
     super.dispose();
+  }
+
+  Future<void> _ensurePublicIdentity() async {
+    if (_identityRequested) return;
+    _identityRequested = true;
+    try {
+      final response = await _functions.httpsCallable('ensureProfileIdentity',
+        options: HttpsCallableOptions(timeout: const Duration(seconds: 20)),
+      ).call();
+      final data = response.data;
+      if (!mounted || _disposed || data is! Map || data['status'] != 'ready') {
+        return;
+      }
+      final publicId = (data['publicId'] ?? '').toString().trim();
+      if (publicId.isNotEmpty) setState(() => _publicId = publicId);
+    } catch (error) {
+      // History remains usable. No client-generated ID is ever advertised as
+      // an invitation identifier when the server could not allocate it.
+      debugPrint('Public profile ID is not ready: $error');
+    }
   }
 
   Future<void> _loadProfile() async {
@@ -131,7 +155,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           .doc(uid)
           .get(const GetOptions(source: Source.cache));
       if (cached.exists && cached.data() != null && mounted && !_disposed) {
-        _applyUserData(cached.data()!, uid);
+        _applyUserData(cached.data()!);
         setState(() => _isLoading = false);
       }
     } catch (_) {
@@ -139,55 +163,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     try {
-      final doc =
-          await appFirestore.collection('users').doc(uid).get();
-      Map<String, dynamic>? data = doc.data();
-      if (!doc.exists) {
-        final generatedId = _generatePublicId(uid);
-        await appFirestore.collection('users').doc(uid).set({
-          'publicId': generatedId,
-          'wins': 0,
-          'losses': 0,
-          'draws': 0,
-          'rating': 0,
-          'reputation': 0,
-          'viewerScore': 0,
-          'debateStyle': 'Balanced',
-          'totalDebates': 0,
-        }, SetOptions(merge: true));
-        data = {
-          'publicId': generatedId,
-          'wins': 0,
-          'losses': 0,
-          'draws': 0,
-          'rating': 0,
-          'reputation': 0,
-          'viewerScore': 0,
-          'debateStyle': 'Balanced',
-          'totalDebates': 0,
-        };
-      }
-
-      if (data != null) {
-        var publicId = (data['publicId'] ?? '').toString().trim();
-        if (publicId.isEmpty) {
-          publicId = _generatePublicId(uid);
-          await appFirestore.collection('users').doc(uid).set({
-            'publicId': publicId,
-          }, SetOptions(merge: true));
+      final doc = await appFirestore.collection('users').doc(uid).get();
+      final data = doc.data();
+      // Public IDs and statistics belong to the server. A missing profile or ID
+      // must not abort history loading or fabricate an invitation identifier.
+      if (data != null && mounted && !_disposed) {
+        _applyUserData(data);
+        if ((data['publicId'] ?? '').toString().trim().isEmpty) {
+          unawaited(_ensurePublicIdentity());
         }
-        _applyUserData(data, uid);
       }
 
       final debateSnapshots = await Future.wait([
         appFirestore
             .collection('debates')
             .where('fighter1', isEqualTo: uid)
+            .orderBy('createdAt', descending: true)
             .limit(20)
             .get(),
         appFirestore
             .collection('debates')
             .where('fighter2', isEqualTo: uid)
+            .orderBy('createdAt', descending: true)
             .limit(20)
             .get(),
       ]);
@@ -258,13 +255,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } finally {
       if (mounted && !_disposed) setState(() => _isLoading = false);
     }
-  }
-
-  String _generatePublicId(String uid) {
-    final trimmed = uid.trim();
-    if (trimmed.isEmpty) return 'VERDICT-USER';
-    final tail = trimmed.length > 10 ? trimmed.substring(0, 10) : trimmed;
-    return 'VERDICT-${tail.toUpperCase()}';
   }
 
   Future<void> _copyPublicId() async {
@@ -592,16 +582,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       .toString()
                                       .trim();
                               final rating =
-                                  (data['rating'] as num?)?.toDouble() ?? 0;
+                                  profileStatistic(data, 'rating').toDouble();
                               final reputation =
-                                  (data['reputation'] as num?)?.toDouble() ?? 0;
-                              final style = (data['debateStyle'] ?? 'Balanced')
-                                  .toString();
+                                  profileStatistic(data, 'reputation')
+                                      .toDouble();
+                              final style = profileDebateStyle(data);
 
                               return ListTile(
                                 leading: CircleAvatar(
-                                  backgroundColor: getRank(rating).color.withValues(alpha: 0.2),
-                                  child: Icon(getRank(rating).icon, color: getRank(rating).color),
+                                  backgroundColor: getRank(rating)
+                                      .color
+                                      .withValues(alpha: 0.2),
+                                  child: Icon(getRank(rating).icon,
+                                      color: getRank(rating).color),
                                 ),
                                 title: Text(
                                   name.isNotEmpty ? name : publicId,
@@ -609,7 +602,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 ),
                                 subtitle: Row(
                                   children: [
-                                    RankBadge(rating: rating, iconSize: 12, fontSize: 8),
+                                    RankBadge(
+                                        rating: rating,
+                                        iconSize: 12,
+                                        fontSize: 8),
                                     const SizedBox(width: 6),
                                     Expanded(
                                       child: Text(
@@ -617,7 +613,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         style: const TextStyle(
-                                            color: Colors.white54, fontSize: 11),
+                                            color: Colors.white54,
+                                            fontSize: 11),
                                       ),
                                     ),
                                   ],
@@ -907,7 +904,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   // ── HERO CARD ─────────────────────────────────────────────
 
-  Widget _buildHeroCard(AppLocalizations l10n, FighterRank rank, String langCode) {
+  Widget _buildHeroCard(
+      AppLocalizations l10n, FighterRank rank, String langCode) {
     final isElite = rank.key == 'master' || rank.key == 'grandmaster';
 
     return Container(
@@ -1001,7 +999,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               Flexible(
                 child: Text(
-                  _publicId.isNotEmpty ? _publicId : 'VERDICT-USER',
+                  _publicId.isNotEmpty ? _publicId : l10n.publicIdPending,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -1014,14 +1012,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               const SizedBox(width: 4),
               InkWell(
-                onTap: _copyPublicId,
+                onTap: _publicId.isNotEmpty ? _copyPublicId : null,
                 borderRadius: BorderRadius.circular(12),
                 child: Padding(
                   padding: const EdgeInsets.all(4),
                   child: Icon(
                     Icons.copy_rounded,
                     size: 14,
-                    color: Colors.white.withValues(alpha: 0.4),
+                    color: Colors.white.withValues(
+                      alpha: _publicId.isNotEmpty ? 0.4 : 0.16,
+                    ),
                   ),
                 ),
               ),
@@ -1192,7 +1192,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   // ── RATING & RANK PROGRESS ────────────────────────────────
 
-  Widget _buildRatingCard(AppLocalizations l10n, FighterRank rank, String langCode) {
+  Widget _buildRatingCard(
+      AppLocalizations l10n, FighterRank rank, String langCode) {
     final progress = rank.progress(_rating);
     final toNext = rank.pointsToNext(_rating);
     final isMaxRank = rank.maxRating < 0;
@@ -1359,9 +1360,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       children: [
         Expanded(
           child: _actionButton(
-            icon: _isInviting
-                ? null
-                : Icons.person_search,
+            icon: _isInviting ? null : Icons.person_search,
             label: _isInviting ? '...' : l10n.directInvite,
             color: VerdictStyle.fighterBlue,
             onTap: _isInviting ? null : () => _showInviteByIdDialog(l10n),
@@ -1467,7 +1466,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   onTap: _openFullHistory,
                   borderRadius: BorderRadius.circular(8),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     child: Text(
                       l10n.viewAll,
                       style: TextStyle(
@@ -1612,10 +1612,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.help_outline, size: 18, color: VerdictStyle.accentGold),
+              const Icon(Icons.help_outline,
+                  size: 18, color: VerdictStyle.accentGold),
               const SizedBox(width: 8),
               Text(
-                Localizations.localeOf(context).languageCode == 'ru' ? 'Как это работает' : 'How it works',
+                Localizations.localeOf(context).languageCode == 'ru'
+                    ? 'Как это работает'
+                    : 'How it works',
                 style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.w800,
@@ -1650,7 +1653,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.logout, size: 18, color: const Color(0xFFFF7D7D).withValues(alpha: 0.7)),
+              Icon(Icons.logout,
+                  size: 18,
+                  color: const Color(0xFFFF7D7D).withValues(alpha: 0.7)),
               const SizedBox(width: 8),
               Text(
                 l10n.signOut,

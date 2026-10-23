@@ -1,86 +1,90 @@
-import 'package:verdict/firebase_session.dart';
+import 'dart:convert';
 import 'dart:io';
 
-import 'package:firebase_storage/firebase_storage.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
+import 'package:verdict/firebase_session.dart';
 
-/// Handles uploading voice recordings and images to Firebase Storage.
-///
-/// Upload path: `debates/{debateId}/media/{timestamp}_{uid}.{ext}`
+/// Uploads bounded media through the server, which checks the selected Firestore
+/// database and participant permissions before writing a private storage object.
 class MediaUploadService {
   MediaUploadService._();
   static final MediaUploadService instance = MediaUploadService._();
+  static const maxUploadBytes = 6 * 1024 * 1024;
 
-  final FirebaseStorage _storage = appStorage;
-
-  /// Upload a file and return its object path, never a download-token URL.
-  ///
-  /// Returns `null` on failure.
+  /// Returns an object path, never a bearer-token URL, or null after a failure.
   Future<String?> uploadMedia({
     required String debateId,
     required String uid,
     required String filePath,
     required String contentType,
   }) async {
+    // Capture the selected identity before file I/O. A singleton must not retain
+    // another test profile's Firebase client between uploads.
+    final functions = appFunctions;
+    final auth = appAuth;
+    if (uid.isEmpty || auth.currentUser?.uid != uid) return null;
     try {
       final file = File(filePath);
-      if (!file.existsSync()) {
-        debugPrint('[MediaUpload] File does not exist: $filePath');
+      if (!await file.exists()) return null;
+      final size = await file.length();
+      if (size <= 0 || size > maxUploadBytes) {
+        debugPrint('[MediaUpload] File exceeds the allowed upload size');
         return null;
       }
-
-      final ext = filePath.split('.').last.toLowerCase();
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final storagePath = 'debates/$debateId/media/${timestamp}_$uid.$ext';
-
-      final ref = _storage.ref(storagePath);
-      final metadata = SettableMetadata(contentType: contentType);
-
-      final uploadTask = ref.putFile(file, metadata);
-
-      // Monitor progress (optional)
-      uploadTask.snapshotEvents.listen((snapshot) {
-        final progress =
-            snapshot.bytesTransferred / snapshot.totalBytes * 100;
-        debugPrint('[MediaUpload] Progress: ${progress.toStringAsFixed(0)}%');
+      final bytes = await file.readAsBytes();
+      if (bytes.isEmpty ||
+          bytes.length > maxUploadBytes ||
+          auth.currentUser?.uid != uid) {
+        return null;
+      }
+      final response = await functions
+          .httpsCallable(
+        'uploadDebateMedia',
+        options: HttpsCallableOptions(timeout: const Duration(seconds: 45)),
+      )
+          .call({
+        'debateId': debateId,
+        'base64': base64Encode(bytes),
+        'contentType': contentType,
       });
-
-      await uploadTask;
-      debugPrint('[MediaUpload] Upload complete: $storagePath');
-      return storagePath;
-    } catch (e) {
-      debugPrint('[MediaUpload] Upload failed: $e');
+      if (auth.currentUser?.uid != uid) return null;
+      final data = response.data;
+      final path = data is Map ? data['mediaPath'] : null;
+      if (path is! String || !path.startsWith('debates/$debateId/uploads/')) {
+        debugPrint('[MediaUpload] Server returned an invalid object path');
+        return null;
+      }
+      return path;
+    } catch (error) {
+      debugPrint('[MediaUpload] Upload failed: $error');
       return null;
     }
   }
 
-  /// Upload voice recording
   Future<String?> uploadVoice({
     required String debateId,
     required String uid,
     required String filePath,
-  }) {
-    return uploadMedia(
-      debateId: debateId,
-      uid: uid,
-      filePath: filePath,
-      contentType: 'audio/m4a',
-    );
-  }
+  }) =>
+      uploadMedia(
+        debateId: debateId,
+        uid: uid,
+        filePath: filePath,
+        contentType: 'audio/m4a',
+      );
 
-  /// Upload image
   Future<String?> uploadImage({
     required String debateId,
     required String uid,
     required String filePath,
   }) {
     final ext = filePath.split('.').last.toLowerCase();
-    final contentType = ext == 'png' ? 'image/png' : 'image/jpeg';
     return uploadMedia(
       debateId: debateId,
       uid: uid,
       filePath: filePath,
-      contentType: contentType,
+      contentType: ext == 'png' ? 'image/png' : 'image/jpeg',
     );
   }
 }

@@ -4,12 +4,12 @@
   "private": true,
   "main": "lib/index.js",
   "engines": {
-    "node": "20"
+    "node": "22"
   },
   "scripts": {
     "build": "tsc",
     "build:watch": "tsc --watch",
-    "test": "npm run build && node --test test/**/*.test.js",
+    "test": "npm run build && node --test test/*.test.js",
     "lint": "eslint --ext .ts src",
     "serve": "npm run build && firebase emulators:start --only functions",
     "shell": "npm run build && firebase functions:shell",
@@ -18,8 +18,8 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
-    "firebase-admin": "^12.6.0",
-    "firebase-functions": "^6.0.1"
+    "firebase-admin": "^14.5.0",
+    "firebase-functions": "^7.4.0"
   },
   "devDependencies": {
     "@types/node": "^22.13.5",

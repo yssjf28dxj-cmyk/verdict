@@ -26,6 +26,7 @@ import '../services/debate_alert_service.dart';
 import '../services/sound_service.dart';
 import '../utils/debate_error_mapper.dart';
 import '../utils/name_utils.dart';
+import '../utils/vote_totals.dart';
 import '../utils/style_utils.dart';
 import '../l10n/app_localizations.dart';
 
@@ -62,11 +63,38 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
   static const int _uploadGraceMs = 7000;
   static const double _snapThresholdPx = 20;
 
+  int _voteStatusRequestToken = 0;
+
   void _refreshMyVoteStatus() {
+    final requestedRound = roundIndex;
+    final requestToken = ++_voteStatusRequestToken;
     setState(() {
       hasVotedThisRound = false;
       votedSideThisRound = 0;
+      _voteStatusRoundIndex = requestedRound;
     });
+    unawaited(() async {
+      try {
+        final response = await _functions.httpsCallable('getMyVoteStatus',
+          options: HttpsCallableOptions(timeout: const Duration(seconds: 15)),
+        ).call({'debateId': widget.debateId, 'scope': 'round'});
+        final data = response.data;
+        if (!mounted || requestToken != _voteStatusRequestToken ||
+            roundIndex != requestedRound || hasVotedThisRound || data is! Map ||
+            data['roundIndex'] != requestedRound) {
+          return;
+        }
+        setState(() {
+          hasVotedThisRound = data['hasVoted'] == true;
+          final side = data['side'];
+          votedSideThisRound = side == 1 || side == 2 ? side as int : 0;
+        });
+      } catch (error) {
+        // A failed status read does not consume a vote. The server still checks
+        // the ballot atomically when the user taps again.
+        debugPrint('Vote status could not be refreshed: $error');
+      }
+    }());
   }
 
   final TextEditingController _messageController = TextEditingController();
@@ -76,8 +104,34 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
 
   Debate? _debate;
 
-  int get votes1 => _debate?.votes1 ?? 0;
-  int get votes2 => _debate?.votes2 ?? 0;
+  VoteTotals? _liveVoteTotals;
+  bool _usesVoteTallies = false;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _voteTalliesSub;
+  int get votes1 => _liveVoteTotals?.votes1 ?? _debate?.votes1 ?? 0;
+  int get votes2 => _liveVoteTotals?.votes2 ?? _debate?.votes2 ?? 0;
+
+  void _syncVoteTallies(Map<String, dynamic> data) {
+    final enabled = data['voteTallyVersion'] == 1;
+    if (enabled == _usesVoteTallies) return;
+    _usesVoteTallies = enabled;
+    _voteTalliesSub?.cancel();
+    _voteTalliesSub = null;
+    _liveVoteTotals = null;
+    if (!enabled) return;
+    _voteTalliesSub = appFirestore.collection('debates').doc(widget.debateId)
+        .collection('vote_tallies').limit(16).snapshots().listen((snapshot) {
+      if (!mounted) return;
+      setState(() => _liveVoteTotals = VoteTotals.fromShards(
+        snapshot.docs.map((doc) => doc.data()),
+      ));
+    }, onError: (Object error) {
+      if (!mounted) return;
+      debugPrint('Live vote totals unavailable: $error');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(AppLocalizations.of(context)!.voteTotalsUnavailable),
+      ));
+    });
+  }
 
   String get topic => _debate?.topic ?? '';
   String get debateType => _debate?.debateType ?? 'open';
@@ -585,6 +639,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
     }
 
     _debate = Debate.fromMap(widget.debateId, data);
+    _syncVoteTallies(data);
 
     await _hydrateUserNameFromFirestore();
     await _hydrateFighterNamesFromUsers();
@@ -653,6 +708,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
       }
 
       _debate = Debate.fromMap(widget.debateId, liveData);
+      _syncVoteTallies(liveData);
       setState(() {
         _isRoundActiveMutated = false; // Reset optimistic lock
         final pending = liveData['pendingPenalty'];
@@ -1228,109 +1284,57 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
     }
   }
 
-  Future<void> vote1() async {
-    final l10n = AppLocalizations.of(context)!;
-    if (status == 'finished') return;
-    if (!isViewer) return;
-    if (hasVotedThisRound) return;
-    // Optimistic update — block duplicate taps immediately
-    HapticFeedback.lightImpact();
-    SoundService.instance.play(SFX.click);
-    setState(() {
-      hasVotedThisRound = true;
-      votedSideThisRound = 1;
-      _voteStatusRoundIndex = roundIndex;
-    });
-    final callable = _functions.httpsCallable(
-      'castVote',
-      options: HttpsCallableOptions(timeout: const Duration(seconds: 20)),
-    );
-    try {
-      await callable.call({
-        'debateId': widget.debateId,
-        'side': 1,
-        'scope': 'round',
-      });
-    } on FirebaseFunctionsException catch (e) {
-      if (!mounted) return;
-      final details = e.details;
-      final reason = details is Map ? details['reason']?.toString() ?? '' : '';
-      if (reason == 'VOTE_ALREADY_CAST') {
-        setState(() {
-          hasVotedThisRound = true;
-          votedSideThisRound = 0;
-          _voteStatusRoundIndex = roundIndex;
-        });
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            mapDebateCallableError(
-              l10n,
-              e,
-              fallbackMessage: l10n.alreadyVoted,
-            ),
-          ),
-        ),
-      );
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.alreadyVoted)),
-      );
-    }
-  }
+  Future<void> vote1() => _castRoundVote(1);
+  Future<void> vote2() => _castRoundVote(2);
 
-  Future<void> vote2() async {
+  Future<void> _castRoundVote(int side) async {
     final l10n = AppLocalizations.of(context)!;
-    if (status == 'finished') return;
-    if (!isViewer) return;
-    if (hasVotedThisRound) return;
-    // Optimistic update — block duplicate taps immediately
+    if (status != 'active' || !isViewer || hasVotedThisRound) return;
+    final submittedRound = roundIndex;
+    ++_voteStatusRequestToken;
     HapticFeedback.lightImpact();
     SoundService.instance.play(SFX.click);
     setState(() {
       hasVotedThisRound = true;
-      votedSideThisRound = 2;
-      _voteStatusRoundIndex = roundIndex;
+      votedSideThisRound = side;
+      _voteStatusRoundIndex = submittedRound;
     });
-    final callable = _functions.httpsCallable(
-      'castVote',
-      options: HttpsCallableOptions(timeout: const Duration(seconds: 20)),
-    );
     try {
-      await callable.call({
+      await _functions.httpsCallable('castVote',
+        options: HttpsCallableOptions(timeout: const Duration(seconds: 20)),
+      ).call({
         'debateId': widget.debateId,
-        'side': 2,
+        'side': side,
         'scope': 'round',
+        'expectedRoundIndex': submittedRound,
       });
-    } on FirebaseFunctionsException catch (e) {
+    } on FirebaseFunctionsException catch (error) {
       if (!mounted) return;
-      final details = e.details;
-      final reason = details is Map ? details['reason']?.toString() ?? '' : '';
-      if (reason == 'VOTE_ALREADY_CAST') {
+      final details = error.details;
+      final alreadyCast = details is Map && details['reason'] == 'VOTE_ALREADY_CAST';
+      // A late failure from the previous round must not unlock or overwrite a
+      // selection made in the current round.
+      if (roundIndex == submittedRound && _voteStatusRoundIndex == submittedRound) {
         setState(() {
-          hasVotedThisRound = true;
+          hasVotedThisRound = alreadyCast;
           votedSideThisRound = 0;
-          _voteStatusRoundIndex = roundIndex;
         });
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            mapDebateCallableError(
-              l10n,
-              e,
-              fallbackMessage: l10n.alreadyVoted,
-            ),
-          ),
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(mapDebateCallableError(l10n, error,
+          fallbackMessage: l10n.voteSendFailed)),
+      ));
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.alreadyVoted)),
-      );
+      if (roundIndex == submittedRound && _voteStatusRoundIndex == submittedRound) {
+        setState(() {
+          hasVotedThisRound = false;
+          votedSideThisRound = 0;
+        });
+      }
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(l10n.voteSendFailed),
+      ));
     }
   }
 
@@ -1940,6 +1944,8 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
     _activityClearTimer?.cancel();
     _overlayTimer?.cancel();
     _debateSub?.cancel();
+    _voteTalliesSub?.cancel();
+    _voteStatusRequestToken++;
     _activitySub?.cancel();
     _clearMyActivity();
     _advanceAttemptToken++;

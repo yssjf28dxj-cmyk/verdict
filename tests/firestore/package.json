@@ -2,7 +2,7 @@
   "name": "verdict-firestore-rules-tests",
   "private": true,
   "type": "module",
-  "engines": { "node": "20.x" },
+  "engines": { "node": ">=20 <23" },
   "scripts": {
     "pretest": "node prepare-rules.js",
     "test": "firebase emulators:exec --config firebase.json --project demo-verdict-rules --only firestore \"node --test --test-concurrency=1 rules.test.js\"",

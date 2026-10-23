@@ -53,7 +53,6 @@ class AuthService {
         await _createUserIfNeeded(
           uid: credential.user!.uid,
           name: 'Боец_$tag',
-          email: '',
         );
       } catch (e) {
         debugPrint('AuthService profile bootstrap warning: $e');
@@ -114,7 +113,6 @@ class AuthService {
         await _createUserIfNeeded(
           uid: userCredential.user!.uid,
           name: displayName,
-          email: userCredential.user?.email ?? '',
         );
       } catch (e) {
         debugPrint('AuthService profile bootstrap warning: $e');
@@ -139,26 +137,17 @@ class AuthService {
   Future<void> _createUserIfNeeded({
     required String uid,
     required String name,
-    required String email,
   }) async {
     final userRef = _firestore.collection('users').doc(uid);
 
-    // Устраняем Race Condition:
-    // Используем `merge: true` вместо предварительного чтения (`get()`).
-    // Если пользователь не существует, он будет создан с name/email и createdAt.
-    // Если он существует, но `createdAt` или имя уже есть, они не перезапишутся пустыми
-    // благодаря логике Firestore: мы обновим только те поля, которые мы передаем, добавляя новые.
-    // Если name пустой, возможно, стоит не перезаписывать его, если он не пустой.
-    // Firestore не предоставляет встроенной условной вставки, кроме транзакций.
-    // Но так как `name` передается, мы можем просто обновить его.
-
+    // Keep provider contact details in Firebase Auth. This document is a public
+    // profile; the transaction only fills a missing display name.
     await _firestore.runTransaction((transaction) async {
       final snap = await transaction.get(userRef);
 
       if (!snap.exists) {
         transaction.set(userRef, {
           'name': name,
-          'email': email,
           'createdAt': FieldValue.serverTimestamp(),
         });
       } else if (name.isNotEmpty &&

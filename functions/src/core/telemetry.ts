@@ -1,7 +1,7 @@
-import * as admin from 'firebase-admin';
+import * as firestore from 'firebase-admin/firestore';
 
 export async function incrementCoreMetric(
-  db: admin.firestore.Firestore,
+  db: firestore.Firestore,
   metric: string,
   tags: Record<string, string> = {},
 ): Promise<void> {
@@ -16,8 +16,8 @@ export async function incrementCoreMetric(
       {
         metric,
         tags,
-        value: admin.firestore.FieldValue.increment(1),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        value: firestore.FieldValue.increment(1),
+        updatedAt: firestore.FieldValue.serverTimestamp(),
       },
       { merge: true },
     );
@@ -27,7 +27,7 @@ export async function incrementCoreMetric(
 }
 
 export async function logCoreEvent(
-  db: admin.firestore.Firestore,
+  db: firestore.Firestore,
   event: string,
   payload: Record<string, unknown>,
 ): Promise<void> {
@@ -35,7 +35,7 @@ export async function logCoreEvent(
     await db.collection('admin_core_events').add({
       event,
       ...payload,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: firestore.FieldValue.serverTimestamp(),
     });
   } catch (_) {
     // Telemetry should never break request flow.

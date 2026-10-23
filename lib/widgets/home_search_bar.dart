@@ -66,7 +66,8 @@ class HomeSearchBar extends StatelessWidget {
               children: [
                 Expanded(
                   child: DropdownButtonFormField<String>(
-                    value: feedLanguage,
+                    key: ValueKey('language-$feedLanguage'),
+                    initialValue: feedLanguage,
                     isExpanded: true,
                     decoration: InputDecoration(
                       isDense: true,
@@ -115,7 +116,8 @@ class HomeSearchBar extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: DropdownButtonFormField<String>(
-                    value: feedRegion,
+                    key: ValueKey('region-$feedRegion'),
+                    initialValue: feedRegion,
                     isExpanded: true,
                     decoration: InputDecoration(
                       isDense: true,

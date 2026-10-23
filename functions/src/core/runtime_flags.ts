@@ -1,4 +1,4 @@
-import * as admin from 'firebase-admin';
+import * as firestore from 'firebase-admin/firestore';
 
 export type CoreRuntimeFlags = {
   canonicalWriteEnabled: boolean;
@@ -23,7 +23,7 @@ function asBool(value: unknown, fallback: boolean): boolean {
 }
 
 export async function getCoreRuntimeFlags(
-  db: admin.firestore.Firestore,
+  db: firestore.Firestore,
 ): Promise<CoreRuntimeFlags> {
   const now = Date.now();
   if (now - cachedAtMs < FLAGS_CACHE_TTL_MS) {

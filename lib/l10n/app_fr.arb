@@ -199,6 +199,21 @@
   "staySignedIn": "Rester connecté",
   "testProfilesTitle": "Profils de test",
   "testProfileNumber": "Profil {number}",
-  "@testProfileNumber": {"placeholders": {"number": {"type": "int"}}},
-  "testProfileSwitchFailed": "Impossible de changer de profil. Vérifiez la connexion et réessayez."
+  "@testProfileNumber": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "testProfileSwitchFailed": "Impossible de changer de profil. Vérifiez la connexion et réessayez.",
+  "aiJudgeLoading": "Le juge IA examine le débat…",
+  "messageSendFailed": "Le message n’a pas pu être envoyé. Réessayez.",
+  "aiVerdictTitle": "Verdict de l’IA",
+  "aiJudgeNotConfigured": "Le jugement par IA n’est pas encore configuré.",
+  "aiJudgeInsufficientContent": "Le contenu est insuffisant pour un verdict de l’IA.",
+  "aiJudgeUnavailable": "Le verdict de l’IA est indisponible. Réessayez plus tard.",
+  "publicIdPending": "L’identifiant public est en préparation",
+  "voteTotalsUnavailable": "Le décompte des votes en direct est temporairement indisponible.",
+  "voteSendFailed": "Votre vote n’a pas pu être confirmé. Réessayez."
 }

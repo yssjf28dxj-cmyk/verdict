@@ -2,11 +2,12 @@ import { createRequire } from 'node:module';
 import assert from 'node:assert/strict';
 import { before, after, beforeEach, test } from 'node:test';
 const require = createRequire(new URL('../../functions/package.json', import.meta.url));
-const admin = require('firebase-admin');
+const firestore = require('firebase-admin/firestore');
+const { initializeApp, getApp, deleteApp } = require('firebase-admin/app');
 const { createDeadlineController, readDeadline } = require('./lib/debate_deadlines');
 const projectId = 'demo-verdict-rules';
 let db, controller, now, tasks, enqueueFailure;
-const timestamp = (ms) => admin.firestore.Timestamp.fromMillis(ms);
+const timestamp = (ms) => firestore.Timestamp.fromMillis(ms);
 const seed = (patch = {}) => ({
   status: 'active', fighter1: 'alice', fighter2: 'bob', activeSpeakerId: 'alice',
   roundIndex: 1, totalRounds: 3, roundDurationSeconds: 60, isRoundActive: true,
@@ -17,10 +18,10 @@ before(() => {
   if (!/^(127\.0\.0\.1|localhost):\d+$/.test(process.env.FIRESTORE_EMULATOR_HOST || '')) {
     throw new Error('Only a loopback Firestore emulator is allowed');
   }
-  admin.initializeApp({ projectId });
-  db = admin.firestore();
+  initializeApp({ projectId });
+  db = firestore.getFirestore();
 });
-after(async () => admin.app().delete());
+after(async () => deleteApp(getApp()));
 beforeEach(async () => {
   await db.recursiveDelete(ref());
   now = 100000;

@@ -1,3 +1,4 @@
+import '../utils/pending_message_request.dart';
 import 'package:verdict/firebase_session.dart';
 import 'package:verdict/firestore_database.dart';
 import 'package:flutter/material.dart';
@@ -21,6 +22,7 @@ class _WorldChatScreenState extends State<WorldChatScreen> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   bool _sending = false;
+  final _pendingRequest = PendingMessageRequest();
   late final Stream<QuerySnapshot> _chatStream;
   int _lastMessageCount = 0;
   bool _autoScrollScheduled = false;
@@ -44,52 +46,41 @@ class _WorldChatScreenState extends State<WorldChatScreen> {
 
 
   Future<void> _sendMessage() async {
+    if (_sending) return;
     final user = appAuth.currentUser;
     final text = _controller.text.trim();
     if (user == null || text.isEmpty) return;
-
-    // Save text before clearing, so we can restore on error
-    final savedText = text;
+    final request = _pendingRequest.forText(text);
     setState(() => _sending = true);
-    _controller.clear();
-
     try {
       final callable = appFunctions.httpsCallable(
         'sendWorldMessage',
         options: HttpsCallableOptions(timeout: const Duration(seconds: 15)),
       );
-      await callable.call({'text': savedText});
-      await Future.delayed(const Duration(milliseconds: 100));
+      await callable.call({'text': request.text, 'clientRequestId': request.id});
+      _pendingRequest.confirmed(request);
+      if (!mounted) return;
+      // Preserve a draft typed after this request; never restore over newer input.
+      if (_controller.text.trim() == request.text) _controller.clear();
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
           _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
+          duration: const Duration(milliseconds: 180),
           curve: Curves.easeOut,
         );
       }
-    } on FirebaseFunctionsException catch (e) {
-      // Restore text on error so user can retry
-      _controller.text = savedText;
+    } on FirebaseFunctionsException catch (error) {
       if (!mounted) return;
-      final errorDetail = e.message ?? e.code;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Send failed: $errorDetail'),
-          backgroundColor: const Color(0xFFD32F2F),
-          duration: const Duration(seconds: 4),
-        ),
-      );
-    } catch (e) {
-      // Catch network errors, timeouts, etc.
-      _controller.text = savedText;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('${AppLocalizations.of(context)!.errorPrefix}: ${error.message ?? error.code}'),
+        duration: const Duration(seconds: 4),
+      ));
+    } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Send failed: $e'),
-          backgroundColor: const Color(0xFFD32F2F),
-          duration: const Duration(seconds: 4),
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(AppLocalizations.of(context)!.messageSendFailed),
+        duration: const Duration(seconds: 4),
+      ));
     } finally {
       if (mounted) setState(() => _sending = false);
     }

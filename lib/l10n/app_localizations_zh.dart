@@ -613,4 +613,31 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get testProfileSwitchFailed => '无法切换账户。请检查网络后重试。';
+
+  @override
+  String get aiJudgeLoading => 'AI 裁判正在评审…';
+
+  @override
+  String get messageSendFailed => '消息发送失败，请重试。';
+
+  @override
+  String get aiVerdictTitle => 'AI 裁决';
+
+  @override
+  String get aiJudgeNotConfigured => 'AI 裁判尚未配置。';
+
+  @override
+  String get aiJudgeInsufficientContent => '内容不足，无法作出 AI 裁决。';
+
+  @override
+  String get aiJudgeUnavailable => 'AI 裁决暂不可用，请稍后重试。';
+
+  @override
+  String get publicIdPending => '正在准备公开 ID';
+
+  @override
+  String get voteTotalsUnavailable => '实时票数暂不可用。';
+
+  @override
+  String get voteSendFailed => '无法确认您的投票，请重试。';
 }

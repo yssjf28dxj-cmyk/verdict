@@ -2,7 +2,9 @@ import { createRequire } from 'node:module';
 import assert from 'node:assert/strict';
 import { before, after, beforeEach, test } from 'node:test';
 const require = createRequire(new URL('../../functions/package.json', import.meta.url));
-let db, functions, admin;
+const firestore = require('firebase-admin/firestore');
+const { getApp, deleteApp } = require('firebase-admin/app');
+let db, functions;
 const projectId = 'demo-verdict-rules';
 const debateId = 'cancel-button-test';
 before(() => {
@@ -12,10 +14,10 @@ before(() => {
   process.env.GCLOUD_PROJECT = projectId;
   process.env.FIREBASE_CONFIG = JSON.stringify({ projectId });
   functions = require('./lib/index');
-  admin = require('firebase-admin');
-  db = admin.firestore();
+
+  db = firestore.getFirestore();
 });
-after(async () => admin.app().delete());
+after(async () => deleteApp(getApp()));
 beforeEach(async () => {
   await db.collection('debates').doc(debateId).set({
     creatorId: 'owner', fighter1: 'owner', fighter2: '', status: 'waiting',

@@ -25,6 +25,42 @@ function readRoundIndex(data: DebateRecord): number {
   return 1;
 }
 
+// Accept Firestore timestamps, including the toDate-only shape used by legacy callers.
+// A malformed deadline must never turn an expired turn into an unlimited one.
+export function readTurnDeadlineMs(value: unknown): number | null {
+  if (!value || typeof value !== 'object') return null;
+  const timestamp = value as { toMillis?: unknown; toDate?: unknown };
+  try {
+    const millis = typeof timestamp.toMillis === 'function'
+      ? timestamp.toMillis()
+      : typeof timestamp.toDate === 'function' ? timestamp.toDate().getTime() : NaN;
+    return Number.isSafeInteger(millis) && millis >= 0 ? millis : null;
+  } catch {
+    return null;
+  }
+}
+
+function assertOpenTurn(debate: DebateRecord, vote: boolean, graceMs = 0): void {
+  const deadline = debate['roundEndsAt'];
+  const endMs = readTurnDeadlineMs(deadline);
+  if (endMs === null) {
+    // Before schema v2, some active documents had no deadline until initialization.
+    // Preserve that migration path, but never accept a malformed supplied value.
+    if (deadline !== undefined || (typeof debate['schemaVersion'] === 'number' && debate['schemaVersion'] >= 2)) {
+      throw new HttpsError('failed-precondition', 'Срок хода недоступен. Обновите дебат.', {
+        reason: vote ? 'VOTE_DEADLINE_INVALID' : 'TURN_DEADLINE_INVALID',
+      });
+    }
+    return;
+  }
+  const safeGrace = Number.isFinite(graceMs) && graceMs > 0 ? graceMs : 0;
+  if (Date.now() >= endMs + safeGrace) {
+    throw new HttpsError('failed-precondition', 'Время хода истекло.', {
+      reason: vote ? 'VOTE_TIME_EXPIRED' : 'TURN_TIME_EXPIRED',
+    });
+  }
+}
+
 function hasFinishedImmutableMutation(before: DebateRecord, after: DebateRecord): boolean {
   const immutableKeys = [
     'fighter1',
@@ -73,7 +109,7 @@ export function assertDebateInvariants(data: DebateRecord): void {
     }
   }
 
-  if (roundIndex < 1 || totalRounds < 1 || roundIndex > totalRounds) {
+  if (!Number.isInteger(roundIndex) || !Number.isInteger(totalRounds) || roundIndex < 1 || ![1, 3, 5].includes(totalRounds) || roundIndex > totalRounds) {
     throw new HttpsError(
       'failed-precondition',
       'Round index is outside allowed range.',
@@ -229,28 +265,17 @@ export function assertCanSendMessage(params: {
   }
 
   const activeSpeakerId = asString(debate['activeSpeakerId']);
+  if (typeof debate['schemaVersion'] === 'number' && debate['schemaVersion'] >= 2
+      && (!activeSpeakerId || ![fighter1, fighter2].includes(activeSpeakerId))) {
+    throw new HttpsError('failed-precondition', 'Активный спикер недоступен.', { reason: 'TURN_NOT_ASSIGNED' });
+  }
   if (activeSpeakerId && uid !== activeSpeakerId) {
     throw new HttpsError('failed-precondition', 'Сейчас не ваш ход.', {
       reason: 'TURN_NOT_ACTIVE_SPEAKER',
     });
   }
 
-  const roundEndsAtGuard = debate['roundEndsAt'];
-  if (
-    roundEndsAtGuard
-    && typeof roundEndsAtGuard === 'object'
-    && 'toDate' in roundEndsAtGuard
-    && typeof (roundEndsAtGuard as { toDate: unknown }).toDate === 'function'
-    && activeSpeakerId
-    && uid === activeSpeakerId
-  ) {
-    const endMs = ((roundEndsAtGuard as { toDate: () => Date }).toDate()).getTime();
-    if (Date.now() > endMs + uploadGraceMs) {
-      throw new HttpsError('failed-precondition', 'Время хода истекло.', {
-        reason: 'TURN_TIME_EXPIRED',
-      });
-    }
-  }
+  assertOpenTurn(debate, false, uploadGraceMs);
 
   const isRoundActive =
     typeof debate['isRoundActive'] === 'boolean' ? debate['isRoundActive'] as boolean : true;
@@ -299,6 +324,15 @@ export function assertCanCastVote(params: {
       reason: 'VOTE_FIGHTER_FORBIDDEN',
     });
   }
+
+  if (debate['isRoundActive'] === false) {
+    throw new HttpsError('failed-precondition', 'Раунд не активен.', {
+      reason: 'ROUND_NOT_ACTIVE',
+    });
+  }
+  // The persisted status can lag behind a Cloud Tasks delivery. Reject a vote
+  // at the actual deadline instead of counting it in the expired round.
+  assertOpenTurn(debate, true);
 
   return {
     roundIndex: readRoundIndex(debate),

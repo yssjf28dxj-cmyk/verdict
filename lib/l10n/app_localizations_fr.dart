@@ -613,4 +613,31 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get testProfileSwitchFailed => 'Impossible de changer de profil. Vérifiez la connexion et réessayez.';
+
+  @override
+  String get aiJudgeLoading => 'Le juge IA examine le débat…';
+
+  @override
+  String get messageSendFailed => 'Le message n’a pas pu être envoyé. Réessayez.';
+
+  @override
+  String get aiVerdictTitle => 'Verdict de l’IA';
+
+  @override
+  String get aiJudgeNotConfigured => 'Le jugement par IA n’est pas encore configuré.';
+
+  @override
+  String get aiJudgeInsufficientContent => 'Le contenu est insuffisant pour un verdict de l’IA.';
+
+  @override
+  String get aiJudgeUnavailable => 'Le verdict de l’IA est indisponible. Réessayez plus tard.';
+
+  @override
+  String get publicIdPending => 'L’identifiant public est en préparation';
+
+  @override
+  String get voteTotalsUnavailable => 'Le décompte des votes en direct est temporairement indisponible.';
+
+  @override
+  String get voteSendFailed => 'Votre vote n’a pas pu être confirmé. Réessayez.';
 }

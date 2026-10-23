@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { firestore } = require('firebase-admin');
+const firestore = require('firebase-admin/firestore');
 const { readDeadline, sameDeadline, deadlineTaskId, planExpiredTurns } = require('../lib/debate_deadlines');
 const state = (patch = {}) => ({
   status: 'active', isRoundActive: true, fighter1: 'alice', fighter2: 'bob',

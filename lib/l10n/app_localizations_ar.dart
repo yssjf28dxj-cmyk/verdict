@@ -613,4 +613,31 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get testProfileSwitchFailed => 'تعذر تبديل الملف. تحقق من الاتصال وحاول مجدداً.';
+
+  @override
+  String get aiJudgeLoading => 'الحكم الآلي يراجع المناظرة…';
+
+  @override
+  String get messageSendFailed => 'تعذر إرسال الرسالة. يرجى المحاولة مجددًا.';
+
+  @override
+  String get aiVerdictTitle => 'حكم الذكاء الاصطناعي';
+
+  @override
+  String get aiJudgeNotConfigured => 'لم يتم إعداد التحكيم بالذكاء الاصطناعي بعد.';
+
+  @override
+  String get aiJudgeInsufficientContent => 'لا يوجد محتوى كافٍ لإصدار حكم بالذكاء الاصطناعي.';
+
+  @override
+  String get aiJudgeUnavailable => 'حكم الذكاء الاصطناعي غير متاح. يرجى المحاولة لاحقًا.';
+
+  @override
+  String get publicIdPending => 'جارٍ إعداد المعرّف العام';
+
+  @override
+  String get voteTotalsUnavailable => 'إجمالي الأصوات المباشر غير متاح مؤقتًا.';
+
+  @override
+  String get voteSendFailed => 'تعذر تأكيد صوتك. يرجى المحاولة مجددًا.';
 }

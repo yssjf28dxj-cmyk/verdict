@@ -1,0 +1,93 @@
+import { createRequire } from 'node:module';
+import assert from 'node:assert/strict';
+import { before, after, beforeEach, test } from 'node:test';
+const require = createRequire(new URL('../../functions/package.json', import.meta.url));
+const { initializeApp, deleteApp } = require('firebase-admin/app');
+const { getFirestore } = require('firebase-admin/firestore');
+const { createPrivateDataMigrationController } = require('./lib/private_data_migration');
+let app, db;
+const valid = { winnerId: 'alice', winnerKey: 'fighter1', scoreA: 80, scoreB: 20, reasoning: 'Evidence supports Alice.' };
+const debate = () => db.collection('debates').doc('migration-debate');
+const privateResult = () => debate().collection('private_state').doc('judgement');
+before(() => {
+  if (!/^(127\.0\.0\.1|localhost):\d+$/.test(process.env.FIRESTORE_EMULATOR_HOST || '')) throw new Error('Only a loopback Firestore emulator is allowed');
+  app = initializeApp({ projectId: 'demo-verdict-rules' }); db = getFirestore(app);
+});
+after(async () => deleteApp(app));
+beforeEach(async () => {
+  for (const collection of ['users', 'debates', 'admin_private_data_archive']) await db.recursiveDelete(db.collection(collection));
+  await db.doc('users/alice').set({ name: 'Alice', email: 'private@example.test', wins: 7 });
+  await debate().set({ fighter1: 'alice', fighter2: 'bob', status: 'finished', aiResult: valid });
+});
+test('dry run reports fields without changing data or creating an archive', async () => {
+  const report = await createPrivateDataMigrationController(db, { pageSize: 1 }).run();
+  assert.equal(report.emailsFound, 1); assert.equal(report.aiResultsFound, 1); assert.equal(report.applied, 0);
+  assert.equal((await db.collection('admin_private_data_archive').get()).size, 0);
+  assert.equal((await db.doc('users/alice').get()).get('email'), 'private@example.test');
+  assert.deepEqual((await debate().get()).get('aiResult'), valid);
+});
+test('apply archives original fields, preserves unrelated stats and protects AI', async () => {
+  const report = await createPrivateDataMigrationController(db).run({ apply: true });
+  assert.equal(report.applied, 2); assert.equal((await db.doc('users/alice').get()).get('email'), undefined);
+  assert.equal((await db.doc('users/alice').get()).get('wins'), 7);
+  assert.equal((await debate().get()).get('aiResult'), undefined);
+  assert.deepEqual((await privateResult().get()).get('aiResult'), { ...valid, status: 'ready' });
+  const records = (await db.doc(report.archivePath).collection('records').get()).docs.map((doc) => doc.data());
+  assert.equal(records.length, 2); assert.equal(records.find((r) => r.field === 'email').originalValue, 'private@example.test');
+  assert.deepEqual(records.find((r) => r.field === 'aiResult').originalValue, valid);
+  assert.equal((await db.doc(report.archivePath).get()).get('status'), 'completed');
+});
+test('newer protected judgement is never overwritten', async () => {
+  const newer = { status: 'unavailable', reason: 'not_configured', error: true };
+  await privateResult().set({ aiResult: newer }); await createPrivateDataMigrationController(db).run({ apply: true });
+  assert.deepEqual((await privateResult().get()).get('aiResult'), newer);
+});
+test('old no-content fake draw becomes an explicit insufficient-content state', async () => {
+  await debate().update({ aiResult: { ...valid, winnerId: 'draw', winnerKey: 'draw', scoreA: 50, scoreB: 50,
+    reasoning: 'Текстовых аргументов не обнаружено — вердикт не может быть вынесен.' } });
+  await createPrivateDataMigrationController(db).run({ apply: true });
+  assert.deepEqual((await privateResult().get()).get('aiResult'), { status: 'insufficient_content', reason: 'no_content', error: true });
+});
+test('provider errors are redacted for readers and exact original is archived', async () => {
+  const raw = { ...valid, error: true, reason: 'Provider request included PRIVATE_TEST_VALUE' };
+  await debate().update({ aiResult: raw }); const report = await createPrivateDataMigrationController(db).run({ apply: true });
+  assert.deepEqual((await privateResult().get()).get('aiResult'), { status: 'error', reason: 'unavailable', error: true });
+  const records = await db.doc(report.archivePath).collection('records').where('field', '==', 'aiResult').get();
+  assert.deepEqual(records.docs[0].get('originalValue'), raw);
+});
+test('second migration cannot duplicate moved fields', async () => {
+  await createPrivateDataMigrationController(db).run({ apply: true });
+  const report = await createPrivateDataMigrationController(db).run({ apply: true });
+  assert.equal(report.applied, 0); assert.equal(report.emailsFound, 0); assert.equal(report.aiResultsFound, 0);
+  assert.equal((await db.doc(report.archivePath).collection('records').get()).size, 0);
+});
+test('concurrent migrations archive each field exactly once', async () => {
+  const reports = await Promise.all([createPrivateDataMigrationController(db).run({ apply: true }), createPrivateDataMigrationController(db).run({ apply: true })]);
+  assert.equal(reports.reduce((sum, report) => sum + report.applied, 0), 2);
+  assert.equal((await db.collectionGroup('records').get()).size, 2);
+});
+test('archive transaction failure preserves public data and records a failed run', async () => {
+  const original = db.runTransaction.bind(db), controller = createPrivateDataMigrationController(db);
+  db.runTransaction = (callback, options) => original(async (tx) => {
+    await callback(tx); throw new Error('Injected archive transaction failure');
+  }, options);
+  try { await assert.rejects(controller.run({ apply: true }), /Injected archive transaction failure/); }
+  finally { db.runTransaction = original; }
+  assert.equal((await db.doc('users/alice').get()).get('email'), 'private@example.test');
+  assert.equal((await db.doc(controller.archivePath).get()).get('status'), 'failed');
+  assert.equal((await db.doc(controller.archivePath).collection('records').get()).size, 0);
+  assert.equal(controller.getStats().applied, 0);
+});
+test('even the profile owner cannot read archived contact or provider error data', async () => {
+  const { initializeTestEnvironment, assertFails } = await import('@firebase/rules-unit-testing');
+  const { doc, getDoc } = await import('firebase/firestore');
+  const [host, port] = process.env.FIRESTORE_EMULATOR_HOST.split(':');
+  const environment = await initializeTestEnvironment({ projectId: 'demo-verdict-rules', firestore: { host, port: Number(port) } });
+  try {
+    const report = await createPrivateDataMigrationController(db).run({ apply: true });
+    const record = (await db.doc(report.archivePath).collection('records').get()).docs[0];
+    const client = environment.authenticatedContext('alice').firestore();
+    await assertFails(getDoc(doc(client, report.archivePath)));
+    await assertFails(getDoc(doc(client, record.ref.path)));
+  } finally { await environment.cleanup(); }
+});

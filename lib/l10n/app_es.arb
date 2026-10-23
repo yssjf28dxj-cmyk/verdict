@@ -199,6 +199,21 @@
   "staySignedIn": "Mantener la sesión",
   "testProfilesTitle": "Perfiles de prueba",
   "testProfileNumber": "Perfil {number}",
-  "@testProfileNumber": {"placeholders": {"number": {"type": "int"}}},
-  "testProfileSwitchFailed": "No se pudo cambiar de perfil. Comprueba la conexión e inténtalo de nuevo."
+  "@testProfileNumber": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "testProfileSwitchFailed": "No se pudo cambiar de perfil. Comprueba la conexión e inténtalo de nuevo.",
+  "aiJudgeLoading": "El juez de IA está revisando…",
+  "messageSendFailed": "No se pudo enviar el mensaje. Inténtalo de nuevo.",
+  "aiVerdictTitle": "Veredicto de IA",
+  "aiJudgeNotConfigured": "El arbitraje de IA aún no está configurado.",
+  "aiJudgeInsufficientContent": "No hay suficiente contenido para un veredicto de IA.",
+  "aiJudgeUnavailable": "El veredicto de IA no está disponible. Inténtalo más tarde.",
+  "publicIdPending": "Se está preparando el ID público",
+  "voteTotalsUnavailable": "El recuento de votos en directo no está disponible temporalmente.",
+  "voteSendFailed": "No se pudo confirmar tu voto. Inténtalo de nuevo."
 }

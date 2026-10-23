@@ -199,6 +199,21 @@
   "staySignedIn": "Остаться в аккаунте",
   "testProfilesTitle": "Тестовые профили",
   "testProfileNumber": "Профиль {number}",
-  "@testProfileNumber": {"placeholders": {"number": {"type": "int"}}},
-  "testProfileSwitchFailed": "Не удалось переключить профиль. Проверьте соединение и попробуйте снова."
+  "@testProfileNumber": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "testProfileSwitchFailed": "Не удалось переключить профиль. Проверьте соединение и попробуйте снова.",
+  "aiJudgeLoading": "Судья анализирует дебаты…",
+  "messageSendFailed": "Не удалось отправить сообщение. Попробуйте ещё раз.",
+  "aiVerdictTitle": "Вердикт ИИ",
+  "aiJudgeNotConfigured": "Судейство ИИ пока не настроено.",
+  "aiJudgeInsufficientContent": "Недостаточно содержательных сообщений для вердикта ИИ.",
+  "aiJudgeUnavailable": "Вердикт ИИ недоступен. Попробуйте позже.",
+  "publicIdPending": "Публичный ID подготавливается",
+  "voteTotalsUnavailable": "Обновление голосов временно недоступно.",
+  "voteSendFailed": "Не удалось подтвердить голос. Попробуйте ещё раз."
 }

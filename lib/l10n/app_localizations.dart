@@ -1304,6 +1304,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could not switch profile. Check the connection and try again.'**
   String get testProfileSwitchFailed;
+
+  /// No description provided for @aiJudgeLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'AI judge is reviewing…'**
+  String get aiJudgeLoading;
+
+  /// No description provided for @messageSendFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Message could not be sent. Please retry.'**
+  String get messageSendFailed;
+
+  /// No description provided for @aiVerdictTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'AI verdict'**
+  String get aiVerdictTitle;
+
+  /// No description provided for @aiJudgeNotConfigured.
+  ///
+  /// In en, this message translates to:
+  /// **'AI judging is not configured yet.'**
+  String get aiJudgeNotConfigured;
+
+  /// No description provided for @aiJudgeInsufficientContent.
+  ///
+  /// In en, this message translates to:
+  /// **'There is not enough content for an AI verdict.'**
+  String get aiJudgeInsufficientContent;
+
+  /// No description provided for @aiJudgeUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'AI verdict is unavailable. Please try again later.'**
+  String get aiJudgeUnavailable;
+
+  /// No description provided for @publicIdPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Public ID is being prepared'**
+  String get publicIdPending;
+
+  /// No description provided for @voteTotalsUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Live vote totals are temporarily unavailable.'**
+  String get voteTotalsUnavailable;
+
+  /// No description provided for @voteSendFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Your vote could not be confirmed. Please retry.'**
+  String get voteSendFailed;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

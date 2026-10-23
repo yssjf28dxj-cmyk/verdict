@@ -199,6 +199,21 @@
   "staySignedIn": "Stay signed in",
   "testProfilesTitle": "Test profiles",
   "testProfileNumber": "Profile {number}",
-  "@testProfileNumber": {"placeholders": {"number": {"type": "int"}}},
-  "testProfileSwitchFailed": "Could not switch profile. Check the connection and try again."
+  "@testProfileNumber": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "testProfileSwitchFailed": "Could not switch profile. Check the connection and try again.",
+  "aiJudgeLoading": "AI judge is reviewing…",
+  "messageSendFailed": "Message could not be sent. Please retry.",
+  "aiVerdictTitle": "AI verdict",
+  "aiJudgeNotConfigured": "AI judging is not configured yet.",
+  "aiJudgeInsufficientContent": "There is not enough content for an AI verdict.",
+  "aiJudgeUnavailable": "AI verdict is unavailable. Please try again later.",
+  "publicIdPending": "Public ID is being prepared",
+  "voteTotalsUnavailable": "Live vote totals are temporarily unavailable.",
+  "voteSendFailed": "Your vote could not be confirmed. Please retry."
 }

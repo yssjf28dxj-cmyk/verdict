@@ -1,19 +1,35 @@
-# verdict
+# VERDICT
 
-[Project goals and roadmap](docs/roadmap.md)
+Flutter-приложение для дебатов: два участника, очереди с серверными сроками,
+зрительское голосование и общий чат. Сервер — Firebase/Cloud Functions.
 
-A new Flutter project.
+- [Цели и порядок развития](docs/roadmap.md)
+- [Проверка фундамента и статус выпуска](docs/foundation-audit-2026-10-23.md)
+- [Тестовые профили](docs/test-profiles.md)
+- [План оформления](docs/design-refresh.md)
 
-## Getting Started
+## Проверка исходников
 
-This project is a starting point for a Flutter application.
+Flutter 3.41.4, Node.js 22 и Java 21. Зависимости зафиксированы lockfiles.
 
-A few resources to get you started if this is your first Flutter project:
+```sh
+flutter pub get --enforce-lockfile
+flutter analyze --no-pub
+flutter test --no-pub --flavor staging
+flutter test --no-pub --flavor production
+npm ci --prefix functions
+npm test --prefix functions
+npm ci --prefix tests/firestore
+```
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+Все серверные интеграционные проверки выполняются на локальных эмуляторах
+с demo-проектом; команды также приведены в `.github/workflows/verify.yml`.
+Наличие исходников и собранного APK не означает публикацию изменений в Firebase.
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Изолированный тестовый выпуск
+
+Работа ведётся в `codex/verdict-test-setup` с Firebase `verdict-test-1471f`,
+база `default` без скобок. Для этого выпуска нужен согласованный деплой
+сервера/правил и соответствующий APK. Порядок и оставшиеся проверки приведены
+в отчёте фундамента. Рабочий Firebase, main и магазины не являются целями
+тестовых скриптов.

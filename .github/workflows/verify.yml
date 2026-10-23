@@ -1,0 +1,86 @@
+name: Verify VERDICT
+
+on:
+  push:
+    branches: [main, 'codex/**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  flutter:
+    name: Flutter analysis and flavor tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.4'
+          channel: stable
+          cache: true
+      - name: Install locked dependencies
+        run: flutter pub get --enforce-lockfile
+      - name: Generate translations
+        run: flutter gen-l10n
+      - name: Analyze all Dart sources
+        run: flutter analyze --no-pub
+      - name: Verify test Firebase isolation and test profiles
+        run: flutter test --no-pub --flavor staging
+      - name: Verify production configuration and profile restrictions
+        run: flutter test --no-pub --flavor production
+
+  backend:
+    name: Functions and local Firebase emulators
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CI: true
+      FIREBASE_CLI_DISABLE_USAGE_COLLECTION: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            functions/package-lock.json
+            tests/firestore/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install locked Functions dependencies
+        run: npm ci --prefix functions
+      - name: Build and test Functions
+        run: npm test --prefix functions
+      - name: Install locked emulator test dependencies
+        run: npm ci --prefix tests/firestore
+      - name: Prepare exact copies of current Firebase rules
+        working-directory: tests/firestore
+        run: node prepare-rules.js
+      - name: Test Firestore access and server transactions
+        working-directory: tests/firestore
+        shell: bash
+        run: |
+          mapfile -t test_files < <(find . -maxdepth 1 -name '*.test.js' ! -name 'storage.test.js' -printf '%f\n' | sort)
+          test "${#test_files[@]}" -gt 0
+          printf -v test_args '%q ' "${test_files[@]}"
+          npx --no-install firebase emulators:exec --config firebase.json --project demo-verdict-rules --only firestore "node --test --test-concurrency=1 $test_args"
+      - name: Test Storage access and protected media
+        working-directory: tests/firestore
+        run: npm run test:storage
+      - name: Preserve emulator logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: firebase-emulator-logs
+          path: tests/firestore/*debug.log
+          if-no-files-found: ignore
+          retention-days: 7

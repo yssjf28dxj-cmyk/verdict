@@ -33,7 +33,8 @@ export function resolveDebateMediaPath(params: {
       });
     }
   }
-  const prefix = `debates/${params.debateId}/media/`;
+  const prefix = path.startsWith(`debates/${params.debateId}/uploads/`)
+    ? `debates/${params.debateId}/uploads/` : `debates/${params.debateId}/media/`;
   const file = path.startsWith(prefix) ? path.slice(prefix.length) : '';
   // Upload filenames are <timestamp>_<authenticated uid>.<extension>.
   const timestampEnd = file.indexOf('_');

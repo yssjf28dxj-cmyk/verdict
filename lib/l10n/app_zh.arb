@@ -199,6 +199,21 @@
   "staySignedIn": "保持登录",
   "testProfilesTitle": "测试账户",
   "testProfileNumber": "账户 {number}",
-  "@testProfileNumber": {"placeholders": {"number": {"type": "int"}}},
-  "testProfileSwitchFailed": "无法切换账户。请检查网络后重试。"
+  "@testProfileNumber": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "testProfileSwitchFailed": "无法切换账户。请检查网络后重试。",
+  "aiJudgeLoading": "AI 裁判正在评审…",
+  "messageSendFailed": "消息发送失败，请重试。",
+  "aiVerdictTitle": "AI 裁决",
+  "aiJudgeNotConfigured": "AI 裁判尚未配置。",
+  "aiJudgeInsufficientContent": "内容不足，无法作出 AI 裁决。",
+  "aiJudgeUnavailable": "AI 裁决暂不可用，请稍后重试。",
+  "publicIdPending": "正在准备公开 ID",
+  "voteTotalsUnavailable": "实时票数暂不可用。",
+  "voteSendFailed": "无法确认您的投票，请重试。"
 }

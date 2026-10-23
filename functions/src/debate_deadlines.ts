@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
-import { firestore } from 'firebase-admin';
-import { assertCanAdvanceOrFinish } from './domain/debate/guards';
+import * as firestore from 'firebase-admin/firestore';
+import { assertCanAdvanceOrFinish, readTurnDeadlineMs } from './domain/debate/guards';
+import { countStoredVotes } from './domain/debate/votes';
 
 type Data = Record<string, any>;
 export type Deadline = { debateId: string; round: number; speaker: string; endMs: number };
@@ -13,10 +14,10 @@ export function readDeadline(debateId: string, data: Data | undefined): Deadline
   const f1 = typeof data.fighter1 === 'string' ? data.fighter1 : '';
   const f2 = typeof data.fighter2 === 'string' ? data.fighter2 : '';
   if (!f1 || !f2 || f1 === f2 || placeholderIds.has(f2.trim().toLowerCase())) return null;
-  const endMs = data.roundEndsAt?.toMillis?.();
+  const endMs = readTurnDeadlineMs(data.roundEndsAt);
   const round = data.roundIndex ?? data.currentRound ?? data.round ?? 1;
   const speaker = data.activeSpeakerId || f1;
-  if (!Number.isSafeInteger(endMs) || !Number.isInteger(round) || round < 1 || round > 5
+  if (endMs === null || !Number.isInteger(round) || round < 1 || round > 5
     || ![f1, f2].includes(speaker)) return null;
   return { debateId, round, speaker, endMs };
 }
@@ -45,7 +46,8 @@ export function planExpiredTurns(debateId: string, data: Data, nowMs: number): D
   if (!initial || nowMs < initial.endMs) return null;
   const totalRounds = data.totalRounds ?? 3;
   const duration = data.roundDurationSeconds ?? data.durationSeconds ?? data.timeSeconds ?? 60;
-  if (![1, 3, 5].includes(totalRounds) || !Number.isFinite(duration) || duration <= 0) {
+  if (![1, 3, 5].includes(totalRounds) || initial.round > totalRounds
+    || !Number.isFinite(duration) || duration <= 0) {
     throw new Error('Invalid debate timer settings');
   }
   let round = initial.round;
@@ -107,15 +109,7 @@ export function createDeadlineController(db: firestore.Firestore, queue: Queue, 
       if (patch.status === 'finished') {
         // Read votes inside the transaction before writing the final result.
         const votes = await tx.get(ref.collection('votes'));
-        let votes1 = 0;
-        let votes2 = 0;
-        for (const vote of votes.docs) {
-          for (const [key, value] of Object.entries(vote.data())) {
-            if (key === 'uid' || key === 'updatedAt') continue;
-            if (value === 1) votes1++;
-            if (value === 2) votes2++;
-          }
-        }
+        const { votes1, votes2 } = countStoredVotes(votes.docs.map((vote) => vote.data()), data.totalRounds ?? 3);
         Object.assign(patch, {
           votes1, votes2, winner: votes1 > votes2 ? 'fighter1' : votes2 > votes1 ? 'fighter2' : 'draw',
           finishedAt: firestore.FieldValue.serverTimestamp(),

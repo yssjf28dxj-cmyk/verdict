@@ -1,3 +1,5 @@
+import '../l10n/app_localizations.dart';
+import '../utils/ai_verdict_state.dart';
 import 'package:flutter/material.dart';
 
 import '../utils/style_utils.dart';
@@ -16,7 +18,26 @@ class AiResultCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final winnerKey = (aiResult['winnerKey'] ?? 'draw').toString();
+    final l10n = AppLocalizations.of(context)!;
+    if (!hasValidAiVerdict(aiResult)) {
+      final reason = aiVerdictUnavailableReason(aiResult);
+      final message = reason == 'not_configured'
+          ? l10n.aiJudgeNotConfigured
+          : reason == 'no_content'
+              ? l10n.aiJudgeInsufficientContent
+              : l10n.aiJudgeUnavailable;
+      return GlassCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(l10n.aiVerdictTitle, style: const TextStyle(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            Text(message),
+          ],
+        ),
+      );
+    }
+    final winnerKey = aiResult['winnerKey'].toString();
     final scoreA = ((aiResult['scoreA'] as num?)?.toInt() ?? 50).clamp(0, 100);
     final scoreB = ((aiResult['scoreB'] as num?)?.toInt() ?? 50).clamp(0, 100);
     final reasoning = (aiResult['reasoning'] ?? '').toString();
@@ -25,7 +46,7 @@ class AiResultCard extends StatelessWidget {
         ? fighter1Name
         : winnerKey == 'fighter2'
             ? fighter2Name
-            : 'Ничья';
+            : l10n.draw;
 
     final total = scoreA + scoreB;
     final leftFlex = total == 0 ? 1 : scoreA;
@@ -35,10 +56,10 @@ class AiResultCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
-            'Вердикт ИИ',
+          Text(
+            l10n.aiVerdictTitle,
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               color: Color(0xFFFFA500),
               fontSize: 13,
               fontWeight: FontWeight.w800,

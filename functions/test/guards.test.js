@@ -232,3 +232,35 @@ test('cancel guard allows only creator in waiting status', () => {
     });
   }, 'CANCEL_NOT_CREATOR');
 });
+
+const open = { fighter1: 'u1', fighter2: 'u2', activeSpeakerId: 'u1', roundIndex: 1,
+  totalRounds: 3, schemaVersion: 2, isRoundActive: true,
+  roundEndsAt: { toMillis: () => Date.now() + 60000 } };
+const sendParams = (patch) => ({ uid: 'u1', debate: { ...open, ...patch },
+  hasReadAccess: true, status: 'active', isPlayableStatus: true });
+const voteParams = (patch) => ({ uid: 'viewer', debate: { ...open, ...patch },
+  hasReadAccess: true, status: 'active', isPlayableStatus: true });
+
+test('canonical message rejects a missing speaker instead of admitting both fighters', () => {
+  expectHttpsError(() => assertCanSendMessage(sendParams({ activeSpeakerId: '' })), 'TURN_NOT_ASSIGNED');
+});
+test('canonical message rejects missing and malformed deadlines', () => {
+  for (const roundEndsAt of [undefined, null, {}, { toMillis: () => NaN }]) {
+    expectHttpsError(() => assertCanSendMessage(sendParams({ roundEndsAt })), 'TURN_DEADLINE_INVALID');
+  }
+});
+test('expired message is blocked exactly at the inclusive deadline', () => {
+  expectHttpsError(() => assertCanSendMessage(sendParams({ roundEndsAt: { toMillis: () => Date.now() } })), 'TURN_TIME_EXPIRED');
+});
+test('voting fails closed for expired or malformed timers while task delivery lags', () => {
+  expectHttpsError(() => assertCanCastVote(voteParams({ roundEndsAt: { toMillis: () => Date.now() - 1 } })), 'VOTE_TIME_EXPIRED');
+  expectHttpsError(() => assertCanCastVote(voteParams({ roundEndsAt: {} })), 'VOTE_DEADLINE_INVALID');
+});
+test('inactive round rejects voting before a final status update', () => {
+  expectHttpsError(() => assertCanCastVote(voteParams({ isRoundActive: false })), 'ROUND_NOT_ACTIVE');
+});
+test('transition rejects fractional and non-finite round indexes', () => {
+  for (const roundIndex of [NaN, 1.5, Infinity]) {
+    expectHttpsError(() => assertTransitionInvariants({}, { ...open, status: 'active', roundIndex }), 'INVARIANT_ROUND_RANGE_INVALID');
+  }
+});

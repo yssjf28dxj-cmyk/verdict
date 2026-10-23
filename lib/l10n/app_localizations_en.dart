@@ -613,4 +613,31 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get testProfileSwitchFailed => 'Could not switch profile. Check the connection and try again.';
+
+  @override
+  String get aiJudgeLoading => 'AI judge is reviewing…';
+
+  @override
+  String get messageSendFailed => 'Message could not be sent. Please retry.';
+
+  @override
+  String get aiVerdictTitle => 'AI verdict';
+
+  @override
+  String get aiJudgeNotConfigured => 'AI judging is not configured yet.';
+
+  @override
+  String get aiJudgeInsufficientContent => 'There is not enough content for an AI verdict.';
+
+  @override
+  String get aiJudgeUnavailable => 'AI verdict is unavailable. Please try again later.';
+
+  @override
+  String get publicIdPending => 'Public ID is being prepared';
+
+  @override
+  String get voteTotalsUnavailable => 'Live vote totals are temporarily unavailable.';
+
+  @override
+  String get voteSendFailed => 'Your vote could not be confirmed. Please retry.';
 }

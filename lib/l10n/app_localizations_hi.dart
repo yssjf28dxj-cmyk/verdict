@@ -613,4 +613,31 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get testProfileSwitchFailed => 'प्रोफ़ाइल नहीं बदली जा सकी। कनेक्शन जाँचें और फिर कोशिश करें।';
+
+  @override
+  String get aiJudgeLoading => 'एआई जज समीक्षा कर रहा है…';
+
+  @override
+  String get messageSendFailed => 'संदेश नहीं भेजा जा सका। कृपया फिर से प्रयास करें।';
+
+  @override
+  String get aiVerdictTitle => 'एआई का फैसला';
+
+  @override
+  String get aiJudgeNotConfigured => 'एआई निर्णायक अभी कॉन्फ़िगर नहीं किया गया है।';
+
+  @override
+  String get aiJudgeInsufficientContent => 'एआई के फैसले के लिए पर्याप्त सामग्री नहीं है।';
+
+  @override
+  String get aiJudgeUnavailable => 'एआई का फैसला उपलब्ध नहीं है। कृपया बाद में प्रयास करें।';
+
+  @override
+  String get publicIdPending => 'सार्वजनिक आईडी तैयार की जा रही है';
+
+  @override
+  String get voteTotalsUnavailable => 'लाइव वोट की गिनती अस्थायी रूप से उपलब्ध नहीं है।';
+
+  @override
+  String get voteSendFailed => 'आपके वोट की पुष्टि नहीं हो सकी। कृपया फिर से प्रयास करें।';
 }

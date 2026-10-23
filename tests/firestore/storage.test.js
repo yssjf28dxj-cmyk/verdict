@@ -41,7 +41,7 @@ before(async () => {
 
 after(async () => {
   await environment?.cleanup();
-  await functionsRequire('firebase-admin').app().delete();
+  await functionsRequire('firebase-admin/app').deleteApp(functionsRequire('firebase-admin/app').getApp());
 });
 
 beforeEach(async () => {
@@ -189,6 +189,130 @@ test('new media: real send handler finalizes to Admin-only storage and proxy enf
   await callables.deleteDebateMessages.run({ auth: { uid: 'creator', token: {} },
     data: { debateId: 'private', messageIds: [messageId] } });
   await assert.rejects(callables.getDebateMedia.run({ ...request, auth: { uid: 'creator', token: {} } }));
+});
+
+const uploadRequest = (uid = 'creator', data = {}) => ({
+  ...(uid ? { auth: { uid, token: {} } } : {}),
+  data: { debateId: 'private', base64: Buffer.from([7, 8, 9]).toString('base64'), contentType: 'image/png', ...data },
+});
+const storageBucket = () => functionsRequire('firebase-admin/storage').getStorage().bucket();
+async function storedPaths() {
+  const [files] = await storageBucket().getFiles();
+  return files.map((file) => file.name).sort();
+}
+async function assertUploadRejectedWithoutStorageWrite(request, expectedCode, expectedReason) {
+  const beforePaths = await storedPaths();
+  await assert.rejects(callables.uploadDebateMedia.run(request), (error) => {
+    assert.equal(error.code, expectedCode);
+    if (expectedReason) assert.equal(error.details?.reason, expectedReason);
+    return true;
+  });
+  assert.deepEqual(await storedPaths(), beforePaths, 'a rejected upload must not create an object');
+}
+
+for (const [contentType, messageType, suffix] of [
+  ['image/png', 'image', '.png'], ['audio/mp4', 'voice', '.m4a'],
+]) {
+  test(`upload proxy: ${messageType} authorizes, publishes without a bearer token, and downloads through access checks`, async () => {
+    const bytes = Buffer.from([7, 8, 9]);
+    const upload = await callables.uploadDebateMedia.run(uploadRequest('creator', { contentType }));
+    assert.deepEqual(Object.keys(upload), ['mediaPath']);
+    assert.ok(upload.mediaPath.startsWith('debates/private/uploads/'));
+    assert.ok(upload.mediaPath.endsWith(`_creator${suffix}`));
+    assert.equal(upload.mediaUrl, undefined);
+    const [stagingMetadata] = await storageBucket().file(upload.mediaPath).getMetadata();
+    assert.equal(stagingMetadata.contentType, contentType);
+    assert.equal(stagingMetadata.cacheControl, 'private, no-store');
+    assert.equal(stagingMetadata.metadata?.firebaseStorageDownloadTokens, undefined);
+    await assertFails(getBytes(ref(environment.authenticatedContext('creator').storage(), upload.mediaPath)));
+    await assertFails(getDownloadURL(ref(environment.authenticatedContext('creator').storage(), upload.mediaPath)));
+    const { host, port } = localAddress('FIREBASE_STORAGE_EMULATOR_HOST');
+    const rawResponse = await fetch(`http://${host}:${port}/v0/b/${projectId}/o/${encodeURIComponent(upload.mediaPath)}?alt=media`);
+    assert.ok([401, 403, 404].includes(rawResponse.status), `unauthenticated upload URL status: ${rawResponse.status}`);
+    const [uploadedBytes] = await storageBucket().file(upload.mediaPath).download();
+    assert.deepEqual(uploadedBytes, bytes);
+    await assert.rejects(callables.getDebateMedia.run({ auth: { uid: 'creator', token: {} },
+      data: { debateId: 'private', mediaPath: upload.mediaPath },
+    }), (error) => error.code === 'invalid-argument');
+
+    await callables.sendDebateMessage.run({ auth: { uid: 'creator', token: {} },
+      data: { debateId: 'private', messageType, mediaPath: upload.mediaPath, mediaDuration: 3 },
+    });
+    let message;
+    await environment.withSecurityRulesDisabled(async (context) => {
+      const messages = await getDocs(collection(context.firestore(), 'debates', 'private', 'messages'));
+      assert.equal(messages.size, 1);
+      message = messages.docs[0].data();
+    });
+    assert.ok(message.mediaPath.startsWith('debates/private/secured/'));
+    assert.equal(message.mediaUrl, undefined);
+    assert.equal(message.messageType, messageType);
+    if (messageType === 'voice') assert.equal(message.mediaDuration, 3);
+    const [stagingExists] = await storageBucket().file(upload.mediaPath).exists();
+    assert.equal(stagingExists, false);
+    const [metadata] = await storageBucket().file(message.mediaPath).getMetadata();
+    assert.equal(metadata.metadata?.firebaseStorageDownloadTokens, undefined);
+    await assertFails(getBytes(ref(environment.authenticatedContext('creator').storage(), message.mediaPath)));
+    await assertFails(getDownloadURL(ref(environment.authenticatedContext('creator').storage(), message.mediaPath)));
+    const request = { data: { debateId: 'private', mediaPath: message.mediaPath } };
+    const download = await callables.getDebateMedia.run({ ...request, auth: { uid: 'opponent', token: {} } });
+    assert.deepEqual(Buffer.from(download.base64, 'base64'), bytes);
+    await assert.rejects(callables.getDebateMedia.run({ ...request, auth: { uid: 'outsider', token: {} } }),
+      (error) => error.code === 'permission-denied');
+  });
+}
+
+test('upload proxy: authentication is required before storing bytes', async () => {
+  await assertUploadRejectedWithoutStorageWrite(uploadRequest(null), 'unauthenticated');
+});
+test('upload proxy: private outsider and approved spectators cannot write', async () => {
+  await assertUploadRejectedWithoutStorageWrite(uploadRequest('outsider'), 'permission-denied', 'MESSAGE_ACCESS_DENIED');
+  await assertUploadRejectedWithoutStorageWrite(uploadRequest('approved', { debateId: 'request_only' }),
+    'permission-denied', 'TURN_NOT_FIGHTER');
+});
+test('upload proxy: only the active fighter can upload', async () => {
+  await assertUploadRejectedWithoutStorageWrite(uploadRequest('opponent'), 'failed-precondition', 'TURN_NOT_ACTIVE_SPEAKER');
+});
+test('upload proxy: banned fighter cannot upload despite owning the current turn', async () => {
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'users', 'creator'), { name: 'Creator', isBanned: true });
+  });
+  await assertUploadRejectedWithoutStorageWrite(uploadRequest(), 'permission-denied', 'ACCOUNT_BANNED');
+});
+test('upload proxy: expired and finished debates reject media before touching storage', async () => {
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), 'debates', 'private'), {
+      roundEndsAt: Timestamp.fromMillis(Date.now() - 10000),
+    });
+  });
+  await assertUploadRejectedWithoutStorageWrite(uploadRequest(), 'failed-precondition', 'TURN_TIME_EXPIRED');
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), 'debates', 'private'), { status: 'finished' });
+  });
+  await assertUploadRejectedWithoutStorageWrite(uploadRequest(), 'failed-precondition', 'MESSAGE_DEBATE_FINISHED');
+});
+
+for (const [label, patch] of [
+  ['malformed alphabet', { base64: '%%%=' }],
+  ['missing padding', { base64: 'YQ=' }],
+  ['noncanonical pad bits', { base64: 'Zh==' }],
+  ['data URL wrapper', { base64: 'data:image/png;base64,BwgJ' }],
+  ['empty data', { base64: '' }],
+  ['unsupported MIME', { contentType: 'application/octet-stream' }],
+  ['active SVG MIME', { contentType: 'image/svg+xml' }],
+]) {
+  test(`upload proxy: rejects ${label} before creating a file`, async () => {
+    await assertUploadRejectedWithoutStorageWrite(uploadRequest('creator', patch),
+      'invalid-argument', 'MESSAGE_INVALID_MEDIA_FILE');
+  });
+}
+test('upload proxy: payload over six MiB is rejected before storing bytes', async () => {
+  await assertUploadRejectedWithoutStorageWrite(uploadRequest('creator', {
+    base64: Buffer.alloc(6 * 1024 * 1024 + 1).toString('base64'),
+  }), 'invalid-argument', 'MESSAGE_INVALID_MEDIA_FILE');
+});
+test('upload proxy: nested debate paths are rejected', async () => {
+  await assertUploadRejectedWithoutStorageWrite(uploadRequest('creator', { debateId: 'private/messages' }), 'invalid-argument');
 });
 
 test('media proxy: approval permits legacy bytes and revocation denies the next download', async () => {

@@ -199,6 +199,21 @@
   "staySignedIn": "البقاء في الحساب",
   "testProfilesTitle": "ملفات الاختبار",
   "testProfileNumber": "الملف {number}",
-  "@testProfileNumber": {"placeholders": {"number": {"type": "int"}}},
-  "testProfileSwitchFailed": "تعذر تبديل الملف. تحقق من الاتصال وحاول مجدداً."
+  "@testProfileNumber": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "testProfileSwitchFailed": "تعذر تبديل الملف. تحقق من الاتصال وحاول مجدداً.",
+  "aiJudgeLoading": "الحكم الآلي يراجع المناظرة…",
+  "messageSendFailed": "تعذر إرسال الرسالة. يرجى المحاولة مجددًا.",
+  "aiVerdictTitle": "حكم الذكاء الاصطناعي",
+  "aiJudgeNotConfigured": "لم يتم إعداد التحكيم بالذكاء الاصطناعي بعد.",
+  "aiJudgeInsufficientContent": "لا يوجد محتوى كافٍ لإصدار حكم بالذكاء الاصطناعي.",
+  "aiJudgeUnavailable": "حكم الذكاء الاصطناعي غير متاح. يرجى المحاولة لاحقًا.",
+  "publicIdPending": "جارٍ إعداد المعرّف العام",
+  "voteTotalsUnavailable": "إجمالي الأصوات المباشر غير متاح مؤقتًا.",
+  "voteSendFailed": "تعذر تأكيد صوتك. يرجى المحاولة مجددًا."
 }

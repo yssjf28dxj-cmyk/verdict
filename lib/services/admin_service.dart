@@ -1,62 +1,36 @@
 import 'package:verdict/firebase_session.dart';
-import 'package:verdict/firestore_database.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 
 class AdminService {
-  final FirebaseFirestore _db = appFirestore;
+  final FirebaseAuth _auth = appAuth;
   final FirebaseFunctions _functions = appFunctions;
 
-  Future<bool> hasMigrationAccess() async {
-    final user = appAuth.currentUser;
-    if (user == null) return false;
-
-    final tokenResult = await user.getIdTokenResult(true);
-    if (tokenResult.claims?['admin'] == true) {
-      return true;
+  // Administrative authority is decided by authenticated server policy, never
+  // by a gameplay rank or a client-readable emergency-access document.
+  Future<Map<String, dynamic>> _administrativeAccess() async {
+    if (_auth.currentUser == null) return const {};
+    try {
+      final response = await _functions
+          .httpsCallable(
+            'getAdministrativeAccess',
+            options: HttpsCallableOptions(timeout: const Duration(seconds: 15)),
+          )
+          .call();
+      final payload = response.data;
+      return payload is Map ? Map<String, dynamic>.from(payload) : const {};
+    } catch (error) {
+      debugPrint('Administrative access could not be verified: $error');
+      return const {};
     }
-
-    final userSnap = await _db.collection('users').doc(user.uid).get();
-    if (userSnap.exists) {
-      final data = userSnap.data();
-      if ((data?['rank'] as String?)?.trim() == 'GRANDMASTER') {
-        return true;
-      }
-    }
-
-    final accessSnap =
-        await _db.collection('admin_runtime').doc('migration_access').get();
-    final accessData = accessSnap.data();
-    if (accessData == null) return false;
-
-    final enabled = accessData['enabled'] == true;
-    if (!enabled) return false;
-
-    final expiresAt = accessData['expiresAt'];
-    if (expiresAt is Timestamp && !expiresAt.toDate().isAfter(DateTime.now())) {
-      return false;
-    }
-
-    final allowedUids = accessData['allowedUids'];
-    if (allowedUids is Iterable) {
-      return allowedUids.map((e) => e.toString()).contains(user.uid);
-    }
-
-    return false;
   }
 
-  // ПРОВЕРКА: ЯВЛЯЕТСЯ ЛИ ПОЛЬЗОВАТЕЛЬ ОСНОВАТЕЛЕМ
-  Future<bool> isFounder() async {
-    final user = appAuth.currentUser;
-    if (user == null) return false;
+  Future<bool> hasMigrationAccess() async =>
+      (await _administrativeAccess())['migration'] == true;
 
-    final tokenResult = await user.getIdTokenResult(true);
-    if (tokenResult.claims?['admin'] == true) return true;
-
-    final snap = await _db.collection('users').doc(user.uid).get();
-    if (!snap.exists) return false;
-    return (snap.data() as Map<String, dynamic>)['rank'] == 'GRANDMASTER';
-  }
+  Future<bool> isFounder() async =>
+      (await _administrativeAccess())['admin'] == true;
 
   // УДАЛЕНИЕ ЛЮБОГО СПОРА (ВЛАСТЬ АДМИНА)
   Future<void> deleteDebate(String debateId) async {

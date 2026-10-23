@@ -613,4 +613,31 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get testProfileSwitchFailed => 'Не удалось переключить профиль. Проверьте соединение и попробуйте снова.';
+
+  @override
+  String get aiJudgeLoading => 'Судья анализирует дебаты…';
+
+  @override
+  String get messageSendFailed => 'Не удалось отправить сообщение. Попробуйте ещё раз.';
+
+  @override
+  String get aiVerdictTitle => 'Вердикт ИИ';
+
+  @override
+  String get aiJudgeNotConfigured => 'Судейство ИИ пока не настроено.';
+
+  @override
+  String get aiJudgeInsufficientContent => 'Недостаточно содержательных сообщений для вердикта ИИ.';
+
+  @override
+  String get aiJudgeUnavailable => 'Вердикт ИИ недоступен. Попробуйте позже.';
+
+  @override
+  String get publicIdPending => 'Публичный ID подготавливается';
+
+  @override
+  String get voteTotalsUnavailable => 'Обновление голосов временно недоступно.';
+
+  @override
+  String get voteSendFailed => 'Не удалось подтвердить голос. Попробуйте ещё раз.';
 }

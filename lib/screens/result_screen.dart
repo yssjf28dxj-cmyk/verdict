@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -53,60 +54,66 @@ class _ResultScreenState extends State<ResultScreen> {
     super.dispose();
   }
 
-  // Idempotent: calls finalizeBattle once, then streams for the written result.
+  // One request per screen; spectators only observe the protected result.
   void _maybeRequestAiVerdict(Map<String, dynamic> data) {
     if (_didRequestAi) return;
     _didRequestAi = true;
 
-    // Already judged — show immediately without calling CF.
-    final existing = data['aiResult'];
-    if (existing is Map) {
-      _aiResult.value = Map<String, dynamic>.from(existing);
-      return;
+    final uid = appAuth.currentUser?.uid ?? '';
+    final mayRequest = uid.isNotEmpty &&
+        [data['fighter1'], data['fighter2']].contains(uid);
+    _aiLoading.value = mayRequest;
+    if (!mayRequest) {
+      _aiResult.value = {'error': true, 'reason': 'unavailable'};
     }
 
-    _aiLoading.value = true;
+    void resolve(Map<String, dynamic> result) {
+      if (!mounted) return;
+      _aiTimeoutTimer?.cancel();
+      _aiSub?.cancel();
+      _aiResult.value = result;
+      _aiLoading.value = false;
+    }
 
-    // Fire-and-forget — stream catches the Firestore write regardless of
-    // whether the CF response arrives (handles network drops cleanly).
-    unawaited(() async {
-      try {
-        await appFunctions
-            .httpsCallable('finalizeBattle')
-            .call({'debateId': widget.debateId});
-      } catch (e) {
-        // FINALIZE_ALREADY_JUDGED is expected on re-entry — stream handles it.
-        debugPrint('[AI Judge] finalizeBattle: $e');
-      }
-    }());
-
-    // Stream on the debate doc — stops as soon as aiResult appears.
     _aiSub = appFirestore
         .collection('debates')
         .doc(widget.debateId)
+        .collection('private_state')
+        .doc('judgement')
         .snapshots()
         .listen((snap) {
-      final d = snap.data();
-      if (d == null) return;
-      final aiData = d['aiResult'];
-      if (aiData is Map) {
-        _aiTimeoutTimer?.cancel();
-        if (mounted) {
-          _aiResult.value = Map<String, dynamic>.from(aiData);
-          _aiLoading.value = false;
-        }
-        _aiSub?.cancel();
-      }
+      final result = snap.data()?['aiResult'];
+      if (result is Map) resolve(Map<String, dynamic>.from(result));
+    }, onError: (Object _) {
+      resolve({'error': true, 'reason': 'unavailable'});
     });
 
-    // Fallback: if AI result doesn't arrive within 15s, show error card.
-    _aiTimeoutTimer = Timer(const Duration(seconds: 15), () {
-      if (!mounted) return;
-      if (_aiResult.value != null) return; // already resolved
-      _aiSub?.cancel();
-      _aiResult.value = {'error': true, 'reason': 'timeout'};
-      _aiLoading.value = false;
+    if (!mayRequest) return;
+    _aiTimeoutTimer = Timer(const Duration(seconds: 30), () {
+      resolve({'error': true, 'reason': 'timeout'});
     });
+    unawaited(() async {
+      try {
+        final response = await appFunctions.httpsCallable('finalizeBattle',
+          options: HttpsCallableOptions(timeout: const Duration(seconds: 30)),
+        ).call({'debateId': widget.debateId});
+        final payload = response.data;
+        final result = payload is Map ? payload['aiResult'] : null;
+        if (result is Map) resolve(Map<String, dynamic>.from(result));
+      } on FirebaseFunctionsException catch (error) {
+        final details = error.details;
+        final reason = details is Map ? details['reason']?.toString() : null;
+        // The other participant may own the short server judging lease.
+        if (error.code == 'already-exists' || reason == 'FINALIZE_IN_PROGRESS') return;
+        if (!mounted) return;
+        if (_aiResult.value != null && _aiResult.value!['error'] != true) return;
+        resolve({'error': true, 'reason': reason == 'FINALIZE_NO_API_KEY' ? 'not_configured' : 'unavailable'});
+      } catch (_) {
+        if (!mounted) return;
+        if (_aiResult.value != null && _aiResult.value!['error'] != true) return;
+        resolve({'error': true, 'reason': 'unavailable'});
+      }
+    }());
   }
 
   int _asInt(dynamic value) {
@@ -449,11 +456,11 @@ class _ResultScreenState extends State<ResultScreen> {
                             valueListenable: _aiLoading,
                             builder: (context, loading, _) {
                               if (!loading) return const SizedBox.shrink();
-                              return const GlassCard(
+                              return GlassCard(
                                 child: Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    SizedBox(
+                                    const SizedBox(
                                       width: 18,
                                       height: 18,
                                       child: CircularProgressIndicator(
@@ -461,10 +468,10 @@ class _ResultScreenState extends State<ResultScreen> {
                                         color: Color(0xFFFFA500),
                                       ),
                                     ),
-                                    SizedBox(width: 10),
+                                    const SizedBox(width: 10),
                                     Text(
-                                      'Судья анализирует...',
-                                      style: TextStyle(
+                                      l10n.aiJudgeLoading,
+                                      style: const TextStyle(
                                         color: Colors.white70,
                                         fontSize: 13,
                                         fontWeight: FontWeight.w600,
