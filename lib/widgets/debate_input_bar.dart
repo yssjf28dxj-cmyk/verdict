@@ -19,6 +19,7 @@ import 'package:audio_waveforms/audio_waveforms.dart';
 
 class DebateInputBar extends StatelessWidget {
   final bool isMyTurn;
+  final bool canSendText;
   final bool isSendingMessage;
   final bool isUploading;
   final bool isRecording;
@@ -44,6 +45,7 @@ class DebateInputBar extends StatelessWidget {
   const DebateInputBar({
     super.key,
     required this.isMyTurn,
+    this.canSendText = true,
     required this.isSendingMessage,
     required this.isUploading,
     required this.isRecording,
@@ -80,6 +82,7 @@ class DebateInputBar extends StatelessWidget {
     // replacing the send button — yield remains accessible (Policy B).
     return _NormalInputBar(
       isMyTurn: isMyTurn,
+      canSendText: canSendText,
       isSending: isSendingMessage,
       isUploading: isUploading,
       yieldAvailable: _yieldAvailable,
@@ -99,6 +102,7 @@ class DebateInputBar extends StatelessWidget {
 
 class _NormalInputBar extends StatefulWidget {
   final bool isMyTurn;
+  final bool canSendText;
   final bool isSending;
   final bool isUploading;
   final bool yieldAvailable;
@@ -113,6 +117,7 @@ class _NormalInputBar extends StatefulWidget {
 
   const _NormalInputBar({
     required this.isMyTurn,
+    this.canSendText = true,
     required this.isSending,
     required this.isUploading,
     required this.yieldAvailable,
@@ -160,6 +165,7 @@ class _NormalInputBarState extends State<_NormalInputBar> {
     final l10n = AppLocalizations.of(context)!;
     // Uploading locks gallery/mic/send but not yield (Policy B).
     final canAct = widget.isMyTurn && !widget.isSending && !widget.isUploading;
+    final canSendText = canAct && widget.canSendText;
 
     return Row(
       children: [
@@ -208,12 +214,12 @@ class _NormalInputBarState extends State<_NormalInputBar> {
             // only the AnimatedContainer decoration updates.
             child: TextField(
               controller: widget.textController,
-              enabled: widget.isMyTurn,
+              enabled: widget.isMyTurn && widget.canSendText,
               minLines: 1,
               maxLines: 4,
               textInputAction: TextInputAction.send,
               onSubmitted: (_) {
-                if (canAct) widget.onSend();
+                if (canSendText) widget.onSend();
               },
               decoration: InputDecoration(
                 hintText: widget.isMyTurn
@@ -297,8 +303,8 @@ class _NormalInputBarState extends State<_NormalInputBar> {
           )
         else
           _SendButton(
-            enabled: canAct,
-            onTap: canAct ? widget.onSend : null,
+            enabled: canSendText,
+            onTap: canSendText ? widget.onSend : null,
           ),
       ],
     );

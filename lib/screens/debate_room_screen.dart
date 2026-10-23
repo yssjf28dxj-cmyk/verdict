@@ -107,6 +107,12 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
   Timer? _activityClearTimer;
 
   Debate? _debate;
+  bool _roomStateConfirmed = false;
+  int _roomListenEpoch = 0;
+  int _roomSnapshotRevision = 0;
+  int _roomRefreshEpoch = 0;
+  int _confirmedRound = 0;
+  bool _confirmedFinished = false;
 
   VoteTotals? _liveVoteTotals;
   bool _usesVoteTallies = false;
@@ -466,7 +472,16 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _roomVisible = state == AppLifecycleState.resumed;
-    if (_roomVisible) { _heartbeat(); } else { _heartbeat(present: false); }
+    _roomRefreshEpoch++;
+    _roomStateConfirmed = false;
+    if (_roomVisible) {
+      _timeLeftNotifier.value = _remainingSecondsFromRoundEnd();
+      if (_debateSub != null) unawaited(_refreshRoomFromServer());
+      _heartbeat();
+    } else {
+      _heartbeat(present: false);
+    }
+    if (mounted) setState(() {});
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive) {
       if (_isRecording) {
@@ -684,11 +699,18 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
       return;
     }
 
+    _roomStateConfirmed = !snap.metadata.isFromCache && !snap.metadata.hasPendingWrites;
     _debate = Debate.fromMap(widget.debateId, data);
+    if (_roomStateConfirmed) {
+      _confirmedRound = roundIndex;
+      _confirmedFinished = status == 'finished';
+    }
     _syncVoteTallies(data);
 
     await _hydrateUserNameFromFirestore();
+    if (!mounted) return;
     await _hydrateFighterNamesFromUsers();
+    if (!mounted) return;
 
     _syncRoundCountdownFromData(data, status);
     if (status == 'active') {
@@ -709,7 +731,48 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
       await _attemptAdvanceRoundOrFinish();
     }
 
-    _debateSub = ref.snapshots().listen((doc) {
+    if (!mounted) return;
+    _subscribeToDebate(ref);
+  }
+
+  void _subscribeToDebate(DocumentReference<Map<String, dynamic>> ref) {
+    final epoch = ++_roomListenEpoch;
+    _debateSub?.cancel();
+    _debateSubFirstEvent = true;
+    _debateSub = ref.snapshots(includeMetadataChanges: true).listen((doc) {
+      if (!mounted || epoch != _roomListenEpoch) return;
+      _applyRoomSnapshot(doc);
+    }, onError: (_) {
+      if (!mounted || epoch != _roomListenEpoch) return;
+      _roomStateConfirmed = false;
+      _handleAccessDeniedAndExit();
+    });
+  }
+
+  Future<void> _refreshRoomFromServer() async {
+    final epoch = _roomListenEpoch;
+    final revision = _roomSnapshotRevision;
+    final refreshEpoch = _roomRefreshEpoch;
+    try {
+      final snapshot = await appFirestore.collection('debates').doc(widget.debateId)
+          .get(const GetOptions(source: Source.server)).timeout(const Duration(seconds: 12));
+      if (!mounted || epoch != _roomListenEpoch || !_roomVisible ||
+          revision != _roomSnapshotRevision || refreshEpoch != _roomRefreshEpoch) {
+        return;
+      }
+      _applyRoomSnapshot(snapshot);
+    } catch (_) {
+      // Reconnect failure is not surrender. Keep the draft and wait for stream confirmation.
+    }
+  }
+
+  void _applyRoomSnapshot(DocumentSnapshot<Map<String, dynamic>> doc) {
+      // Cached/local events are previews, never confirmation of a current turn.
+      if (doc.metadata.isFromCache || doc.metadata.hasPendingWrites) {
+        _roomSnapshotRevision++;
+        setState(() => _roomStateConfirmed = false);
+        return;
+      }
       final liveData = doc.data() ?? {};
       final previousRound = roundIndex;
       final previousStatus = status;
@@ -724,6 +787,15 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
 
       final newStatus = _normalizeStatus(liveData['status'] ?? status,
           fallback: status == 'finished' ? 'finished' : 'waiting');
+      final incomingRound = liveData['roundIndex'];
+      if ((incomingRound is num && incomingRound < _confirmedRound) ||
+          (_confirmedFinished && newStatus != 'finished')) {
+        return;
+      }
+      _roomStateConfirmed = true;
+      _roomSnapshotRevision++;
+      if (incomingRound is num) _confirmedRound = incomingRound.toInt();
+      _confirmedFinished = newStatus == 'finished';
       _syncRoundCountdownFromData(liveData, newStatus);
 
       // Listener for active speaker's activity
@@ -827,9 +899,6 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
         movedToResult = true;
         context.replace('/result/${widget.debateId}');
       }
-    }, onError: (_) {
-      _handleAccessDeniedAndExit();
-    });
   }
 
   String get _effectiveCurrentUid {
@@ -962,6 +1031,9 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
       }
     }
   }
+
+  bool get canSendText => _roomVisible && _roomStateConfirmed &&
+      _remainingSecondsFromRoundEnd() > 0 && isMyTurn;
 
   bool get isMyTurn {
     if (!isFighter) return false;
@@ -1415,7 +1487,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
     if (text.isEmpty) return;
     if (!isFighter) return;
     if (status == 'finished') return;
-    if (!isMyTurn) {
+    if (!canSendText) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.notYourTurn)),
@@ -1732,6 +1804,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
     _typingDebouncer?.cancel();
     _activityClearTimer?.cancel();
     _overlayTimer?.cancel();
+    _roomListenEpoch++;
     _debateSub?.cancel();
     _voteTalliesSub?.cancel();
     _voteStatusRequestToken++;
@@ -2014,6 +2087,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
                           padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
                           child: DebateInputBar(
                             isMyTurn: isMyTurn,
+                            canSendText: canSendText,
                             isSendingMessage: _isSendingMessage,
                             isUploading: _isUploadingMedia,
                             isRecording: _isRecording,
