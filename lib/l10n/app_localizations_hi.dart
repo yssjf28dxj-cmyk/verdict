@@ -820,4 +820,22 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get debateHistoryError => 'इतिहास लोड नहीं हो सका। कनेक्शन जाँचें और फिर प्रयास करें।';
+
+  @override
+  String get reactionsTitle => 'प्रतिक्रियाएँ';
+
+  @override
+  String get reactionStrong => 'मज़बूत तर्क';
+
+  @override
+  String get reactionSource => 'स्रोत चाहिए';
+
+  @override
+  String get reactionsHint => 'दर्शकों की प्रतिक्रियाएँ वोट या बहस का परिणाम नहीं बदलतीं।';
+
+  @override
+  String get reactionsReadOnly => 'प्रतिभागी प्रतिक्रियाएँ देख सकते हैं। दर्शक लाइव बहस के दौरान प्रतिक्रिया दे सकते हैं।';
+
+  @override
+  String get reactionFailed => 'प्रतिक्रियाएँ अपडेट नहीं हो सकीं। कनेक्शन जाँचें और फिर प्रयास करें।';
 }

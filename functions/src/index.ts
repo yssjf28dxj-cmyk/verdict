@@ -9,6 +9,7 @@ import { createAiJudgeController } from './ai_judgement';
 import { createProfileIdentityController } from './profile_identity';
 import { createLiveMediaController, createPresenceController } from './live_experience';
 import { createRematchController } from './rematches';
+import { createMessageReactionController } from './message_reactions';
 import { buildWaitingDebate, ALLOWED_DURATIONS, ALLOWED_ROUNDS, TERMS_POLICY_VERSION } from './domain/debate/waiting';
 import { countStoredVotes } from './domain/debate/votes';
 import { createHash } from 'node:crypto';
@@ -1148,6 +1149,12 @@ export const sendLiveMedia = onCall({ invoker: 'public', memory: '512MiB', concu
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError('unauthenticated', 'Требуется авторизация.');
   return liveMedia(uid, request.data ?? {});
+});
+const messageReactions = createMessageReactionController(db, canUserReadDebate);
+export const setMessageReaction = onCall({ invoker: 'public' }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Authentication required.');
+  return messageReactions(uid, request.data ?? {});
 });
 const presence = createPresenceController(db, canUserReadDebate);
 export const heartbeatDebateViewer = onCall({ invoker: 'public' }, async (request) => {

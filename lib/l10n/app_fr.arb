@@ -275,5 +275,11 @@
   "liveStatus": "En direct",
   "historyEmpty": "Aucun débat correspondant dans l’historique chargé.",
   "debateHistoryTitle": "Historique des débats",
-  "debateHistoryError": "Impossible de charger l’historique. Vérifiez la connexion et réessayez."
+  "debateHistoryError": "Impossible de charger l’historique. Vérifiez la connexion et réessayez.",
+  "reactionsTitle": "Réactions",
+  "reactionStrong": "Argument solide",
+  "reactionSource": "Source nécessaire",
+  "reactionsHint": "Les réactions du public ne changent ni les votes ni le résultat.",
+  "reactionsReadOnly": "Les participants peuvent voir les réactions. Le public peut réagir pendant le débat en direct.",
+  "reactionFailed": "Impossible de mettre à jour les réactions. Vérifiez la connexion et réessayez."
 }

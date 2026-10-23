@@ -176,6 +176,20 @@ service cloud.firestore {
         allow create: if false;
         allow update: if false;
         allow delete: if false;
+
+        // Counts follow transcript access. Individual choices belong to their
+        // owner, and no client may write counters or another spectator's state.
+        match /reaction_tallies/{shardId} {
+          allow read: if exists(/databases/$(database)/documents/debates/$(debateId)/messages/$(messageId))
+            && canReadDebateMessagesByData(get(/databases/$(database)/documents/debates/$(debateId)).data);
+          allow write: if false;
+        }
+        match /reactions/{uid} {
+          allow read: if isSignedIn() && request.auth.uid == uid
+            && exists(/databases/$(database)/documents/debates/$(debateId)/messages/$(messageId))
+            && canReadDebateMessagesByData(get(/databases/$(database)/documents/debates/$(debateId)).data);
+          allow write: if false;
+        }
       }
 
       // Ephemeral typing/recording status: only the current fighter may

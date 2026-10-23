@@ -820,4 +820,22 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get debateHistoryError => 'Could not load history. Check your connection and retry.';
+
+  @override
+  String get reactionsTitle => 'Reactions';
+
+  @override
+  String get reactionStrong => 'Strong argument';
+
+  @override
+  String get reactionSource => 'Source needed';
+
+  @override
+  String get reactionsHint => 'Spectator reactions do not change votes or the battle result.';
+
+  @override
+  String get reactionsReadOnly => 'Fighters can view reactions. Spectators can react while the battle is live.';
+
+  @override
+  String get reactionFailed => 'Could not update reactions. Check your connection and retry.';
 }

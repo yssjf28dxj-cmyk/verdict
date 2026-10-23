@@ -275,5 +275,11 @@
   "liveStatus": "进行中",
   "historyEmpty": "已加载的历史中没有符合筛选条件的辩论。",
   "debateHistoryTitle": "辩论历史",
-  "debateHistoryError": "无法加载历史。请检查连接后重试。"
+  "debateHistoryError": "无法加载历史。请检查连接后重试。",
+  "reactionsTitle": "回应",
+  "reactionStrong": "有力的论点",
+  "reactionSource": "需要来源",
+  "reactionsHint": "观众回应不会改变票数或辩论结果。",
+  "reactionsReadOnly": "参赛者可以查看回应。观众可在辩论进行时回应。",
+  "reactionFailed": "无法更新回应。请检查连接后重试。"
 }

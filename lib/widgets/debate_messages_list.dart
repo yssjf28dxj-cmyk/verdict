@@ -1,4 +1,5 @@
 import 'pending_media_bubble.dart';
+import 'message_reaction_panel.dart';
 import 'package:verdict/firebase_session.dart';
 import 'package:verdict/firestore_database.dart';
 
@@ -419,6 +420,8 @@ class _DebateMessagesListState extends State<DebateMessagesList> {
                 ),
               ),
               tappableBubble,
+              if (testProfilesEnabled && currentUid.isNotEmpty)
+                MessageReactionButton(debateId: widget.debateId, messageId: messageId),
             ],
           ),
         ),

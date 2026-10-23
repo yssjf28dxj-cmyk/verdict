@@ -820,4 +820,22 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get debateHistoryError => '无法加载历史。请检查连接后重试。';
+
+  @override
+  String get reactionsTitle => '回应';
+
+  @override
+  String get reactionStrong => '有力的论点';
+
+  @override
+  String get reactionSource => '需要来源';
+
+  @override
+  String get reactionsHint => '观众回应不会改变票数或辩论结果。';
+
+  @override
+  String get reactionsReadOnly => '参赛者可以查看回应。观众可在辩论进行时回应。';
+
+  @override
+  String get reactionFailed => '无法更新回应。请检查连接后重试。';
 }

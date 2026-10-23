@@ -275,5 +275,11 @@
   "liveStatus": "En directo",
   "historyEmpty": "No hay debates coincidentes en el historial cargado.",
   "debateHistoryTitle": "Historial de debates",
-  "debateHistoryError": "No se pudo cargar el historial. Revisa la conexión y reintenta."
+  "debateHistoryError": "No se pudo cargar el historial. Revisa la conexión y reintenta.",
+  "reactionsTitle": "Reacciones",
+  "reactionStrong": "Argumento sólido",
+  "reactionSource": "Falta una fuente",
+  "reactionsHint": "Las reacciones del público no cambian los votos ni el resultado.",
+  "reactionsReadOnly": "Los participantes pueden ver las reacciones. El público puede reaccionar durante el debate en directo.",
+  "reactionFailed": "No se pudieron actualizar las reacciones. Revisa la conexión y reintenta."
 }

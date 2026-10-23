@@ -275,5 +275,11 @@
   "liveStatus": "Live",
   "historyEmpty": "No matching debates in the loaded history.",
   "debateHistoryTitle": "Debate history",
-  "debateHistoryError": "Could not load history. Check your connection and retry."
+  "debateHistoryError": "Could not load history. Check your connection and retry.",
+  "reactionsTitle": "Reactions",
+  "reactionStrong": "Strong argument",
+  "reactionSource": "Source needed",
+  "reactionsHint": "Spectator reactions do not change votes or the battle result.",
+  "reactionsReadOnly": "Fighters can view reactions. Spectators can react while the battle is live.",
+  "reactionFailed": "Could not update reactions. Check your connection and retry."
 }

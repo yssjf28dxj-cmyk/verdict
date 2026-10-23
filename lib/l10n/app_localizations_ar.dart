@@ -820,4 +820,22 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get debateHistoryError => 'تعذر تحميل السجل. تحقق من الاتصال وأعد المحاولة.';
+
+  @override
+  String get reactionsTitle => 'التفاعلات';
+
+  @override
+  String get reactionStrong => 'حجة قوية';
+
+  @override
+  String get reactionSource => 'مطلوب مصدر';
+
+  @override
+  String get reactionsHint => 'تفاعلات المشاهدين لا تغيّر الأصوات أو نتيجة المناظرة.';
+
+  @override
+  String get reactionsReadOnly => 'يمكن للمشاركين مشاهدة التفاعلات. يمكن للمشاهدين التفاعل أثناء المناظرة المباشرة.';
+
+  @override
+  String get reactionFailed => 'تعذر تحديث التفاعلات. تحقق من الاتصال وأعد المحاولة.';
 }

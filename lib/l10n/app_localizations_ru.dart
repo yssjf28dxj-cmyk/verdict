@@ -820,4 +820,22 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get debateHistoryError => 'Не удалось загрузить историю. Проверьте соединение и повторите.';
+
+  @override
+  String get reactionsTitle => 'Реакции';
+
+  @override
+  String get reactionStrong => 'Сильный аргумент';
+
+  @override
+  String get reactionSource => 'Нужен источник';
+
+  @override
+  String get reactionsHint => 'Реакции зрителей не влияют на голоса и результат боя.';
+
+  @override
+  String get reactionsReadOnly => 'Участники могут смотреть реакции. Новые реакции доступны зрителям во время боя.';
+
+  @override
+  String get reactionFailed => 'Не удалось обновить реакции. Проверьте соединение и повторите.';
 }

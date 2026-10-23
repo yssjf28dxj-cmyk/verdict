@@ -1718,6 +1718,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could not load history. Check your connection and retry.'**
   String get debateHistoryError;
+
+  /// No description provided for @reactionsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Reactions'**
+  String get reactionsTitle;
+
+  /// No description provided for @reactionStrong.
+  ///
+  /// In en, this message translates to:
+  /// **'Strong argument'**
+  String get reactionStrong;
+
+  /// No description provided for @reactionSource.
+  ///
+  /// In en, this message translates to:
+  /// **'Source needed'**
+  String get reactionSource;
+
+  /// No description provided for @reactionsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Spectator reactions do not change votes or the battle result.'**
+  String get reactionsHint;
+
+  /// No description provided for @reactionsReadOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Fighters can view reactions. Spectators can react while the battle is live.'**
+  String get reactionsReadOnly;
+
+  /// No description provided for @reactionFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not update reactions. Check your connection and retry.'**
+  String get reactionFailed;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

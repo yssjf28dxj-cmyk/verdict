@@ -820,4 +820,22 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get debateHistoryError => 'No se pudo cargar el historial. Revisa la conexión y reintenta.';
+
+  @override
+  String get reactionsTitle => 'Reacciones';
+
+  @override
+  String get reactionStrong => 'Argumento sólido';
+
+  @override
+  String get reactionSource => 'Falta una fuente';
+
+  @override
+  String get reactionsHint => 'Las reacciones del público no cambian los votos ni el resultado.';
+
+  @override
+  String get reactionsReadOnly => 'Los participantes pueden ver las reacciones. El público puede reaccionar durante el debate en directo.';
+
+  @override
+  String get reactionFailed => 'No se pudieron actualizar las reacciones. Revisa la conexión y reintenta.';
 }
