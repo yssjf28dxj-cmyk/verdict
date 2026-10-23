@@ -126,9 +126,15 @@ custom claim. Один только прежний rank=GRANDMASTER больше
   а не доказательство отсутствия любых возможных уязвимостей.
 - Официальное discovery SDK сформировало 28 endpoints; парсер используемого
   Firebase CLI 14.27 принял манифест, именованную базу и приватную task-функцию.
-- CI проверен actionlint; фактический запуск на GitHub отмечается отдельно.
+- CI проверен actionlint. Получить статус облачного GitHub Actions через API
+  не удалось: API вернул HTTP 403. Локальные прогоны выше подтверждены;
+  успешный облачный CI здесь не заявляется.
 - Тестовый APK: com.example.verdict.test, arm64, versionCode 4004. Подпись
   совпадает с 4003, что позволяет обновление поверх без удаления приложения.
+  SHA256: `0bced3e5f139547a165362d21f16a988f56fe7182aa9a9beaf8684abba796bb6`.
+  [Скачать APK 4004](https://github.com/yssjf28dxj-cmyk/verdict/raw/refs/heads/codex/verdict-test-apk/downloads/VERDICT-Test-4004.apk)
+  после успешного обновления тестового сервера. Размер 101007353 байт.
+  Код APK соответствует коммиту da4669c; последующие изменения отчёта — документация.
 
 Локальные журналы: `/tmp/verdict-node22-final-unit.log`,
 `/tmp/verdict-foundation-sdk14-final.log`, `/tmp/verdict-private-migration-final.log`.
