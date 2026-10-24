@@ -7,6 +7,7 @@ import '../l10n/app_localizations.dart';
 
 import '../painters/chat_pattern_painter.dart';
 import '../services/admin_service.dart';
+import '../widgets/push_settings_card.dart';
 import '../services/app_locale_controller.dart';
 import '../services/sound_service.dart';
 import '../utils/debate_error_mapper.dart';
@@ -398,6 +399,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   children: [
                     _buildTutorialCard(l10n),
                     const SizedBox(height: 14),
+                    if (testProfilesEnabled) const PushSettingsCard(),
                     _buildLanguageCard(l10n),
                     const SizedBox(height: 14),
                     _buildSoundCard(l10n),

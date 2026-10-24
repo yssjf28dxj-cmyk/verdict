@@ -6,6 +6,7 @@ import '../painters/chat_pattern_painter.dart';
 import '../utils/style_utils.dart';
 import '../services/app_locale_controller.dart';
 import '../services/sound_service.dart';
+import '../utils/startup_route.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -47,7 +48,7 @@ class _SplashScreenState extends State<SplashScreen>
 
   void _checkAuth() {
     final user = appAuth.currentUser;
-    if (!mounted) return;
+    if (!mounted || !mayCompleteStartup(GoRouter.of(context))) return;
     if (user != null) {
       if (context.mounted) context.go('/home');
     } else {

@@ -838,4 +838,40 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get reactionFailed => 'Could not update reactions. Check your connection and retry.';
+
+  @override
+  String get pushTitle => 'Notifications';
+
+  @override
+  String get pushHint => 'Challenge accepted, your turn and battle finished. Topics and messages stay off the lock screen.';
+
+  @override
+  String get pushEnable => 'Receive notifications';
+
+  @override
+  String get pushError => 'Could not configure notifications. Check your connection and the permission in device settings.';
+
+  @override
+  String get pushConnectDevice => 'Connect this device';
+
+  @override
+  String get pushInbox => 'Battle events';
+
+  @override
+  String get pushEmpty => 'No notifications yet.';
+
+  @override
+  String get pushExpired => 'Event expired';
+
+  @override
+  String get pushAccepted => 'Challenge accepted';
+
+  @override
+  String get pushTurn => 'Your turn';
+
+  @override
+  String get pushFinished => 'Battle finished';
+
+  @override
+  String get pushOpen => 'Open';
 }

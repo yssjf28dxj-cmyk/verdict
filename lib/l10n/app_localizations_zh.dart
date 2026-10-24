@@ -838,4 +838,40 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get reactionFailed => '无法更新回应。请检查连接后重试。';
+
+  @override
+  String get pushTitle => '通知';
+
+  @override
+  String get pushHint => '挑战已接受、轮到你了和辩论结束。锁屏不会显示主题和消息。';
+
+  @override
+  String get pushEnable => '接收通知';
+
+  @override
+  String get pushError => '无法设置通知。请检查网络连接及设备设置中的通知权限。';
+
+  @override
+  String get pushConnectDevice => '连接此设备';
+
+  @override
+  String get pushInbox => '辩论动态';
+
+  @override
+  String get pushEmpty => '暂无通知。';
+
+  @override
+  String get pushExpired => '动态已过期';
+
+  @override
+  String get pushAccepted => '挑战已接受';
+
+  @override
+  String get pushTurn => '轮到你了';
+
+  @override
+  String get pushFinished => '辩论已结束';
+
+  @override
+  String get pushOpen => '打开';
 }

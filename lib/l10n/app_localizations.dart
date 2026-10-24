@@ -1754,6 +1754,78 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could not update reactions. Check your connection and retry.'**
   String get reactionFailed;
+
+  /// No description provided for @pushTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications'**
+  String get pushTitle;
+
+  /// No description provided for @pushHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Challenge accepted, your turn and battle finished. Topics and messages stay off the lock screen.'**
+  String get pushHint;
+
+  /// No description provided for @pushEnable.
+  ///
+  /// In en, this message translates to:
+  /// **'Receive notifications'**
+  String get pushEnable;
+
+  /// No description provided for @pushError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not configure notifications. Check your connection and the permission in device settings.'**
+  String get pushError;
+
+  /// No description provided for @pushConnectDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect this device'**
+  String get pushConnectDevice;
+
+  /// No description provided for @pushInbox.
+  ///
+  /// In en, this message translates to:
+  /// **'Battle events'**
+  String get pushInbox;
+
+  /// No description provided for @pushEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No notifications yet.'**
+  String get pushEmpty;
+
+  /// No description provided for @pushExpired.
+  ///
+  /// In en, this message translates to:
+  /// **'Event expired'**
+  String get pushExpired;
+
+  /// No description provided for @pushAccepted.
+  ///
+  /// In en, this message translates to:
+  /// **'Challenge accepted'**
+  String get pushAccepted;
+
+  /// No description provided for @pushTurn.
+  ///
+  /// In en, this message translates to:
+  /// **'Your turn'**
+  String get pushTurn;
+
+  /// No description provided for @pushFinished.
+  ///
+  /// In en, this message translates to:
+  /// **'Battle finished'**
+  String get pushFinished;
+
+  /// No description provided for @pushOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Open'**
+  String get pushOpen;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

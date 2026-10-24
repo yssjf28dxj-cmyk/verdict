@@ -1,4 +1,6 @@
 import { createTextMessageController } from './text_messages';
+import { createPushController } from './push_notifications';
+import { getMessaging } from 'firebase-admin/messaging';
 import { initializeApp, getApp } from 'firebase-admin/app';
 import { getStorage } from 'firebase-admin/storage';
 import * as firestore from 'firebase-admin/firestore';
@@ -2487,3 +2489,27 @@ export const scheduleDebateTurnDeadline = onDocumentWritten({
     event.params.debateId, event.data?.before.data(), event.data?.after.data(),
   );
 });
+
+// Test-only until Android/iOS acceptance; no production delivery is enabled.
+const pushNotifications = createPushController(db, messages => getMessaging().sendEach(messages));
+export const configurePushNotifications = onCall({ invoker: 'public', omit: !preciseDeadlinesEnabled }, async request => {
+  if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Authentication required.');
+  return pushNotifications.configure(request.auth.uid, request.data ?? {});
+});
+export const registerPushDevice = onCall({ invoker: 'public', omit: !preciseDeadlinesEnabled }, async request => {
+  if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Authentication required.');
+  return pushNotifications.register(request.auth.uid, request.data ?? {});
+});
+export const unregisterPushDevice = onCall({ invoker: 'public', omit: !preciseDeadlinesEnabled }, async request => {
+  if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Authentication required.');
+  return pushNotifications.unregister(request.auth.uid, request.data ?? {});
+});
+export const queueDebateNotifications = onDocumentWritten({
+  document: 'debates/{debateId}', database: databaseId, retry: true, omit: !preciseDeadlinesEnabled,
+}, async event => {
+  await pushNotifications.enqueue(event.params.debateId, event.data?.before.data(), event.data?.after.data(), Date.parse(event.time));
+});
+export const deliverDebateNotification = onDocumentCreated({
+  document: 'server_notification_outbox/{notificationId}', database: databaseId, retry: true,
+  timeoutSeconds: 60, omit: !preciseDeadlinesEnabled,
+}, async event => { await pushNotifications.deliver(event.params.notificationId); });

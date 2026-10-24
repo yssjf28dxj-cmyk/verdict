@@ -9,6 +9,7 @@ import '../screens/leaderboard_screen.dart';
 import '../screens/lobby_screen.dart';
 import '../screens/profile_history_screen.dart';
 import '../screens/saved_debates_screen.dart';
+import '../screens/notifications_screen.dart';
 import '../screens/profile_screen.dart';
 import '../screens/public_profile_screen.dart';
 import '../screens/result_screen.dart';
@@ -123,6 +124,7 @@ GoRouter createAppRouter() => GoRouter(
         );
       },
     ),
+    if (testProfilesEnabled) GoRoute(path: '/notifications', builder: (context, state) => const NotificationsScreen()),
     if (testProfilesEnabled) GoRoute(path: '/saved-debates', builder: (context, state) => const SavedDebatesScreen()),
     GoRoute(
       path: '/profile-history',

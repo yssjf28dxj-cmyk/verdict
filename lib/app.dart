@@ -6,6 +6,10 @@ import 'l10n/app_localizations.dart';
 import 'utils/router.dart';
 import 'services/app_locale_controller.dart';
 import 'widgets/pending_debate_banner.dart';
+import 'services/push_coordinator.dart';
+import 'screens/notifications_screen.dart';
+import 'firebase_session.dart';
+import 'utils/push_destination.dart';
 
 class VerdictApp extends StatefulWidget {
   final ThemeData theme;
@@ -25,7 +29,27 @@ class _VerdictAppState extends State<VerdictApp> {
   late final GoRouter _router = createAppRouter();
 
   @override
+  void initState() {
+    super.initState();
+    pushCoordinator.onOpen = (target) {
+      if (mounted) openPushDestination(_router, target, appAuth.currentUser?.uid);
+    };
+    pushCoordinator.onForeground = (target) {
+      final context = _router.routerDelegate.navigatorKey.currentContext;
+      if (!mounted || context == null || appAuth.currentUser?.uid != target.uid) return;
+      final l10n = AppLocalizations.of(context)!;
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
+        content: Text(pushEventLabel(l10n, target.kind)), duration: const Duration(seconds: 4),
+        action: SnackBarAction(label: l10n.pushOpen, onPressed: () {
+          openPushDestination(_router, target, appAuth.currentUser?.uid);
+        })));
+    };
+    WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) pushCoordinator.start(); });
+  }
+
+  @override
   void dispose() {
+    pushCoordinator.dispose();
     _router.dispose();
     super.dispose();
   }

@@ -838,4 +838,40 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get reactionFailed => 'No se pudieron actualizar las reacciones. Revisa la conexión y reintenta.';
+
+  @override
+  String get pushTitle => 'Notificaciones';
+
+  @override
+  String get pushHint => 'Desafío aceptado, tu turno y fin del debate. Los temas y mensajes no aparecen en la pantalla de bloqueo.';
+
+  @override
+  String get pushEnable => 'Recibir notificaciones';
+
+  @override
+  String get pushError => 'No se pudieron configurar las notificaciones. Revisa la conexión y el permiso en los ajustes del dispositivo.';
+
+  @override
+  String get pushConnectDevice => 'Conectar este dispositivo';
+
+  @override
+  String get pushInbox => 'Eventos del debate';
+
+  @override
+  String get pushEmpty => 'Aún no hay notificaciones.';
+
+  @override
+  String get pushExpired => 'Evento caducado';
+
+  @override
+  String get pushAccepted => 'Desafío aceptado';
+
+  @override
+  String get pushTurn => 'Tu turno';
+
+  @override
+  String get pushFinished => 'Debate terminado';
+
+  @override
+  String get pushOpen => 'Abrir';
 }

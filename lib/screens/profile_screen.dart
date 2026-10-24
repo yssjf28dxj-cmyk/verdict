@@ -7,6 +7,8 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/services.dart';
 import '../l10n/app_localizations.dart';
 import '../models/debate_history_item.dart';
+import '../services/push_coordinator.dart';
+import '../utils/compact_notice.dart';
 import '../utils/rank_utils.dart';
 import 'package:go_router/go_router.dart';
 import '../painters/chat_pattern_painter.dart';
@@ -799,9 +801,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (!mounted) return;
     setState(() => _isSigningOut = true);
     try {
+      await pushCoordinator.beforeSessionChange();
       await appAuth.signOut();
       if (!mounted) return;
       context.go('/auth');
+    } catch (_) {
+      if (mounted) showCompactNotice(context, AppLocalizations.of(context)!.accountActionFailed);
     } finally {
       if (mounted) setState(() => _isSigningOut = false);
     }

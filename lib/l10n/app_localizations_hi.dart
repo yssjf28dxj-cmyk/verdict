@@ -838,4 +838,40 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get reactionFailed => 'प्रतिक्रियाएँ अपडेट नहीं हो सकीं। कनेक्शन जाँचें और फिर प्रयास करें।';
+
+  @override
+  String get pushTitle => 'सूचनाएँ';
+
+  @override
+  String get pushHint => 'चुनौती स्वीकार हुई, आपकी बारी और बहस समाप्त हुई। विषय और संदेश लॉक स्क्रीन पर नहीं दिखते।';
+
+  @override
+  String get pushEnable => 'सूचनाएँ प्राप्त करें';
+
+  @override
+  String get pushError => 'सूचनाएँ सेट नहीं हो सकीं। कनेक्शन और डिवाइस सेटिंग में अनुमति जाँचें।';
+
+  @override
+  String get pushConnectDevice => 'यह डिवाइस जोड़ें';
+
+  @override
+  String get pushInbox => 'बहस की घटनाएँ';
+
+  @override
+  String get pushEmpty => 'अभी कोई सूचना नहीं है।';
+
+  @override
+  String get pushExpired => 'घटना समाप्त हो चुकी है';
+
+  @override
+  String get pushAccepted => 'चुनौती स्वीकार की गई';
+
+  @override
+  String get pushTurn => 'आपकी बारी';
+
+  @override
+  String get pushFinished => 'बहस समाप्त';
+
+  @override
+  String get pushOpen => 'खोलें';
 }

@@ -838,4 +838,40 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get reactionFailed => 'تعذر تحديث التفاعلات. تحقق من الاتصال وأعد المحاولة.';
+
+  @override
+  String get pushTitle => 'الإشعارات';
+
+  @override
+  String get pushHint => 'قبول التحدي ودورك وانتهاء المناظرة. لا تظهر المواضيع والرسائل على شاشة القفل.';
+
+  @override
+  String get pushEnable => 'تلقي الإشعارات';
+
+  @override
+  String get pushError => 'تعذر إعداد الإشعارات. تحقق من الاتصال والإذن في إعدادات الجهاز.';
+
+  @override
+  String get pushConnectDevice => 'ربط هذا الجهاز';
+
+  @override
+  String get pushInbox => 'أحداث المناظرة';
+
+  @override
+  String get pushEmpty => 'لا توجد إشعارات بعد.';
+
+  @override
+  String get pushExpired => 'انتهت صلاحية الحدث';
+
+  @override
+  String get pushAccepted => 'تم قبول التحدي';
+
+  @override
+  String get pushTurn => 'دورك الآن';
+
+  @override
+  String get pushFinished => 'انتهت المناظرة';
+
+  @override
+  String get pushOpen => 'فتح';
 }

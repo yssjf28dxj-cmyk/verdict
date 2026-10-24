@@ -281,5 +281,17 @@
   "reactionSource": "Falta una fuente",
   "reactionsHint": "Las reacciones del público no cambian los votos ni el resultado.",
   "reactionsReadOnly": "Los participantes pueden ver las reacciones. El público puede reaccionar durante el debate en directo.",
-  "reactionFailed": "No se pudieron actualizar las reacciones. Revisa la conexión y reintenta."
+  "reactionFailed": "No se pudieron actualizar las reacciones. Revisa la conexión y reintenta.",
+  "pushTitle": "Notificaciones",
+  "pushHint": "Desafío aceptado, tu turno y fin del debate. Los temas y mensajes no aparecen en la pantalla de bloqueo.",
+  "pushEnable": "Recibir notificaciones",
+  "pushError": "No se pudieron configurar las notificaciones. Revisa la conexión y el permiso en los ajustes del dispositivo.",
+  "pushConnectDevice": "Conectar este dispositivo",
+  "pushInbox": "Eventos del debate",
+  "pushEmpty": "Aún no hay notificaciones.",
+  "pushExpired": "Evento caducado",
+  "pushAccepted": "Desafío aceptado",
+  "pushTurn": "Tu turno",
+  "pushFinished": "Debate terminado",
+  "pushOpen": "Abrir"
 }

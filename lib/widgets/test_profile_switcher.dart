@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../firebase_session.dart';
 import '../l10n/app_localizations.dart';
 import '../services/pending_debate_service.dart';
+import '../services/push_coordinator.dart';
 
 /// Test build only. Switching preserves the Firebase sessions in every slot.
 class TestProfileSwitcher extends StatelessWidget {
@@ -20,6 +21,7 @@ class TestProfileSwitcher extends StatelessWidget {
         onSelected: (slot) async {
           if (slot == testProfiles.selected) return;
           try {
+            await pushCoordinator.beforeSessionChange();
             PendingDebateService.instance.stopWatching();
             await testProfiles.switchTo(slot);
           } catch (_) {

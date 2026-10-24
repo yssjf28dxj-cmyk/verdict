@@ -281,5 +281,17 @@
   "reactionSource": "Source nécessaire",
   "reactionsHint": "Les réactions du public ne changent ni les votes ni le résultat.",
   "reactionsReadOnly": "Les participants peuvent voir les réactions. Le public peut réagir pendant le débat en direct.",
-  "reactionFailed": "Impossible de mettre à jour les réactions. Vérifiez la connexion et réessayez."
+  "reactionFailed": "Impossible de mettre à jour les réactions. Vérifiez la connexion et réessayez.",
+  "pushTitle": "Notifications",
+  "pushHint": "Défi accepté, votre tour et fin du débat. Les sujets et messages restent hors de l’écran verrouillé.",
+  "pushEnable": "Recevoir les notifications",
+  "pushError": "Impossible de configurer les notifications. Vérifiez la connexion et l’autorisation dans les réglages de l’appareil.",
+  "pushConnectDevice": "Connecter cet appareil",
+  "pushInbox": "Événements du débat",
+  "pushEmpty": "Aucune notification.",
+  "pushExpired": "Événement expiré",
+  "pushAccepted": "Défi accepté",
+  "pushTurn": "À vous de jouer",
+  "pushFinished": "Débat terminé",
+  "pushOpen": "Ouvrir"
 }

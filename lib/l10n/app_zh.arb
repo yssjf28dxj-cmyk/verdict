@@ -281,5 +281,17 @@
   "reactionSource": "需要来源",
   "reactionsHint": "观众回应不会改变票数或辩论结果。",
   "reactionsReadOnly": "参赛者可以查看回应。观众可在辩论进行时回应。",
-  "reactionFailed": "无法更新回应。请检查连接后重试。"
+  "reactionFailed": "无法更新回应。请检查连接后重试。",
+  "pushTitle": "通知",
+  "pushHint": "挑战已接受、轮到你了和辩论结束。锁屏不会显示主题和消息。",
+  "pushEnable": "接收通知",
+  "pushError": "无法设置通知。请检查网络连接及设备设置中的通知权限。",
+  "pushConnectDevice": "连接此设备",
+  "pushInbox": "辩论动态",
+  "pushEmpty": "暂无通知。",
+  "pushExpired": "动态已过期",
+  "pushAccepted": "挑战已接受",
+  "pushTurn": "轮到你了",
+  "pushFinished": "辩论已结束",
+  "pushOpen": "打开"
 }

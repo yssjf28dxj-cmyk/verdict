@@ -281,5 +281,17 @@
   "reactionSource": "Source needed",
   "reactionsHint": "Spectator reactions do not change votes or the battle result.",
   "reactionsReadOnly": "Fighters can view reactions. Spectators can react while the battle is live.",
-  "reactionFailed": "Could not update reactions. Check your connection and retry."
+  "reactionFailed": "Could not update reactions. Check your connection and retry.",
+  "pushTitle": "Notifications",
+  "pushHint": "Challenge accepted, your turn and battle finished. Topics and messages stay off the lock screen.",
+  "pushEnable": "Receive notifications",
+  "pushError": "Could not configure notifications. Check your connection and the permission in device settings.",
+  "pushConnectDevice": "Connect this device",
+  "pushInbox": "Battle events",
+  "pushEmpty": "No notifications yet.",
+  "pushExpired": "Event expired",
+  "pushAccepted": "Challenge accepted",
+  "pushTurn": "Your turn",
+  "pushFinished": "Battle finished",
+  "pushOpen": "Open"
 }

@@ -838,4 +838,40 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get reactionFailed => 'Не удалось обновить реакции. Проверьте соединение и повторите.';
+
+  @override
+  String get pushTitle => 'Уведомления';
+
+  @override
+  String get pushHint => 'Вызов принят, ваш ход и завершение боя. Тема и сообщения не показываются на экране блокировки.';
+
+  @override
+  String get pushEnable => 'Получать уведомления';
+
+  @override
+  String get pushError => 'Не удалось настроить уведомления. Проверьте соединение и разрешение в настройках устройства.';
+
+  @override
+  String get pushConnectDevice => 'Подключить на этом устройстве';
+
+  @override
+  String get pushInbox => 'События боя';
+
+  @override
+  String get pushEmpty => 'Уведомлений пока нет.';
+
+  @override
+  String get pushExpired => 'Событие устарело';
+
+  @override
+  String get pushAccepted => 'Вызов принят';
+
+  @override
+  String get pushTurn => 'Ваш ход';
+
+  @override
+  String get pushFinished => 'Бой завершён';
+
+  @override
+  String get pushOpen => 'Открыть';
 }

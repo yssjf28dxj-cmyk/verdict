@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'account_service.dart' show googleLoginAvailable;
+import 'push_coordinator.dart';
 
 class AuthService {
   final FirebaseAuth _auth = appAuth;
@@ -169,6 +170,7 @@ class AuthService {
   }
 
   Future<void> signOut() async {
+    await pushCoordinator.beforeSessionChange();
     try {
       await GoogleSignIn().signOut();
     } catch (_) {}

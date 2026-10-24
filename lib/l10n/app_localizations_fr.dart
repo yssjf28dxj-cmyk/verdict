@@ -838,4 +838,40 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get reactionFailed => 'Impossible de mettre à jour les réactions. Vérifiez la connexion et réessayez.';
+
+  @override
+  String get pushTitle => 'Notifications';
+
+  @override
+  String get pushHint => 'Défi accepté, votre tour et fin du débat. Les sujets et messages restent hors de l’écran verrouillé.';
+
+  @override
+  String get pushEnable => 'Recevoir les notifications';
+
+  @override
+  String get pushError => 'Impossible de configurer les notifications. Vérifiez la connexion et l’autorisation dans les réglages de l’appareil.';
+
+  @override
+  String get pushConnectDevice => 'Connecter cet appareil';
+
+  @override
+  String get pushInbox => 'Événements du débat';
+
+  @override
+  String get pushEmpty => 'Aucune notification.';
+
+  @override
+  String get pushExpired => 'Événement expiré';
+
+  @override
+  String get pushAccepted => 'Défi accepté';
+
+  @override
+  String get pushTurn => 'À vous de jouer';
+
+  @override
+  String get pushFinished => 'Débat terminé';
+
+  @override
+  String get pushOpen => 'Ouvrir';
 }
