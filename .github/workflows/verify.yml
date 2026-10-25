@@ -56,6 +56,8 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+      - name: Check coordinated test release configuration
+        run: node scripts/check-test-release.cjs && node --test tests/release/*.test.cjs
       - name: Install locked Functions dependencies
         run: npm ci --prefix functions
       - name: Build and test Functions

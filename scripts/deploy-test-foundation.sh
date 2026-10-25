@@ -3,6 +3,7 @@
 set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
 PROJECT_ID=verdict-test-1471f
+node scripts/check-test-release.cjs
 REGION=us-central1
 node -e 'if (Number(process.versions.node.split(".")[0]) !== 22) { console.error("Use Node.js 22"); process.exit(1); }'
 gcloud firestore databases describe --database=default --project="$PROJECT_ID" --format='value(name)'
