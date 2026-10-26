@@ -874,4 +874,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get pushOpen => '打开';
+
+  @override
+  String get continueDebate => '继续辩论';
 }

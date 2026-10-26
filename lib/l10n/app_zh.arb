@@ -293,5 +293,6 @@
   "pushAccepted": "挑战已接受",
   "pushTurn": "轮到你了",
   "pushFinished": "辩论已结束",
-  "pushOpen": "打开"
+  "pushOpen": "打开",
+  "continueDebate": "继续辩论"
 }

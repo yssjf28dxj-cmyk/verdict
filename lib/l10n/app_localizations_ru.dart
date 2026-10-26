@@ -874,4 +874,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get pushOpen => 'Открыть';
+
+  @override
+  String get continueDebate => 'Продолжить дебаты';
 }

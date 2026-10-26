@@ -293,5 +293,6 @@
   "pushAccepted": "Challenge accepted",
   "pushTurn": "Your turn",
   "pushFinished": "Battle finished",
-  "pushOpen": "Open"
+  "pushOpen": "Open",
+  "continueDebate": "Continue debate"
 }

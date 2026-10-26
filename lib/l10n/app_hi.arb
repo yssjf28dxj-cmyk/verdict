@@ -293,5 +293,6 @@
   "pushAccepted": "चुनौती स्वीकार की गई",
   "pushTurn": "आपकी बारी",
   "pushFinished": "बहस समाप्त",
-  "pushOpen": "खोलें"
+  "pushOpen": "खोलें",
+  "continueDebate": "डिबेट जारी रखें"
 }

@@ -293,5 +293,6 @@
   "pushAccepted": "Вызов принят",
   "pushTurn": "Ваш ход",
   "pushFinished": "Бой завершён",
-  "pushOpen": "Открыть"
+  "pushOpen": "Открыть",
+  "continueDebate": "Продолжить дебаты"
 }

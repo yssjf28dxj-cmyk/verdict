@@ -293,5 +293,6 @@
   "pushAccepted": "Défi accepté",
   "pushTurn": "À vous de jouer",
   "pushFinished": "Débat terminé",
-  "pushOpen": "Ouvrir"
+  "pushOpen": "Ouvrir",
+  "continueDebate": "Continuer le débat"
 }

@@ -293,5 +293,6 @@
   "pushAccepted": "تم قبول التحدي",
   "pushTurn": "دورك الآن",
   "pushFinished": "انتهت المناظرة",
-  "pushOpen": "فتح"
+  "pushOpen": "فتح",
+  "continueDebate": "متابعة المناظرة"
 }

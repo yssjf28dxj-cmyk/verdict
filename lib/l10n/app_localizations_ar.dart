@@ -874,4 +874,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get pushOpen => 'فتح';
+
+  @override
+  String get continueDebate => 'متابعة المناظرة';
 }

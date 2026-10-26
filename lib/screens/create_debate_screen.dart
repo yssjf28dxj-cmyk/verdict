@@ -1,3 +1,4 @@
+import '../utils/arena_theme.dart';
 import '../services/pending_challenge.dart';
 import 'package:verdict/firebase_session.dart';
 import 'package:flutter/material.dart';
@@ -189,17 +190,8 @@ class _CreateDebateScreenState extends State<CreateDebateScreen> {
     final showInviteField =
         _creationMode == 'direct_invite' || _visibilityMode == 'private';
 
-    final scheme = Theme.of(context).colorScheme.copyWith(
-          primary: const Color(0xFFE6B85C),
-          onPrimary: const Color(0xFF101114),
-          secondaryContainer: const Color(0xFF3A3020),
-          onSecondaryContainer: const Color(0xFFF3D69B),
-          surface: const Color(0xFF191B20),
-          onSurface: const Color(0xFFF3F4F6),
-          outline: const Color(0xFF50545D),
-        );
     return Theme(
-        data: Theme.of(context).copyWith(colorScheme: scheme),
+        data: ArenaTheme.from(Theme.of(context)),
         child: Scaffold(
           backgroundColor: const Color(0xFF101114),
           extendBodyBehindAppBar: true,

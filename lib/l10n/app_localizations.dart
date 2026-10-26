@@ -1826,6 +1826,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Open'**
   String get pushOpen;
+
+  /// No description provided for @continueDebate.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue debate'**
+  String get continueDebate;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

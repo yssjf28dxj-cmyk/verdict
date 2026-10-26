@@ -874,4 +874,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get pushOpen => 'Open';
+
+  @override
+  String get continueDebate => 'Continue debate';
 }

@@ -6,7 +6,8 @@ import '../services/push_coordinator.dart';
 
 /// Test build only. Switching preserves the Firebase sessions in every slot.
 class TestProfileSwitcher extends StatelessWidget {
-  const TestProfileSwitcher({super.key});
+  const TestProfileSwitcher({super.key, this.compact = false});
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -16,7 +17,8 @@ class TestProfileSwitcher extends StatelessWidget {
       listenable: testProfiles,
       builder: (context, _) => PopupMenuButton<int>(
         enabled: !testProfiles.busy,
-        tooltip: l10n.testProfilesTitle,
+        tooltip:
+            '${l10n.testProfilesTitle}: ${l10n.testProfileNumber(testProfiles.selected)}',
         initialValue: testProfiles.selected,
         onSelected: (slot) async {
           if (slot == testProfiles.selected) return;
@@ -43,12 +45,16 @@ class TestProfileSwitcher extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             if (testProfiles.busy)
-              const SizedBox(width: 16, height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2))
+              const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2))
             else
               const Icon(Icons.switch_account_outlined, size: 20),
             const SizedBox(width: 6),
-            Text(l10n.testProfileNumber(testProfiles.selected)),
+            Text(compact
+                ? '${testProfiles.selected}'
+                : l10n.testProfileNumber(testProfiles.selected)),
             const Icon(Icons.arrow_drop_down),
           ]),
         ),
