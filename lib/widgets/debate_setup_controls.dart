@@ -42,23 +42,35 @@ class DebateSetupControls extends StatelessWidget {
           max: 7,
           divisions: 7,
           value: durations.indexOf(duration).clamp(0, 7).toDouble(),
-          label: '$duration s',
-          activeColor: const Color(0xFFFFBE45),
+          label:
+              '${duration ~/ 60}:${(duration % 60).toString().padLeft(2, '0')}',
+          semanticFormatterCallback: (value) {
+            final seconds = durations[value.round()];
+            return '${l10n.roundTimeLabel}: ${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
+          },
+          activeColor: colors.primary,
           onChanged:
               enabled ? (value) => onDuration(durations[value.round()]) : null),
       const SizedBox(height: 12),
       Text(l10n.roundsLabel, style: const TextStyle(color: Colors.white70)),
       const SizedBox(height: 10),
-      SegmentedButton<int>(
-          showSelectedIcon: false,
-          segments: [
-            ButtonSegment(value: 1, label: Text(l10n.oneRound)),
-            ButtonSegment(value: 3, label: Text(l10n.threeRounds)),
-            ButtonSegment(value: 5, label: Text(l10n.fiveRounds)),
-          ],
-          selected: {rounds},
-          onSelectionChanged:
-              enabled ? (value) => onRounds(value.first) : null),
+      Wrap(spacing: 8, runSpacing: 8, children: [
+        for (final option in <int, String>{
+          1: l10n.oneRound,
+          3: l10n.threeRounds,
+          5: l10n.fiveRounds,
+        }.entries)
+          ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 48),
+            child: ChoiceChip(
+              key: ValueKey('rounds-${option.key}'),
+              label: Text(option.value),
+              selected: rounds == option.key,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+              onSelected: enabled ? (_) => onRounds(option.key) : null,
+            ),
+          ),
+      ]),
       const SizedBox(height: 20),
       SwitchListTile.adaptive(
           key: const ValueKey('direct-invite'),
@@ -70,32 +82,23 @@ class DebateSetupControls extends StatelessWidget {
           value: directInvite,
           onChanged: enabled ? onDirectInvite : null),
       const SizedBox(height: 8),
-      SegmentedButton<String>(
-          showSelectedIcon: false,
-          style: ButtonStyle(
-              padding: const WidgetStatePropertyAll(
-                  EdgeInsets.symmetric(horizontal: 6, vertical: 10)),
-              foregroundColor: WidgetStateProperty.resolveWith((states) =>
-                  states.contains(WidgetState.selected)
-                      ? colors.onSecondaryContainer
-                      : Colors.white70)),
-          segments: [
-            ButtonSegment(
-                value: 'public',
-                label: Text(l10n.publicMode,
-                    maxLines: 2, textAlign: TextAlign.center)),
-            ButtonSegment(
-                value: 'request_only',
-                label: Text(l10n.requestOnly,
-                    maxLines: 2, textAlign: TextAlign.center)),
-            ButtonSegment(
-                value: 'private',
-                label: Text(l10n.privateMode,
-                    maxLines: 2, textAlign: TextAlign.center)),
-          ],
-          selected: {visibility},
-          onSelectionChanged:
-              enabled ? (value) => onVisibility(value.first) : null),
+      Wrap(spacing: 8, runSpacing: 8, children: [
+        for (final option in <String, String>{
+          'public': l10n.publicMode,
+          'request_only': l10n.requestOnly,
+          'private': l10n.privateMode,
+        }.entries)
+          ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 48),
+            child: ChoiceChip(
+              key: ValueKey('visibility-${option.key}'),
+              label: Text(option.value),
+              selected: visibility == option.key,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+              onSelected: enabled ? (_) => onVisibility(option.key) : null,
+            ),
+          ),
+      ]),
       const SizedBox(height: 16),
       Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const Icon(Icons.savings_outlined, color: Colors.white54, size: 18),

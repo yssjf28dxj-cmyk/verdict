@@ -72,28 +72,28 @@ class AppLocalizationsRu extends AppLocalizations {
   String get createBattleTitle => 'СОЗДАТЬ БИТВУ';
 
   @override
-  String get debateTopicLabel => 'ТЕМА ДЕБАТОВ';
+  String get debateTopicLabel => 'Тема дебатов';
 
   @override
   String get enterTopic => 'Например: iOS или Android?';
 
   @override
-  String get roundTimeLabel => 'ВРЕМЯ РАУНДА';
+  String get roundTimeLabel => 'Время раунда';
 
   @override
-  String get roundsLabel => 'РАУНДЫ';
+  String get roundsLabel => 'Раунды';
 
   @override
-  String get modesLabel => 'РЕЖИМЫ';
+  String get modesLabel => 'Режимы';
 
   @override
-  String get languageRegionLabel => 'ЯЗЫК И РЕГИОН';
+  String get languageRegionLabel => 'Язык и регион';
 
   @override
   String get welcomeHeadline => 'ДОБРО ПОЖАЛОВАТЬ';
 
   @override
-  String get publishChallenge => 'ОПУБЛИКОВАТЬ ВЫЗОВ';
+  String get publishChallenge => 'Опубликовать вызов';
 
   @override
   String get publicFeed => 'Публичная лента';

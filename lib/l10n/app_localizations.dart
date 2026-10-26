@@ -234,7 +234,7 @@ abstract class AppLocalizations {
   /// No description provided for @debateTopicLabel.
   ///
   /// In en, this message translates to:
-  /// **'DEBATE TOPIC'**
+  /// **'Debate topic'**
   String get debateTopicLabel;
 
   /// No description provided for @enterTopic.
@@ -246,25 +246,25 @@ abstract class AppLocalizations {
   /// No description provided for @roundTimeLabel.
   ///
   /// In en, this message translates to:
-  /// **'ROUND TIME'**
+  /// **'Round time'**
   String get roundTimeLabel;
 
   /// No description provided for @roundsLabel.
   ///
   /// In en, this message translates to:
-  /// **'ROUNDS'**
+  /// **'Rounds'**
   String get roundsLabel;
 
   /// No description provided for @modesLabel.
   ///
   /// In en, this message translates to:
-  /// **'MODES'**
+  /// **'Modes'**
   String get modesLabel;
 
   /// No description provided for @languageRegionLabel.
   ///
   /// In en, this message translates to:
-  /// **'LANGUAGE & REGION'**
+  /// **'Language & region'**
   String get languageRegionLabel;
 
   /// No description provided for @welcomeHeadline.
@@ -276,7 +276,7 @@ abstract class AppLocalizations {
   /// No description provided for @publishChallenge.
   ///
   /// In en, this message translates to:
-  /// **'PUBLISH CHALLENGE'**
+  /// **'Publish challenge'**
   String get publishChallenge;
 
   /// No description provided for @publicFeed.

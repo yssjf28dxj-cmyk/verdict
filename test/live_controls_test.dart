@@ -82,6 +82,36 @@ void main() {
     expect(tester.takeException(), isNull);
   });
   testWidgets(
+      'setup options expose selection and stay disabled while publishing',
+      (tester) async {
+    var calls = 0;
+    await tester.pumpWidget(host(SingleChildScrollView(
+        child: DebateSetupControls(
+            duration: 180,
+            rounds: 3,
+            visibility: 'public',
+            directInvite: false,
+            enabled: false,
+            onDuration: (_) => calls++,
+            onRounds: (_) => calls++,
+            onVisibility: (_) => calls++,
+            onDirectInvite: (_) => calls++))));
+    final selected =
+        tester.widget<ChoiceChip>(find.byKey(const ValueKey('rounds-3')));
+    expect(selected.selected, isTrue);
+    expect(selected.onSelected, isNull);
+    expect(tester.getSize(find.byKey(const ValueKey('rounds-3'))).height,
+        greaterThanOrEqualTo(48));
+    expect(tester.widget<Slider>(find.byType(Slider)).onChanged, isNull);
+    for (final name in ['public', 'request_only', 'private']) {
+      final option = find.byKey(ValueKey('visibility-$name'));
+      await tester.ensureVisible(option);
+      await tester.tap(option);
+      expect(tester.widget<ChoiceChip>(option).onSelected, isNull);
+    }
+    expect(calls, 0);
+  });
+  testWidgets(
       'pending media stays a compact unconfirmed bubble and exposes retry after failure',
       (tester) async {
     var retries = 0;

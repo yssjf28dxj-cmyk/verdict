@@ -72,28 +72,28 @@ class AppLocalizationsEs extends AppLocalizations {
   String get createBattleTitle => 'CREAR BATALLA';
 
   @override
-  String get debateTopicLabel => 'TEMA DEL DEBATE';
+  String get debateTopicLabel => 'Tema del debate';
 
   @override
   String get enterTopic => 'Por ejemplo: iOS o Android?';
 
   @override
-  String get roundTimeLabel => 'TIEMPO DE RONDA';
+  String get roundTimeLabel => 'Tiempo de ronda';
 
   @override
-  String get roundsLabel => 'RONDAS';
+  String get roundsLabel => 'Rondas';
 
   @override
-  String get modesLabel => 'MODOS';
+  String get modesLabel => 'Modos';
 
   @override
-  String get languageRegionLabel => 'IDIOMA Y REGIÓN';
+  String get languageRegionLabel => 'Idioma y región';
 
   @override
   String get welcomeHeadline => 'BIENVENIDO';
 
   @override
-  String get publishChallenge => 'PUBLICAR DESAFÍO';
+  String get publishChallenge => 'Publicar desafío';
 
   @override
   String get publicFeed => 'Feed público';
