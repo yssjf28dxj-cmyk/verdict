@@ -294,5 +294,6 @@
   "pushTurn": "À vous de jouer",
   "pushFinished": "Débat terminé",
   "pushOpen": "Ouvrir",
-  "continueDebate": "Continuer le débat"
+  "continueDebate": "Continuer le débat",
+  "passTurn": "Passer la parole"
 }

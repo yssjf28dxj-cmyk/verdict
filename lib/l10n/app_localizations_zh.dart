@@ -877,4 +877,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get continueDebate => '继续辩论';
+
+  @override
+  String get passTurn => '移交回合';
 }

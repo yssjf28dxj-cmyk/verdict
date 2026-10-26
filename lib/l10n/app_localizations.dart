@@ -1832,6 +1832,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Continue debate'**
   String get continueDebate;
+
+  /// No description provided for @passTurn.
+  ///
+  /// In en, this message translates to:
+  /// **'Pass the turn'**
+  String get passTurn;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

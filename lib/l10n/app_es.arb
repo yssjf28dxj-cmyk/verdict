@@ -294,5 +294,6 @@
   "pushTurn": "Tu turno",
   "pushFinished": "Debate terminado",
   "pushOpen": "Abrir",
-  "continueDebate": "Continuar debate"
+  "continueDebate": "Continuar debate",
+  "passTurn": "Ceder el turno"
 }

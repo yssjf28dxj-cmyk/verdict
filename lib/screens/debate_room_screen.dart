@@ -1,3 +1,5 @@
+import '../widgets/debate_turn_header.dart';
+import '../utils/arena_theme.dart';
 import '../services/pending_text_send.dart';
 import '../utils/pending_message_request.dart';
 import '../utils/compact_notice.dart';
@@ -19,7 +21,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import 'package:audio_waveforms/audio_waveforms.dart';
 import '../models/debate.dart';
-import '../painters/chat_pattern_painter.dart';
 import '../widgets/debate_messages_list.dart';
 import '../widgets/debate_input_bar.dart';
 import '../widgets/opponent_activity_indicator.dart';
@@ -30,7 +31,6 @@ import '../services/sound_service.dart';
 import '../utils/debate_error_mapper.dart';
 import '../utils/name_utils.dart';
 import '../utils/vote_totals.dart';
-import '../utils/style_utils.dart';
 import '../l10n/app_localizations.dart';
 
 import 'package:go_router/go_router.dart';
@@ -1053,10 +1053,6 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
     return hash;
   }
 
-  String _heroTagForSide(int side) {
-    return 'debate-${widget.debateId}-fighter-$side';
-  }
-
   void _playBellCueIfNeeded({
     required int nextRound,
     bool force = false,
@@ -1067,71 +1063,6 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
     _lastBellCueKey = cueKey;
     HapticFeedback.mediumImpact();
     SoundService.instance.play(SFX.bell);
-  }
-
-  Widget _buildVoteBar() {
-    final totalVotes = votes1 + votes2;
-    final leftFlex = totalVotes == 0 ? 1 : votes1;
-    final rightFlex = totalVotes == 0 ? 1 : votes2;
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(999),
-      child: Container(
-        height: 4,
-        color: Colors.white.withValues(alpha: 0.08),
-        child: Row(
-          children: [
-            Expanded(
-              flex: leftFlex,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 250),
-                curve: Curves.easeOut,
-                color: VerdictStyle.fighterBlue,
-              ),
-            ),
-            Expanded(
-              flex: rightFlex,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 250),
-                curve: Curves.easeOut,
-                color: VerdictStyle.fighterRed,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _formatTimeLeft(int seconds) {
-    final safe = seconds < 0 ? 0 : seconds;
-    final mm = (safe ~/ 60).toString().padLeft(2, '0');
-    final ss = (safe % 60).toString().padLeft(2, '0');
-    return '$mm:$ss';
-  }
-
-  Widget _buildCompactAvatar({
-    required String name,
-    required Color color,
-    required String heroTag,
-  }) {
-    final safeName = name.trim().isEmpty ? '?' : name.trim();
-    final initial = safeName.isEmpty ? '?' : safeName.substring(0, 1);
-    return Hero(
-      tag: heroTag,
-      child: CircleAvatar(
-        radius: 14,
-        backgroundColor: color.withValues(alpha: 0.24),
-        child: Text(
-          initial,
-          style: TextStyle(
-            color: color,
-            fontWeight: FontWeight.w900,
-            fontSize: 12,
-          ),
-        ),
-      ),
-    );
   }
 
   void _onMessagesScroll(ScrollNotification notification) {
@@ -1147,202 +1078,30 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
     });
   }
 
-  Color _timerColor(int timeLeft) {
-    if (timeLeft <= 5) return const Color(0xFFFF2222);
-    if (timeLeft <= 10) return const Color(0xFFFF4444);
-    return Colors.white;
-  }
-
   Widget _buildCompactHeader({
     required AppLocalizations l10n,
     required String fighter1Label,
     required String fighter2Label,
-  }) {
-    return ValueListenableBuilder<int>(
-      valueListenable: _timeLeftNotifier,
-      builder: (context, timeLeft, _) {
-        return ValueListenableBuilder<bool>(
-          valueListenable: _dangerZoneNotifier,
-          builder: (context, isDanger, __) {
-            return ValueListenableBuilder<bool>(
-              valueListenable: _dangerPulseNotifier,
-              builder: (context, pulse, ___) {
-                final isActive = status == 'active';
-                final timerText =
-                    isActive ? _formatTimeLeft(timeLeft) : '--:--';
-                final compactHeight = _headerCollapsed ? 0.0 : (_bankEnabled ? 148.0 : 112.0);
-                final borderColor = isDanger
-                    ? (pulse
-                        ? const Color(0x44FF6B6B)
-                        : const Color(0x22FF6B6B))
-                    : Colors.white10;
-
-                return AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  curve: Curves.easeOut,
-                  height: compactHeight,
-                  margin: EdgeInsets.fromLTRB(12, _headerCollapsed ? 0 : 4, 12,
-                      _headerCollapsed ? 0 : 6),
-                  padding: EdgeInsets.fromLTRB(10, _headerCollapsed ? 0 : 8, 10,
-                      _headerCollapsed ? 0 : 8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xCC1A2035),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: borderColor),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          _buildCompactAvatar(
-                            name: fighter1Label,
-                            color: VerdictStyle.fighterBlue,
-                            heroTag: _heroTagForSide(1),
-                          ),
-                          const SizedBox(width: 6),
-                          _buildCompactAvatar(
-                            name: fighter2Label,
-                            color: VerdictStyle.fighterRed,
-                            heroTag: _heroTagForSide(2),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              '$votes1:$votes2 · ${_liveViewers == null ? '—' : '≈$_liveViewers'} ${l10n.spectatorsLiveLabel}',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                          AnimatedScale(
-                            scale: isDanger && pulse ? 1.10 : 1.0,
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeInOut,
-                            child: Text(
-                              timerText,
-                              style: TextStyle(
-                                fontSize: _headerCollapsed ? 13 : 14,
-                                fontWeight: FontWeight.w900,
-                                color: _timerColor(timeLeft),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (!_headerCollapsed) ...[
-                        if (_bankEnabled) Row(children: [
-                          for (final side in [1, 2]) Expanded(child: TextButton(
-                            onPressed: isMyTurn && isRoundActive && !_isYieldingTurn && currentUserId == (side == 1 ? fighter1 : fighter2) ? _onYieldPressed : null,
-                            child: Text('${side == 1 ? fighter1Label : fighter2Label}  ${activeSpeakerId == (side == 1 ? fighter1 : fighter2) ? _formatTimeLeft(timeLeft) : '+${_formatTimeLeft(((_timeBanks[side == 1 ? fighter1 : fighter2] as num?)?.toInt() ?? 0) ~/ 1000)}'}',
-                              maxLines: 1, overflow: TextOverflow.ellipsis,
-                              style: TextStyle(fontSize: 12, color: side == 1 ? VerdictStyle.fighterBlue : VerdictStyle.fighterRed)),
-                          )),
-                        ]),
-                        const SizedBox(height: 4),
-                        Text(
-                          status == 'finished'
-                              ? l10n.finishedStatus
-                              : (status == 'waiting'
-                                  ? l10n.waitingOpponent
-                                  : (isFighter
-                                      ? (isMyTurn
-                                          ? l10n.yourTurnUpper
-                                          : l10n.opponentTurnUpper)
-                                      : l10n.viewerUpper)),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white70,
-                          ),
-                        ),
-                        if (_canAcceptPending)
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: TextButton(
-                              onPressed: _isAcceptingPending
-                                  ? null
-                                  : _acceptPendingDebate,
-                              style: TextButton.styleFrom(
-                                foregroundColor: VerdictStyle.accentGold,
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 8),
-                                minimumSize: const Size(0, 26),
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              ),
-                              child: Text(
-                                _isAcceptingPending
-                                    ? l10n.accepting
-                                    : l10n.acceptChallenge,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ),
-                      ],
-                      const SizedBox(height: 6),
-                      _buildVoteBar(),
-                    ],
-                  ),
-                );
-              },
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildPinnedTopStrip() {
-    return ValueListenableBuilder<int>(
-      valueListenable: _timeLeftNotifier,
-      builder: (context, timeLeft, _) {
-        // Read danger/pulse values inline — the timeLeft notifier fires every
-        // second at the same rate, so these values are always current.
-        final isDanger = _dangerZoneNotifier.value;
-        final pulse = _dangerPulseNotifier.value;
-        final timerText =
-            status == 'active' ? _formatTimeLeft(timeLeft) : '--:--';
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                Text(
-                  '$votes1:$votes2',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                  ),
-                ),
-                const Spacer(),
-                AnimatedScale(
-                  scale: isDanger && pulse ? 1.10 : 1.0,
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeInOut,
-                  child: Text(
-                    timerText,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w900,
-                      color: _timerColor(timeLeft),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            _buildVoteBar(),
-          ],
-        );
-      },
-    );
-  }
+  }) => ValueListenableBuilder<int>(
+    valueListenable: _timeLeftNotifier,
+    builder: (context, timeLeft, _) => DebateTurnHeader(
+      fighter1: fighter1Label, fighter2: fighter2Label,
+      statusLabel: status == 'finished' ? l10n.finishedStatus
+          : status == 'waiting' ? l10n.waitingOpponent
+          : isFighter ? (isMyTurn ? l10n.yourTurn : l10n.opponentTurn) : l10n.viewerUpper,
+      active: status == 'active', remainingSeconds: timeLeft,
+      round: roundIndex, totalRounds: totalRounds, votes1: votes1, votes2: votes2,
+      viewers: _liveViewers,
+      compact: _headerCollapsed || MediaQuery.viewInsetsOf(context).bottom > 0
+          || MediaQuery.sizeOf(context).height < 500,
+      activeSide: activeSpeakerId == fighter1 ? 1 : activeSpeakerId == fighter2 ? 2 : 0,
+      bank1Seconds: _bankEnabled ? ((_timeBanks[fighter1] as num?)?.toInt() ?? 0) ~/ 1000 : null,
+      bank2Seconds: _bankEnabled ? ((_timeBanks[fighter2] as num?)?.toInt() ?? 0) ~/ 1000 : null,
+      onHandoff: _bankEnabled && isMyTurn && isRoundActive && !_isYieldingTurn ? _onYieldPressed : null,
+      onAccept: _canAcceptPending ? _acceptPendingDebate : null,
+      accepting: _canAcceptPending && _isAcceptingPending,
+    ),
+  );
 
   void _cancelPendingAdvanceIfNeeded({
     required int previousRound,
@@ -1893,39 +1652,39 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
       );
     }
 
-    return Scaffold(
+    return Theme(data: ArenaTheme.from(Theme.of(context)), child: Scaffold(
       // false: keyboard avoidance is handled manually via AnimatedPadding +
       // viewInsets.bottom in the body Stack. Using true here would double-pad
       // and leave an empty strip when the keyboard dismisses.
       resizeToAvoidBottomInset: false,
       extendBodyBehindAppBar: false,
       appBar: AppBar(
-        toolbarHeight: 44,
+        toolbarHeight: 56,
         titleSpacing: 6,
-        title: _buildPinnedTopStrip(),
+        title: Text(topic.isEmpty ? l10n.appTitle : topic, maxLines: 1, overflow: TextOverflow.ellipsis),
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
         foregroundColor: Colors.white,
       ),
-      backgroundColor: VerdictStyle.bg,
+      backgroundColor: ArenaTheme.background,
       body: Stack(
         children: [
-          const Positioned.fill(
-            child: CustomPaint(
-              painter: ChatPatternPainter(color: Color(0x0AFFFFFF)),
-            ),
-          ),
           LayoutBuilder(
-            builder: (context, _) {
+            builder: (context, constraints) {
               final bottomInset = MediaQuery.of(context).viewInsets.bottom;
               return AnimatedPadding(
                 duration: const Duration(milliseconds: 250),
                 curve: Curves.easeOut,
                 padding: EdgeInsets.only(bottom: bottomInset),
-                child: Column(
+                child: Center(child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 900),
+                  child: Column(
                   children: [
+                    ConstrainedBox(
+                      constraints: BoxConstraints(maxHeight: (constraints.maxHeight - bottomInset).clamp(0.0, double.infinity) * 0.45),
+                      child: SingleChildScrollView(child: Column(children: [
                     _buildCompactHeader(
                       l10n: l10n,
                       fighter1Label: displayFighter1Name,
@@ -1944,11 +1703,11 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
                                         : vote1,
                                 style: OutlinedButton.styleFrom(
                                   side: BorderSide(
-                                    color: VerdictStyle.fighterBlue
+                                    color: ArenaTheme.blue
                                         .withValues(alpha: 0.6),
                                   ),
-                                  minimumSize: const Size(0, 34),
-                                  foregroundColor: VerdictStyle.fighterBlue,
+                                  minimumSize: const Size(48, 48),
+                                  foregroundColor: ArenaTheme.blue,
                                 ),
                                 child: Text('${l10n.voteFor} 1'),
                               ),
@@ -1962,11 +1721,11 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
                                         : vote2,
                                 style: OutlinedButton.styleFrom(
                                   side: BorderSide(
-                                    color: VerdictStyle.fighterRed
+                                    color: ArenaTheme.red
                                         .withValues(alpha: 0.6),
                                   ),
-                                  minimumSize: const Size(0, 34),
-                                  foregroundColor: VerdictStyle.fighterRed,
+                                  minimumSize: const Size(48, 48),
+                                  foregroundColor: ArenaTheme.red,
                                 ),
                                 child: Text('${l10n.voteFor} 2'),
                               ),
@@ -1974,26 +1733,11 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
                           ],
                         ),
                       ),
+                      ])),
+                    ),
                     Expanded(
                       child: Stack(
                         children: [
-                          const Positioned.fill(
-                            child: CustomPaint(
-                              painter: ChatPatternPainter(
-                                color: Color(0x0AFFFFFF),
-                              ),
-                            ),
-                          ),
-                          const Positioned.fill(
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                color: Color(0xCC0D111B),
-                                borderRadius: BorderRadius.all(
-                                  Radius.circular(14),
-                                ),
-                              ),
-                            ),
-                          ),
                           Positioned.fill(
                             child: NotificationListener<ScrollNotification>(
                               onNotification: (notification) {
@@ -2132,7 +1876,7 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
                         ),
                       ),
                   ],
-                ),
+                ))),
               );
             },
           ),
@@ -2193,6 +1937,6 @@ class _DebateRoomScreenState extends State<DebateRoomScreen>
             ),
         ],
       ),
-    ); // end Scaffold
+    )); // end Scaffold and scoped theme
   } // end build
 } // end _DebateRoomScreenState

@@ -294,5 +294,6 @@
   "pushTurn": "轮到你了",
   "pushFinished": "辩论已结束",
   "pushOpen": "打开",
-  "continueDebate": "继续辩论"
+  "continueDebate": "继续辩论",
+  "passTurn": "移交回合"
 }

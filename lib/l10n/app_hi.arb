@@ -294,5 +294,6 @@
   "pushTurn": "आपकी बारी",
   "pushFinished": "बहस समाप्त",
   "pushOpen": "खोलें",
-  "continueDebate": "डिबेट जारी रखें"
+  "continueDebate": "डिबेट जारी रखें",
+  "passTurn": "बारी सौंपें"
 }

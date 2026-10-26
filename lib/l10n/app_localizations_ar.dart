@@ -877,4 +877,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get continueDebate => 'متابعة المناظرة';
+
+  @override
+  String get passTurn => 'تمرير الدور';
 }

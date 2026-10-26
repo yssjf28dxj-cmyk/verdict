@@ -877,4 +877,7 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get continueDebate => 'डिबेट जारी रखें';
+
+  @override
+  String get passTurn => 'बारी सौंपें';
 }

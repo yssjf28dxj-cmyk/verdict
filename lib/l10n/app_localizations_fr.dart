@@ -877,4 +877,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get continueDebate => 'Continuer le débat';
+
+  @override
+  String get passTurn => 'Passer la parole';
 }

@@ -877,4 +877,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get continueDebate => 'Continue debate';
+
+  @override
+  String get passTurn => 'Pass the turn';
 }

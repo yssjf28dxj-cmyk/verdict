@@ -294,5 +294,6 @@
   "pushTurn": "Ваш ход",
   "pushFinished": "Бой завершён",
   "pushOpen": "Открыть",
-  "continueDebate": "Продолжить дебаты"
+  "continueDebate": "Продолжить дебаты",
+  "passTurn": "Передать ход"
 }

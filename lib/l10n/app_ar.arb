@@ -294,5 +294,6 @@
   "pushTurn": "دورك الآن",
   "pushFinished": "انتهت المناظرة",
   "pushOpen": "فتح",
-  "continueDebate": "متابعة المناظرة"
+  "continueDebate": "متابعة المناظرة",
+  "passTurn": "تمرير الدور"
 }
