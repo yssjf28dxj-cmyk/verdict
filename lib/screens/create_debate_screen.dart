@@ -1,3 +1,4 @@
+import '../services/pending_challenge.dart';
 import 'package:verdict/firebase_session.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_functions/cloud_functions.dart';
@@ -18,7 +19,6 @@ class _CreateDebateScreenState extends State<CreateDebateScreen> {
   final TextEditingController _topicController = TextEditingController();
   final TextEditingController _invitedUserIdController =
       TextEditingController();
-  final FirebaseFunctions _functions = appFunctions;
   bool _isLoading = false;
   int _selectedDuration = 180;
   int _selectedRounds = 3;
@@ -62,20 +62,6 @@ class _CreateDebateScreenState extends State<CreateDebateScreen> {
     };
   }
 
-  String? _extractDebateId(dynamic payload) {
-    if (payload is String && payload.trim().isNotEmpty) return payload.trim();
-    if (payload is Map) {
-      final direct = (payload['debateId'] ?? '').toString().trim();
-      if (direct.isNotEmpty) return direct;
-      final nested = payload['data'];
-      if (nested is Map) {
-        final id = (nested['debateId'] ?? '').toString().trim();
-        if (id.isNotEmpty) return id;
-      }
-    }
-    return null;
-  }
-
   String _resolveCreateError(
       AppLocalizations l10n, FirebaseFunctionsException e) {
     final mapped =
@@ -94,25 +80,23 @@ class _CreateDebateScreenState extends State<CreateDebateScreen> {
     setState(() => _isLoading = true);
     final invitedUserId = _invitedUserIdController.text.trim();
     final payload = _buildPayload(invitedUserId);
-    final callable = _functions.httpsCallable(
-      'createDebate',
-      options: HttpsCallableOptions(timeout: const Duration(seconds: 20)),
-    );
     try {
-      if (appAuth.currentUser == null) throw StateError(l10n.authRequired);
+      final uid = appAuth.currentUser?.uid;
+      if (uid == null) throw StateError(l10n.authRequired);
+      final callable = appFunctions.httpsCallable('createDebate',
+          options: HttpsCallableOptions(timeout: const Duration(seconds: 20)));
       if (payload['creationMode'] == 'direct_invite' && invitedUserId.isEmpty) {
         throw StateError(l10n.directInviteNeedsOpponent);
       }
-      final res = await callable.call(payload);
-      final debateId = _extractDebateId(res.data);
-      if (debateId == null) throw StateError(l10n.serverNoDebateId);
+      final debateId = await PendingChallenge(uid).send(payload,
+          submit: (request) async => (await callable.call(request)).data,
+          isCurrentSession: () => mounted && appAuth.currentUser?.uid == uid);
       if (!mounted) return;
       setState(() => _isLoading = false);
       context.replace('/lobby/$debateId');
     } on FirebaseFunctionsException catch (e) {
       if (!mounted) return;
-      // A lost response can follow a committed create. Do not blindly create a
-      // second challenge; keep the draft and let the user inspect the lobby.
+      // Preserve the persisted request ID for a safe manual retry of these terms.
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(_resolveCreateError(l10n, e))),
       );

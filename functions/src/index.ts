@@ -1,3 +1,4 @@
+import { createChallengeRequestController } from './create_requests';
 import { createTextMessageController } from './text_messages';
 import { createPushController } from './push_notifications';
 import { getMessaging } from 'firebase-admin/messaging';
@@ -421,6 +422,8 @@ export const initializeProfileIdentity = onDocumentCreated(
   },
 );
 
+const createChallengeRequest = createChallengeRequestController(db);
+
 export const createDebate = onCall({ invoker: 'public' }, async (request) => {
   const coreFlags = await getCoreRuntimeFlags(db);
   if (!coreFlags.legacyWriteEnabled && hasLegacyWritePayload(request.data)) {
@@ -440,7 +443,8 @@ export const createDebate = onCall({ invoker: 'public' }, async (request) => {
   }
   await assertAccountMayWrite(db, uid);
 
-  await consumeRateLimit(db, uid, 'createDebate', 5000); // 1 debate per 5 sec
+  const createRequestId = requestDocumentId(uid, request.data?.clientRequestId);
+  if (!createRequestId) await consumeRateLimit(db, uid, 'createDebate', 5000); // Legacy clients
 
   const topic = clampText(asString(request.data?.topic));
   const durationSeconds = asInt(request.data?.durationSeconds, 180);
@@ -484,23 +488,35 @@ export const createDebate = onCall({ invoker: 'public' }, async (request) => {
   });
   const fighter1Rating = asInt(userData.rating, 0);
 
-  const debateRef = db.collection('debates').doc();
-  await debateRef.set(buildWaitingDebate({
+  const document = buildWaitingDebate({
     uid, name: fighter1Name, rating: fighter1Rating, topic, durationSeconds, totalRounds,
     creationMode, visibilityMode, languageCode, region, invitedUserId,
     preciseDeadlines: preciseDeadlinesEnabled, strictTransitions: coreFlags.strictTransitionsEnabled,
-  }));
+  });
+  let debateId: string;
+  if (createRequestId) {
+    const fingerprint = createHash('sha256').update(JSON.stringify([
+      topic, durationSeconds, totalRounds, creationMode, visibilityMode, languageCode, region, invitedUserId,
+    ])).digest('hex');
+    const result = await createChallengeRequest(uid, request.data.clientRequestId, fingerprint, document);
+    if (!result.created) return { debateId: result.debateId };
+    debateId = result.debateId;
+  } else {
+    const ref = db.collection('debates').doc();
+    await ref.set(document);
+    debateId = ref.id;
+  }
 
   await incrementCoreMetric(db, 'action.create.accepted.count');
   await logCoreEvent(db, 'debate.created', {
-    debateId: debateRef.id,
+    debateId,
     actorUid: uid,
     status: 'waiting',
     schemaVersion: 2,
   });
 
   return {
-    debateId: debateRef.id,
+    debateId,
   };
 });
 
